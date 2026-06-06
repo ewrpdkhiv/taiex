@@ -1,9 +1,11 @@
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 from flask import Flask, jsonify, render_template
+
+_TW = timezone(timedelta(hours=8))
 
 from taiex_big_drops import (
     KNOWN_EVENTS,
@@ -81,7 +83,7 @@ def refresh_data() -> None:
 
         with _lock:
             _cache.update(new_data)
-            _cache["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            _cache["last_updated"] = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
             _cache["error"] = None
     except Exception as exc:
         with _lock:
