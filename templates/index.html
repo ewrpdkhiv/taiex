@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TAIEX 漲跌日排行</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC",
+          sans-serif;
+        background: #f0f2f5;
+        color: #333;
+      }
+
+      header {
+        background: #1a1a2e;
+        color: #fff;
+        padding: 16px 20px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      header h1 {
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+      .meta {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        display: flex;
+        gap: 16px;
+      }
+      .meta b {
+        color: #cbd5e1;
+        font-weight: 500;
+      }
+
+      /* ── 導覽列 ── */
+      nav {
+        background: #1e293b;
+      }
+
+      /* 類型列：4 顆等寬 */
+      .type-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border-bottom: 1px solid #2d3f55;
+      }
+      .type-btn {
+        padding: 10px 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #94a3b8;
+        background: none;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        text-align: center;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
+      }
+      .type-btn:hover {
+        color: #e2e8f0;
+      }
+      .type-btn[data-color="drop"].active {
+        color: #f87171;
+        border-bottom-color: #e11d48;
+      }
+      .type-btn[data-color="gain"].active {
+        color: #4ade80;
+        border-bottom-color: #16a34a;
+      }
+
+      /* 時間列：2 顆等寬 */
+      .period-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .period-btn {
+        padding: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #64748b;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        text-align: center;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
+      }
+      .period-btn:hover {
+        color: #e2e8f0;
+      }
+      .period-btn.active {
+        color: #e2e8f0;
+        border-bottom-color: #475569;
+      }
+
+      #error-banner {
+        display: none;
+        background: #fee2e2;
+        color: #b91c1c;
+        padding: 10px 20px;
+        font-size: 0.85rem;
+      }
+
+      /* ── 面板 ── */
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+
+      .panel-inner {
+        max-width: 820px;
+        margin: 24px auto;
+        padding: 0 14px;
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+      }
+      .card-header {
+        padding: 13px 18px;
+        background: #fafafa;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .card[data-color="drop"] .card-header {
+        border-bottom: 2px solid #e11d48;
+      }
+      .card[data-color="gain"] .card-header {
+        border-bottom: 2px solid #16a34a;
+      }
+      .card-header h2 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+      .badge {
+        color: #fff;
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 10px;
+      }
+      .card[data-color="drop"] .badge {
+        background: #e11d48;
+      }
+      .card[data-color="gain"] .badge {
+        background: #16a34a;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.845rem;
+      }
+      th {
+        background: #1e293b;
+        color: #94a3b8;
+        padding: 8px 12px;
+        text-align: right;
+        font-weight: 500;
+        font-size: 0.76rem;
+        white-space: nowrap;
+      }
+      th:first-child {
+        text-align: left;
+      }
+      th.left {
+        text-align: left;
+      }
+      th.date-header {
+        text-align: center;
+      }
+      td {
+        padding: 9px 12px;
+        border-bottom: 1px solid #f1f5f9;
+        text-align: right;
+        white-space: nowrap;
+      }
+      td:first-child {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 0.78rem;
+        width: 32px;
+      }
+      td.date {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      td.drop {
+        color: #dc2626;
+        font-weight: 700;
+      }
+      td.gain {
+        color: #16a34a;
+        font-weight: 700;
+      }
+      td.pct {
+        color: #64748b;
+        font-size: 0.8rem;
+      }
+      td.event {
+        text-align: left;
+        color: #64748b;
+        font-size: 0.76rem;
+        white-space: normal;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .card[data-color="drop"] tr:hover td {
+        background: #fef2f2;
+      }
+      .card[data-color="gain"] tr:hover td {
+        background: #f0fdf4;
+      }
+
+      .loading {
+        padding: 36px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 0.9rem;
+      }
+
+      .export-btn {
+        margin-left: auto;
+        padding: 4px 10px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        background: #334155;
+        color: #94a3b8;
+        border: 1px solid #475569;
+        border-radius: 5px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+      .export-btn:hover {
+        background: #475569;
+        color: #e2e8f0;
+      }
+
+      /* 匯出時隱藏下載按鈕 */
+      .exporting .export-btn {
+        display: none;
+      }
+
+      /* 匯出時顯示所有欄位、禁止換行（圖片橫向展開） */
+      .exporting .col-close,
+      .exporting .col-prev,
+      .exporting .col-pct {
+        display: table-cell !important;
+      }
+      .exporting td,
+      .exporting th {
+        white-space: nowrap !important;
+      }
+
+      @media (max-width: 600px) {
+        .col-close,
+        .col-prev,
+        .col-pct {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>台股加權指數 (TAIEX) 漲跌日排行</h1>
+      <div class="meta">
+        <span>更新：<b id="last-updated">載入中…</b></span>
+        <span>倒數：<b id="countdown">--:--</b></span>
+      </div>
+    </header>
+
+    <nav>
+      <div class="type-row">
+        <button class="type-btn active" data-color="drop" data-type="drops-pct">
+          📉 跌幅%
+        </button>
+        <button class="type-btn" data-color="gain" data-type="gains-pct">
+          📈 漲幅%
+        </button>
+        <button class="type-btn" data-color="drop" data-type="drops-pt">
+          📉 跌點
+        </button>
+        <button class="type-btn" data-color="gain" data-type="gains-pt">
+          📈 漲點
+        </button>
+      </div>
+      <div class="period-row">
+        <button class="period-btn active" data-period="20y">近 20 年</button>
+        <button class="period-btn" data-period="all">全 時</button>
+      </div>
+    </nav>
+
+    <div id="error-banner"></div>
+
+    <!-- 8 個面板：drops-pct / gains-pct / drops-pt / gains-pt × 20y / all -->
+    <div id="panel-drops-pct-20y" class="tab-panel active">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年前 10 大跌幅</h2>
+            <span class="badge">20Y %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pct-20y">
+              <tr>
+                <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pct-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時前 10 大跌幅</h2>
+            <span class="badge">ALL %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pct-all">
+              <tr>
+                <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年前 10 大漲幅</h2>
+            <span class="badge">20Y %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pct-20y">
+              <tr>
+                <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時前 10 大漲幅</h2>
+            <span class="badge">ALL %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pct-all">
+              <tr>
+                <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pt-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年前 10 大跌點</h2>
+            <span class="badge">20Y</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌點</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pt-20y">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pt-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時前 10 大跌點</h2>
+            <span class="badge">ALL</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌點</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pt-all">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pt-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年前 10 大漲點</h2>
+            <span class="badge">20Y</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲點</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pt-20y">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pt-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時前 10 大漲點</h2>
+            <span class="badge">ALL</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲點</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pt-all">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const REFRESH_MS = 3600 * 1000;
+      let nextRefreshAt = Date.now() + REFRESH_MS;
+      let currentType = "drops-pct";
+      let currentPeriod = "20y";
+
+      const fmt = (n) =>
+        n.toLocaleString("zh-TW", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+
+      function pctRow(r, cls) {
+        return `<tr>
+          <td>${r.rank}</td>
+          <td class="date">${r.date}</td>
+          <td class="col-close">${fmt(r.close)}</td>
+          <td class="col-prev">${fmt(r.prev_close)}</td>
+          <td class="${cls}">${r.change_pct.toFixed(2)}%</td>
+          <td class="event">${r.event}</td>
+        </tr>`;
+      }
+
+      function ptRow(r, cls) {
+        return `<tr>
+          <td>${r.rank}</td>
+          <td class="date">${r.date}</td>
+          <td class="col-close">${fmt(r.close)}</td>
+          <td class="col-prev">${fmt(r.prev_close)}</td>
+          <td class="${cls}">${fmt(r.change_pt)}</td>
+          <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
+          <td class="event">${r.event}</td>
+        </tr>`;
+      }
+
+      function renderTable(id, rows, rowFn, cls, cols) {
+        const tbody = document.getElementById(id);
+        if (!rows || !rows.length) {
+          tbody.innerHTML = `<tr><td colspan="${cols}" class="loading">暫無資料</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = rows.map((r) => rowFn(r, cls)).join("");
+      }
+
+      async function fetchData() {
+        try {
+          const res = await fetch("/api/data");
+          const data = await res.json();
+          const err = document.getElementById("error-banner");
+          if (data.error) {
+            err.style.display = "block";
+            err.textContent = "資料更新失敗：" + data.error;
+            return;
+          }
+          err.style.display = "none";
+          document.getElementById("last-updated").textContent =
+            data.last_updated || "—";
+
+          renderTable("t-drops-pct-20y", data.drops_20y, pctRow, "drop", 6);
+          renderTable("t-drops-pct-all", data.drops_all, pctRow, "drop", 6);
+          renderTable("t-gains-pct-20y", data.gains_20y, pctRow, "gain", 6);
+          renderTable("t-gains-pct-all", data.gains_all, pctRow, "gain", 6);
+          renderTable("t-drops-pt-20y", data.drops_pt_20y, ptRow, "drop", 7);
+          renderTable("t-drops-pt-all", data.drops_pt_all, ptRow, "drop", 7);
+          renderTable("t-gains-pt-20y", data.gains_pt_20y, ptRow, "gain", 7);
+          renderTable("t-gains-pt-all", data.gains_pt_all, ptRow, "gain", 7);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      function switchPanel() {
+        const target = `panel-${currentType}-${currentPeriod}`;
+        document
+          .querySelectorAll(".tab-panel")
+          .forEach((p) => p.classList.remove("active"));
+        document.getElementById(target).classList.add("active");
+      }
+
+      document.querySelectorAll(".type-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document
+            .querySelectorAll(".type-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          currentType = btn.dataset.type;
+          switchPanel();
+        });
+      });
+
+      document.querySelectorAll(".period-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document
+            .querySelectorAll(".period-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          currentPeriod = btn.dataset.period;
+          switchPanel();
+        });
+      });
+
+      function updateCountdown() {
+        const sec = Math.max(
+          0,
+          Math.floor((nextRefreshAt - Date.now()) / 1000),
+        );
+        const m = String(Math.floor(sec / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        document.getElementById("countdown").textContent = `${m}:${s}`;
+      }
+
+      async function hourlyRefresh() {
+        nextRefreshAt = Date.now() + REFRESH_MS;
+        await fetchData();
+        setTimeout(hourlyRefresh, REFRESH_MS);
+      }
+
+      fetchData();
+      setInterval(updateCountdown, 1000);
+      setTimeout(hourlyRefresh, REFRESH_MS);
+
+      // ── 匯出 PNG ──
+      document.querySelectorAll(".card-header").forEach((header) => {
+        const btn = document.createElement("button");
+        btn.className = "export-btn";
+        btn.textContent = "⬇ PNG";
+        btn.addEventListener("click", () => {
+          const card = btn.closest(".card");
+          const title = card.querySelector("h2").textContent.trim();
+          card.classList.add("exporting");
+
+          // 量表格完整寬度（所有欄位顯示後）
+          const table = card.querySelector("table");
+          const fullW = (table ? table.scrollWidth : card.scrollWidth) + 40;
+          const fullH = card.scrollHeight;
+
+          // 撐開 card，避免手機裁切
+          card.style.width = fullW + "px";
+          card.style.overflow = "visible";
+
+          html2canvas(card, {
+            scale: 2,
+            backgroundColor: "#ffffff",
+            width: fullW,
+            height: fullH,
+            windowWidth: 1280,
+          }).then((canvas) => {
+            card.classList.remove("exporting");
+            card.style.width = "";
+            card.style.overflow = "";
+            const a = document.createElement("a");
+            a.download = `TAIEX_${title}.png`;
+            a.href = canvas.toDataURL("image/png");
+            a.click();
+          });
+        });
+        header.appendChild(btn);
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  </body>
+</html>
