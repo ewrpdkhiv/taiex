@@ -80,10 +80,10 @@
         border-bottom-color: #16a34a;
       }
 
-      /* 時間列：2 顆等寬 */
+      /* 時間列：3 顆等寬 */
       .period-row {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(3, 1fr);
       }
       .period-btn {
         padding: 8px;
@@ -218,6 +218,12 @@
         color: #64748b;
         font-size: 0.8rem;
       }
+      td.recovery {
+        text-align: center;
+        color: #64748b;
+        font-size: 0.8rem;
+        font-variant-numeric: tabular-nums;
+      }
       td.event {
         text-align: left;
         color: #64748b;
@@ -241,8 +247,8 @@
         font-size: 0.9rem;
       }
 
+      .sort-btn,
       .export-btn {
-        margin-left: auto;
         padding: 4px 10px;
         font-size: 0.72rem;
         font-weight: 600;
@@ -256,6 +262,13 @@
           background 0.15s,
           color 0.15s;
       }
+      .sort-btn {
+        margin-left: auto;
+      }
+      .export-btn {
+        margin-left: 6px;
+      }
+      .sort-btn:hover,
       .export-btn:hover {
         background: #475569;
         color: #e2e8f0;
@@ -312,6 +325,7 @@
       </div>
       <div class="period-row">
         <button class="period-btn active" data-period="20y">近 20 年</button>
+        <button class="period-btn" data-period="10y">近 10 年</button>
         <button class="period-btn" data-period="all">全 時</button>
       </div>
     </nav>
@@ -334,10 +348,40 @@
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
                 <th>跌幅 (%)</th>
+                <th>回升天數</th>
                 <th class="left">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pct-20y">
+              <tr>
+                <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pct-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年前 10 大跌幅</h2>
+            <span class="badge">10Y %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌幅 (%)</th>
+                <th>回升天數</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pct-10y">
               <tr>
                 <td colspan="6" class="loading">載入中…</td>
               </tr>
@@ -362,6 +406,7 @@
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
                 <th>跌幅 (%)</th>
+                <th>回升天數</th>
                 <th class="left">事件</th>
               </tr>
             </thead>
@@ -394,6 +439,34 @@
               </tr>
             </thead>
             <tbody id="t-gains-pct-20y">
+              <tr>
+                <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年前 10 大漲幅</h2>
+            <span class="badge">10Y %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pct-10y">
               <tr>
                 <td colspan="6" class="loading">載入中…</td>
               </tr>
@@ -447,10 +520,41 @@
                 <th class="col-prev">前日收盤</th>
                 <th>跌點</th>
                 <th class="col-pct">跌幅 (%)</th>
+                <th>回升天數</th>
                 <th class="left">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pt-20y">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pt-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年前 10 大跌點</h2>
+            <span class="badge">10Y</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌點</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th>回升天數</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pt-10y">
               <tr>
                 <td colspan="7" class="loading">載入中…</td>
               </tr>
@@ -476,6 +580,7 @@
                 <th class="col-prev">前日收盤</th>
                 <th>跌點</th>
                 <th class="col-pct">跌幅 (%)</th>
+                <th>回升天數</th>
                 <th class="left">事件</th>
               </tr>
             </thead>
@@ -509,6 +614,35 @@
               </tr>
             </thead>
             <tbody id="t-gains-pt-20y">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pt-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年前 10 大漲點</h2>
+            <span class="badge">10Y</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲點</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pt-10y">
               <tr>
                 <td colspan="7" class="loading">載入中…</td>
               </tr>
@@ -552,12 +686,16 @@
       let nextRefreshAt = Date.now() + REFRESH_MS;
       let currentType = "drops-pct";
       let currentPeriod = "20y";
+      let _data = null;
+      const _sortState = {};
 
       const fmt = (n) =>
         n.toLocaleString("zh-TW", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
+
+      const recStr = (days) => (days != null ? days + " 天" : "—");
 
       function pctRow(r, cls) {
         return `<tr>
@@ -566,6 +704,18 @@
           <td class="col-close">${fmt(r.close)}</td>
           <td class="col-prev">${fmt(r.prev_close)}</td>
           <td class="${cls}">${r.change_pct.toFixed(2)}%</td>
+          <td class="event">${r.event}</td>
+        </tr>`;
+      }
+
+      function dropPctRow(r, cls) {
+        return `<tr>
+          <td>${r.rank}</td>
+          <td class="date">${r.date}</td>
+          <td class="col-close">${fmt(r.close)}</td>
+          <td class="col-prev">${fmt(r.prev_close)}</td>
+          <td class="${cls}">${r.change_pct.toFixed(2)}%</td>
+          <td class="recovery">${recStr(r.recovery_days)}</td>
           <td class="event">${r.event}</td>
         </tr>`;
       }
@@ -580,6 +730,112 @@
           <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
           <td class="event">${r.event}</td>
         </tr>`;
+      }
+
+      function dropPtRow(r, cls) {
+        return `<tr>
+          <td>${r.rank}</td>
+          <td class="date">${r.date}</td>
+          <td class="col-close">${fmt(r.close)}</td>
+          <td class="col-prev">${fmt(r.prev_close)}</td>
+          <td class="${cls}">${fmt(r.change_pt)}</td>
+          <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
+          <td class="recovery">${recStr(r.recovery_days)}</td>
+          <td class="event">${r.event}</td>
+        </tr>`;
+      }
+
+      const TABLE_CONFIG = {
+        "t-drops-pct-20y": {
+          key: "drops_20y",
+          fn: dropPctRow,
+          cls: "drop",
+          cols: 7,
+        },
+        "t-drops-pct-10y": {
+          key: "drops_10y",
+          fn: dropPctRow,
+          cls: "drop",
+          cols: 7,
+        },
+        "t-drops-pct-all": {
+          key: "drops_all",
+          fn: dropPctRow,
+          cls: "drop",
+          cols: 7,
+        },
+        "t-gains-pct-20y": {
+          key: "gains_20y",
+          fn: pctRow,
+          cls: "gain",
+          cols: 6,
+        },
+        "t-gains-pct-10y": {
+          key: "gains_10y",
+          fn: pctRow,
+          cls: "gain",
+          cols: 6,
+        },
+        "t-gains-pct-all": {
+          key: "gains_all",
+          fn: pctRow,
+          cls: "gain",
+          cols: 6,
+        },
+        "t-drops-pt-20y": {
+          key: "drops_pt_20y",
+          fn: dropPtRow,
+          cls: "drop",
+          cols: 8,
+        },
+        "t-drops-pt-10y": {
+          key: "drops_pt_10y",
+          fn: dropPtRow,
+          cls: "drop",
+          cols: 8,
+        },
+        "t-drops-pt-all": {
+          key: "drops_pt_all",
+          fn: dropPtRow,
+          cls: "drop",
+          cols: 8,
+        },
+        "t-gains-pt-20y": {
+          key: "gains_pt_20y",
+          fn: ptRow,
+          cls: "gain",
+          cols: 7,
+        },
+        "t-gains-pt-10y": {
+          key: "gains_pt_10y",
+          fn: ptRow,
+          cls: "gain",
+          cols: 7,
+        },
+        "t-gains-pt-all": {
+          key: "gains_pt_all",
+          fn: ptRow,
+          cls: "gain",
+          cols: 7,
+        },
+      };
+
+      const SORT_MODES = ["original", "time-asc", "time-desc"];
+      const SORT_LABELS = {
+        original: "依幅度",
+        "time-asc": "時間 ↑",
+        "time-desc": "時間 ↓",
+      };
+
+      function sortedRows(rows, state) {
+        if (!rows || !rows.length) return rows;
+        const r = [...rows];
+        if (state === "time-asc")
+          r.sort((a, b) => a.date.localeCompare(b.date));
+        else if (state === "time-desc")
+          r.sort((a, b) => b.date.localeCompare(a.date));
+        else r.sort((a, b) => a.rank - b.rank);
+        return r;
       }
 
       function renderTable(id, rows, rowFn, cls, cols) {
@@ -605,14 +861,16 @@
           document.getElementById("last-updated").textContent =
             data.last_updated || "—";
 
-          renderTable("t-drops-pct-20y", data.drops_20y, pctRow, "drop", 6);
-          renderTable("t-drops-pct-all", data.drops_all, pctRow, "drop", 6);
-          renderTable("t-gains-pct-20y", data.gains_20y, pctRow, "gain", 6);
-          renderTable("t-gains-pct-all", data.gains_all, pctRow, "gain", 6);
-          renderTable("t-drops-pt-20y", data.drops_pt_20y, ptRow, "drop", 7);
-          renderTable("t-drops-pt-all", data.drops_pt_all, ptRow, "drop", 7);
-          renderTable("t-gains-pt-20y", data.gains_pt_20y, ptRow, "gain", 7);
-          renderTable("t-gains-pt-all", data.gains_pt_all, ptRow, "gain", 7);
+          _data = data;
+          Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
+            renderTable(
+              id,
+              sortedRows(data[cfg.key], _sortState[id] || "original"),
+              cfg.fn,
+              cfg.cls,
+              cfg.cols,
+            );
+          });
         } catch (e) {
           console.error(e);
         }
@@ -667,6 +925,35 @@
       fetchData();
       setInterval(updateCountdown, 1000);
       setTimeout(hourlyRefresh, REFRESH_MS);
+
+      // ── 排序按鈕 ──
+      document.querySelectorAll(".card-header").forEach((header) => {
+        const tbody = header.closest(".card").querySelector("tbody");
+        const tbodyId = tbody.id;
+        _sortState[tbodyId] = "original";
+
+        const sortBtn = document.createElement("button");
+        sortBtn.className = "sort-btn";
+        sortBtn.textContent = SORT_LABELS.original;
+        sortBtn.addEventListener("click", () => {
+          const cur = _sortState[tbodyId];
+          const next =
+            SORT_MODES[(SORT_MODES.indexOf(cur) + 1) % SORT_MODES.length];
+          _sortState[tbodyId] = next;
+          sortBtn.textContent = SORT_LABELS[next];
+          if (_data) {
+            const cfg = TABLE_CONFIG[tbodyId];
+            renderTable(
+              tbodyId,
+              sortedRows(_data[cfg.key], next),
+              cfg.fn,
+              cfg.cls,
+              cfg.cols,
+            );
+          }
+        });
+        header.appendChild(sortBtn);
+      });
 
       // ── 匯出 PNG ──
       document.querySelectorAll(".card-header").forEach((header) => {
