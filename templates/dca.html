@@ -137,6 +137,10 @@
       }
       thead th:nth-child(2) {
         text-align: left;
+        width: 130px;
+      }
+      td:nth-child(2) {
+        max-width: 130px;
       }
 
       tbody tr {
@@ -240,6 +244,85 @@
         text-align: center;
         color: #94a3b8;
         font-size: 0.9rem;
+      }
+
+      /* ── 手機響應式 ── */
+      @media (max-width: 600px) {
+        header {
+          padding: 10px 14px;
+          gap: 10px;
+        }
+        header h1 {
+          font-size: 0.95rem;
+        }
+        .meta {
+          font-size: 0.72rem;
+          margin-left: 0;
+          width: 100%;
+        }
+
+        .container {
+          margin: 10px auto;
+          padding: 0 8px;
+        }
+
+        .info-bar {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 10px 14px;
+        }
+        .info-bar > span:first-child {
+          font-size: 0.78rem;
+        }
+        .info-bar .period {
+          margin-left: 0;
+          font-size: 0.78rem;
+        }
+
+        .table-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border-radius: 8px;
+        }
+
+        table {
+          font-size: 0.78rem;
+          min-width: 340px;
+        }
+        thead th {
+          padding: 8px 8px;
+          font-size: 0.74rem;
+        }
+        td {
+          padding: 9px 8px;
+        }
+
+        /* 第一欄（#）固定 */
+        thead th:nth-child(1),
+        td:nth-child(1) {
+          position: sticky;
+          left: 0;
+          background: inherit;
+          z-index: 1;
+        }
+        thead th:nth-child(1) {
+          background: #1e293b;
+        }
+
+        .bar {
+          display: none;
+        }
+        .bar-wrap {
+          gap: 0;
+        }
+
+        .ticker {
+          font-size: 0.82rem;
+        }
+        .name {
+          font-size: 0.69rem;
+        }
       }
     </style>
   </head>
@@ -383,9 +466,9 @@
               <tr>
                 <th>#</th>
                 <th>標的</th>
-                ${thLabel("irr", "年化報酬率（IRR）")}
+                ${thLabel("irr", "IRR")}
                 ${thLabel("max_drawdown", "最大回撤")}
-                ${thLabel("calmar", "Calmar Ratio")}
+                ${thLabel("calmar", "Calmar")}
               </tr>
             </thead>
             <tbody>${rows}</tbody>
