@@ -1,5 +1,6 @@
 import os
 import threading
+import webbrowser
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -31,7 +32,7 @@ _cache: dict = {
 _lock = threading.Lock()
 _REFRESH_SECONDS = 3600
 
-_dca_cache: dict = {"results": [], "last_updated": None, "error": None}
+_dca_cache: dict = {"results_10y": [], "results_5y": [], "last_updated": None, "error": None}
 _dca_lock = threading.Lock()
 
 
@@ -123,9 +124,11 @@ def refresh_data() -> None:
 
 def refresh_dca() -> None:
     try:
-        results = dca_run_all()
+        results_10y = dca_run_all(years=10)
+        results_5y = dca_run_all(years=5)
         with _dca_lock:
-            _dca_cache["results"] = results
+            _dca_cache["results_10y"] = results_10y
+            _dca_cache["results_5y"] = results_5y
             _dca_cache["last_updated"] = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
             _dca_cache["error"] = None
     except Exception as exc:
@@ -167,6 +170,8 @@ def api_dca():
 if __name__ == "__main__":
     _schedule_refresh()
     port = int(os.environ.get("PORT", 5000))
+    if not os.environ.get("RAILWAY_ENVIRONMENT"):
+        threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
     from waitress import serve
 
     serve(app, host="0.0.0.0", port=port)

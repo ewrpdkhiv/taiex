@@ -114,6 +114,23 @@
         text-align: right;
         white-space: nowrap;
       }
+      .th-sort {
+        cursor: pointer;
+        user-select: none;
+        opacity: 0.7;
+      }
+      .th-sort:hover {
+        opacity: 1;
+      }
+      .th-active {
+        cursor: pointer;
+        user-select: none;
+        color: #fbbf24;
+      }
+      .sort-arrow {
+        font-size: 0.75rem;
+        margin-left: 3px;
+      }
       thead th:nth-child(1) {
         text-align: center;
         width: 40px;
@@ -167,6 +184,10 @@
         color: #dc2626;
         font-weight: 700;
       }
+      .mid {
+        color: #d97706;
+        font-weight: 700;
+      }
       .sub {
         font-size: 0.76rem;
         color: #64748b;
@@ -188,6 +209,30 @@
       }
       .bar.neg-bar {
         background: #dc2626;
+      }
+
+      .period-btns {
+        display: flex;
+        gap: 6px;
+      }
+      .period-btn {
+        background: none;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 0.82rem;
+        color: #64748b;
+        cursor: pointer;
+      }
+      .period-btn:hover {
+        border-color: #94a3b8;
+        color: #334155;
+      }
+      .period-btn.active {
+        background: #1e293b;
+        border-color: #1e293b;
+        color: #fff;
+        font-weight: 600;
       }
 
       .loading-msg {
@@ -214,6 +259,12 @@
           <b>1 股</b>・股息隔天再投入</span
         >
         <span class="period">回測期間：<b id="period-text">載入中…</b></span>
+        <div class="period-btns">
+          <button class="period-btn active" onclick="setPeriod(10, this)">
+            近10年
+          </button>
+          <button class="period-btn" onclick="setPeriod(5, this)">近5年</button>
+        </div>
       </div>
 
       <div class="table-wrap">
@@ -233,24 +284,37 @@
         return r >= 0 ? "pos" : "neg";
       }
 
-      function renderTable(results) {
-        if (!results || !results.length) {
+      let _cache = {}; // { results_10y: [...], results_5y: [...] }
+      let _results = [];
+      let _years = 10;
+      let _sortKey = "irr"; // irr | max_drawdown | calmar
+
+      const SORT_KEYS = ["irr", "max_drawdown", "calmar"];
+
+      function sortValue(d, key) {
+        const v = d.reinvest[key];
+        if (v == null) return -Infinity;
+        // 最大回撤是負值，降冪排序時取絕對值（回撤愈大排愈前）
+        return key === "max_drawdown" ? Math.abs(v) : v;
+      }
+
+      function renderTable() {
+        if (!_results.length) {
           return '<div class="loading-msg">資料尚未就緒，請稍後重新整理</div>';
         }
 
-        // 按 IRR 降冪排序
-        const sorted = [...results].sort((a, b) => {
-          const ia = a.reinvest.irr ?? -Infinity;
-          const ib = b.reinvest.irr ?? -Infinity;
-          return ib - ia;
-        });
+        const sorted = [..._results].sort(
+          (a, b) => sortValue(b, _sortKey) - sortValue(a, _sortKey),
+        );
 
         const maxIrr = Math.max(
           ...sorted.map((d) => Math.abs(d.reinvest.irr ?? 0)),
         );
-
         const maxDd = Math.max(
           ...sorted.map((d) => Math.abs(d.reinvest.max_drawdown ?? 0)),
+        );
+        const maxCalmar = Math.max(
+          ...sorted.map((d) => d.reinvest.calmar ?? 0),
         );
 
         const rows = sorted
@@ -258,12 +322,24 @@
             const re = d.reinvest;
             const irrBarW =
               maxIrr > 0
-                ? Math.round((Math.abs(re.irr ?? 0) / maxIrr) * 72)
+                ? Math.round((Math.abs(re.irr ?? 0) / maxIrr) * 60)
                 : 0;
             const ddBarW =
               maxDd > 0
-                ? Math.round((Math.abs(re.max_drawdown ?? 0) / maxDd) * 72)
+                ? Math.round((Math.abs(re.max_drawdown ?? 0) / maxDd) * 60)
                 : 0;
+            const calmarBarW =
+              maxCalmar > 0
+                ? Math.round(((re.calmar ?? 0) / maxCalmar) * 60)
+                : 0;
+            const calmarClass =
+              re.calmar == null
+                ? ""
+                : re.calmar >= 1
+                  ? "pos"
+                  : re.calmar >= 0.5
+                    ? "mid"
+                    : "neg";
             return `
             <tr>
               <td>${i + 1}</td>
@@ -283,9 +359,23 @@
                   <div class="bar neg-bar" style="width:${ddBarW}px"></div>
                 </div>
               </td>
+              <td>
+                <div class="bar-wrap">
+                  <span class="${calmarClass}">${re.calmar != null ? re.calmar.toFixed(2) : "—"}</span>
+                  <div class="bar" style="width:${calmarBarW}px"></div>
+                </div>
+              </td>
             </tr>`;
           })
           .join("");
+
+        const arrow = "▼";
+        function thClass(key) {
+          return _sortKey === key ? "th-active" : "th-sort";
+        }
+        function thLabel(key, label) {
+          return `<th class="${thClass(key)}" onclick="setSort('${key}')">${label} <span class="sort-arrow">${_sortKey === key ? arrow : "↕"}</span></th>`;
+        }
 
         return `
           <table>
@@ -293,12 +383,33 @@
               <tr>
                 <th>#</th>
                 <th>標的</th>
-                <th>年化報酬率（IRR）</th>
-                <th>最大回撤</th>
+                ${thLabel("irr", "年化報酬率（IRR）")}
+                ${thLabel("max_drawdown", "最大回撤")}
+                ${thLabel("calmar", "Calmar Ratio")}
               </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>`;
+      }
+
+      function setSort(key) {
+        _sortKey = key;
+        document.getElementById("table-container").innerHTML = renderTable();
+      }
+
+      function setPeriod(years, btn) {
+        _years = years;
+        _results = _cache["results_" + years + "y"] || [];
+        document
+          .querySelectorAll(".period-btn")
+          .forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const first = _results[0];
+        if (first) {
+          document.getElementById("period-text").textContent =
+            `${first.start_date} ～ ${first.end_date}`;
+        }
+        document.getElementById("table-container").innerHTML = renderTable();
       }
 
       async function load() {
@@ -315,15 +426,17 @@
           document.getElementById("last-updated").textContent =
             data.last_updated || "—";
 
-          if (data.results && data.results.length) {
-            const first = data.results[0];
+          _cache = {
+            results_10y: data.results_10y || [],
+            results_5y: data.results_5y || [],
+          };
+          _results = _cache.results_10y;
+          const first = _results[0];
+          if (first) {
             document.getElementById("period-text").textContent =
               `${first.start_date} ～ ${first.end_date}`;
           }
-
-          document.getElementById("table-container").innerHTML = renderTable(
-            data.results,
-          );
+          document.getElementById("table-container").innerHTML = renderTable();
         } catch (e) {
           console.error(e);
         }

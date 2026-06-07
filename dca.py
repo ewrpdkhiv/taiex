@@ -8,20 +8,21 @@ import yfinance as yf
 TICKERS: dict[str, str] = {
     "0050.TW":   "元大台灣50",
     "0056.TW":   "元大高股息",
+    "2317.TW":   "鴻海",
+    "2330.TW":   "台積電",
     "2412.TW":   "中華電信",
+    "2454.TW":   "聯發科",
     "2881.TW":   "富邦金控",
-    "2882.TW":   "國泰金控",
-    "2883.TW":   "凱基金控",
     "2884.TW":   "玉山金控",
     "2886.TW":   "兆豐金控",
     "2891.TW":   "中信金控",
-    "5880.TW":   "合庫金控",
-    "00675L.TW": "富邦台灣加權正2",
     "00631L.TW": "元大台灣50正2",
     "SPY":  "SPDR S&P 500",
     "QQQ":  "Invesco Nasdaq-100",
     "SSO":  "ProShares S&P500 2x",
+    "UPRO": "ProShares S&P500 3x",
     "QLD":  "ProShares Nasdaq-100 2x",
+    "TQQQ": "ProShares Nasdaq-100 3x",
 }
 
 
@@ -238,6 +239,7 @@ def run_dca(
     return_rate = (market_value - invested) / invested * 100
     irr = _xirr(buy_history + [(last_date, market_value)])
     max_dd = _max_drawdown(share_events, close, trading_dates)
+    calmar = round(irr / abs(max_dd), 2) if (irr is not None and max_dd and max_dd != 0) else None
 
     return {
         "ticker": ticker,
@@ -254,21 +256,14 @@ def run_dca(
             "return_rate": round(return_rate, 2),
             "irr": irr,
             "max_drawdown": max_dd,
+            "calmar": calmar,
         },
     }
 
 
 def run_all(monthly_amount: int = 1_000_000, invest_day: int = 5, years: int = 10) -> list[dict]:
-    anchor = "00675L.TW"
-    common_start: pd.Timestamp | None = None
-    try:
-        h = yf.Ticker(anchor).history(period="max", auto_adjust=False)
-        if not h.empty:
-            h.index = h.index.tz_localize(None) if h.index.tz else h.index
-            common_start = pd.Timestamp(h.index[0]).normalize()
-            print(f"📅 共同起始日（{anchor} 上市日）：{common_start.date()}")
-    except Exception as exc:
-        print(f"⚠️  無法取得 {anchor} 起始日，改用 {years} 年：{exc}")
+    common_start = (pd.Timestamp.now().normalize() - pd.DateOffset(years=years))
+    print(f"📅 共同起始日（近 {years} 年）：{common_start.date()}")
 
     results = []
     for ticker in TICKERS:
