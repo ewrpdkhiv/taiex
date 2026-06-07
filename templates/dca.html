@@ -457,7 +457,6 @@
                 <div class="ticker">${d.ticker}</div>
                 <div class="name">${d.name}</div>
               </td>
-              <td>${d.last_price != null ? d.last_price.toLocaleString("zh-TW") : "—"}</td>
               <td>
                 <div class="bar-wrap">
                   <span class="${rateClass(re.irr)}">${rateStr(re.irr)}</span>
@@ -494,7 +493,6 @@
               <tr>
                 <th>#</th>
                 <th>標的</th>
-                <th>賣出價</th>
                 ${thLabel("irr", "IRR")}
                 ${thLabel("max_drawdown", "最大回撤")}
                 ${thLabel("calmar", "Calmar")}
