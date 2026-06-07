@@ -238,6 +238,19 @@
         color: #fff;
         font-weight: 600;
       }
+      .period-btn.crash {
+        border-color: #fca5a5;
+        color: #b91c1c;
+      }
+      .period-btn.crash:hover {
+        border-color: #f87171;
+        color: #991b1b;
+      }
+      .period-btn.crash.active {
+        background: #b91c1c;
+        border-color: #b91c1c;
+        color: #fff;
+      }
 
       .loading-msg {
         padding: 48px;
@@ -343,10 +356,24 @@
         >
         <span class="period">回測期間：<b id="period-text">載入中…</b></span>
         <div class="period-btns">
-          <button class="period-btn active" onclick="setPeriod(10, this)">
+          <button class="period-btn active" onclick="setPeriod('10y', this)">
             近10年
           </button>
-          <button class="period-btn" onclick="setPeriod(5, this)">近5年</button>
+          <button class="period-btn" onclick="setPeriod('5y', this)">
+            近5年
+          </button>
+          <button
+            class="period-btn crash"
+            onclick="setPeriod('crash_10y', this)"
+          >
+            股災前10年
+          </button>
+          <button
+            class="period-btn crash"
+            onclick="setPeriod('crash_5y', this)"
+          >
+            股災前5年
+          </button>
         </div>
       </div>
 
@@ -430,6 +457,7 @@
                 <div class="ticker">${d.ticker}</div>
                 <div class="name">${d.name}</div>
               </td>
+              <td>${d.last_price != null ? d.last_price.toLocaleString("zh-TW") : "—"}</td>
               <td>
                 <div class="bar-wrap">
                   <span class="${rateClass(re.irr)}">${rateStr(re.irr)}</span>
@@ -466,6 +494,7 @@
               <tr>
                 <th>#</th>
                 <th>標的</th>
+                <th>賣出價</th>
                 ${thLabel("irr", "IRR")}
                 ${thLabel("max_drawdown", "最大回撤")}
                 ${thLabel("calmar", "Calmar")}
@@ -480,9 +509,8 @@
         document.getElementById("table-container").innerHTML = renderTable();
       }
 
-      function setPeriod(years, btn) {
-        _years = years;
-        _results = _cache["results_" + years + "y"] || [];
+      function setPeriod(key, btn) {
+        _results = _cache["results_" + key] || [];
         document
           .querySelectorAll(".period-btn")
           .forEach((b) => b.classList.remove("active"));
@@ -512,6 +540,8 @@
           _cache = {
             results_10y: data.results_10y || [],
             results_5y: data.results_5y || [],
+            results_crash_10y: data.results_crash_10y || [],
+            results_crash_5y: data.results_crash_5y || [],
           };
           _results = _cache.results_10y;
           const first = _results[0];

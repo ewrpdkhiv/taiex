@@ -122,8 +122,9 @@ def run_dca(
     invest_day: int = 5,
     years: int = 10,
     force_start: pd.Timestamp | None = None,
+    force_end: pd.Timestamp | None = None,
 ) -> dict | None:
-    end_date = pd.Timestamp.now().normalize()
+    end_date = force_end if force_end is not None else pd.Timestamp.now().normalize()
     start_date = force_start if force_start is not None else end_date - pd.DateOffset(years=years)
 
     try:
@@ -261,14 +262,21 @@ def run_dca(
     }
 
 
-def run_all(monthly_amount: int = 1_000_000, invest_day: int = 5, years: int = 10) -> list[dict]:
-    common_start = (pd.Timestamp.now().normalize() - pd.DateOffset(years=years))
-    print(f"📅 共同起始日（近 {years} 年）：{common_start.date()}")
+def run_all(
+    monthly_amount: int = 1_000_000,
+    invest_day: int = 5,
+    years: int = 10,
+    force_end: pd.Timestamp | None = None,
+) -> list[dict]:
+    end = force_end if force_end is not None else pd.Timestamp.now().normalize()
+    common_start = end - pd.DateOffset(years=years)
+    print(f"📅 起始日：{common_start.date()}  結束日：{end.date()}")
 
     results = []
     for ticker in TICKERS:
         print(f"⬇  計算 {ticker}...")
-        r = run_dca(ticker, monthly_amount, invest_day, years, force_start=common_start)
+        r = run_dca(ticker, monthly_amount, invest_day, years,
+                    force_start=common_start, force_end=force_end)
         if r:
             results.append(r)
     return results
