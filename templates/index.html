@@ -32,6 +32,19 @@
         font-size: 1.1rem;
         font-weight: 600;
       }
+      header a.dca-link {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        text-decoration: none;
+        border: 1px solid #334155;
+        padding: 4px 10px;
+        border-radius: 5px;
+        white-space: nowrap;
+      }
+      header a.dca-link:hover {
+        color: #e2e8f0;
+        border-color: #475569;
+      }
       .meta {
         font-size: 0.78rem;
         color: #94a3b8;
@@ -80,10 +93,10 @@
         border-bottom-color: #16a34a;
       }
 
-      /* 時間列：3 顆等寬 */
+      /* 時間列：4 顆等寬 */
       .period-row {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
       }
       .period-btn {
         padding: 8px;
@@ -302,9 +315,9 @@
   <body>
     <header>
       <h1>台股加權指數 (TAIEX) 漲跌日排行</h1>
+      <a href="/dca" class="dca-link">定期定額試算 →</a>
       <div class="meta">
         <span>更新：<b id="last-updated">載入中…</b></span>
-        <span>倒數：<b id="countdown">--:--</b></span>
       </div>
     </header>
 
@@ -326,6 +339,7 @@
       <div class="period-row">
         <button class="period-btn active" data-period="20y">近 20 年</button>
         <button class="period-btn" data-period="10y">近 10 年</button>
+        <button class="period-btn" data-period="5y">近 5 年</button>
         <button class="period-btn" data-period="all">全 時</button>
       </div>
     </nav>
@@ -384,6 +398,35 @@
             <tbody id="t-drops-pct-10y">
               <tr>
                 <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pct-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年前 10 大跌幅</h2>
+            <span class="badge">5Y %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌幅 (%)</th>
+                <th>回升天數</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pct-5y">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
               </tr>
             </tbody>
           </table>
@@ -467,6 +510,34 @@
               </tr>
             </thead>
             <tbody id="t-gains-pct-10y">
+              <tr>
+                <td colspan="6" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年前 10 大漲幅</h2>
+            <span class="badge">5Y %</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pct-5y">
               <tr>
                 <td colspan="6" class="loading">載入中…</td>
               </tr>
@@ -564,6 +635,36 @@
       </div>
     </div>
 
+    <div id="panel-drops-pt-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年前 10 大跌點</h2>
+            <span class="badge">5Y 點數</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>跌點</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th>回升天數</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-drops-pt-5y">
+              <tr>
+                <td colspan="8" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div id="panel-drops-pt-all" class="tab-panel">
       <div class="panel-inner">
         <div class="card" data-color="drop">
@@ -652,6 +753,35 @@
       </div>
     </div>
 
+    <div id="panel-gains-pt-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年前 10 大漲點</h2>
+            <span class="badge">5Y 點數</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="date-header">日期</th>
+                <th class="col-close">收盤指數</th>
+                <th class="col-prev">前日收盤</th>
+                <th>漲點</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left">事件</th>
+              </tr>
+            </thead>
+            <tbody id="t-gains-pt-5y">
+              <tr>
+                <td colspan="7" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div id="panel-gains-pt-all" class="tab-panel">
       <div class="panel-inner">
         <div class="card" data-color="gain">
@@ -683,7 +813,6 @@
 
     <script>
       const REFRESH_MS = 3600 * 1000;
-      let nextRefreshAt = Date.now() + REFRESH_MS;
       let currentType = "drops-pct";
       let currentPeriod = "20y";
       let _data = null;
@@ -758,6 +887,12 @@
           cls: "drop",
           cols: 7,
         },
+        "t-drops-pct-5y": {
+          key: "drops_5y",
+          fn: dropPctRow,
+          cls: "drop",
+          cols: 7,
+        },
         "t-drops-pct-all": {
           key: "drops_all",
           fn: dropPctRow,
@@ -772,6 +907,12 @@
         },
         "t-gains-pct-10y": {
           key: "gains_10y",
+          fn: pctRow,
+          cls: "gain",
+          cols: 6,
+        },
+        "t-gains-pct-5y": {
+          key: "gains_5y",
           fn: pctRow,
           cls: "gain",
           cols: 6,
@@ -794,6 +935,12 @@
           cls: "drop",
           cols: 8,
         },
+        "t-drops-pt-5y": {
+          key: "drops_pt_5y",
+          fn: dropPtRow,
+          cls: "drop",
+          cols: 8,
+        },
         "t-drops-pt-all": {
           key: "drops_pt_all",
           fn: dropPtRow,
@@ -812,6 +959,12 @@
           cls: "gain",
           cols: 7,
         },
+        "t-gains-pt-5y": {
+          key: "gains_pt_5y",
+          fn: ptRow,
+          cls: "gain",
+          cols: 7,
+        },
         "t-gains-pt-all": {
           key: "gains_pt_all",
           fn: ptRow,
@@ -820,19 +973,13 @@
         },
       };
 
-      const SORT_MODES = ["original", "time-asc", "time-desc"];
-      const SORT_LABELS = {
-        original: "依幅度",
-        "time-asc": "時間 ↑",
-        "time-desc": "時間 ↓",
-      };
+      const SORT_MODES = ["original", "time-desc"];
+      const SORT_LABELS = { original: "依幅度", "time-desc": "時間 ↓" };
 
       function sortedRows(rows, state) {
         if (!rows || !rows.length) return rows;
         const r = [...rows];
-        if (state === "time-asc")
-          r.sort((a, b) => a.date.localeCompare(b.date));
-        else if (state === "time-desc")
+        if (state === "time-desc")
           r.sort((a, b) => b.date.localeCompare(a.date));
         else r.sort((a, b) => a.rank - b.rank);
         return r;
@@ -906,24 +1053,12 @@
         });
       });
 
-      function updateCountdown() {
-        const sec = Math.max(
-          0,
-          Math.floor((nextRefreshAt - Date.now()) / 1000),
-        );
-        const m = String(Math.floor(sec / 60)).padStart(2, "0");
-        const s = String(sec % 60).padStart(2, "0");
-        document.getElementById("countdown").textContent = `${m}:${s}`;
-      }
-
       async function hourlyRefresh() {
-        nextRefreshAt = Date.now() + REFRESH_MS;
         await fetchData();
         setTimeout(hourlyRefresh, REFRESH_MS);
       }
 
       fetchData();
-      setInterval(updateCountdown, 1000);
       setTimeout(hourlyRefresh, REFRESH_MS);
 
       // ── 排序按鈕 ──

@@ -5,8 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from flask import Flask, jsonify, render_template
 
-_TW = timezone(timedelta(hours=8))
-
+from dca import run_all as dca_run_all
 from taiex_big_drops import (
     KNOWN_EVENTS,
     calculate_daily_returns,
@@ -17,18 +16,23 @@ from taiex_big_drops import (
     load_from_yfinance,
 )
 
+_TW = timezone(timedelta(hours=8))
+
 app = Flask(__name__)
 
 _cache: dict = {
-    "drops_20y": [], "drops_10y": [], "drops_all": [],
-    "gains_20y": [], "gains_10y": [], "gains_all": [],
-    "drops_pt_20y": [], "drops_pt_10y": [], "drops_pt_all": [],
-    "gains_pt_20y": [], "gains_pt_10y": [], "gains_pt_all": [],
+    "drops_20y": [], "drops_10y": [], "drops_5y": [], "drops_all": [],
+    "gains_20y": [], "gains_10y": [], "gains_5y": [], "gains_all": [],
+    "drops_pt_20y": [], "drops_pt_10y": [], "drops_pt_5y": [], "drops_pt_all": [],
+    "gains_pt_20y": [], "gains_pt_10y": [], "gains_pt_5y": [], "gains_pt_all": [],
     "last_updated": None,
     "error": None,
 }
 _lock = threading.Lock()
 _REFRESH_SECONDS = 3600
+
+_dca_cache: dict = {"results": [], "last_updated": None, "error": None}
+_dca_lock = threading.Lock()
 
 
 def _recovery_days(drop_date: pd.Timestamp, prev_close: float, full_df: pd.DataFrame) -> int | None:
@@ -85,15 +89,19 @@ def refresh_data() -> None:
         batches = [
             ("drops_20y",    find_top_drops(df,        top_n=10, years=20), "top10_drops_20y.csv",    "跌幅(%)", True),
             ("drops_10y",    find_top_drops(df,        top_n=10, years=10), "top10_drops_10y.csv",    "跌幅(%)", True),
+            ("drops_5y",     find_top_drops(df,        top_n=10, years=5),  "top10_drops_5y.csv",     "跌幅(%)", True),
             ("drops_all",    find_top_drops(df,        top_n=10),           "top10_drops_all.csv",    "跌幅(%)", True),
             ("gains_20y",    find_top_gains(df,        top_n=10, years=20), "top10_gains_20y.csv",    "漲幅(%)", False),
             ("gains_10y",    find_top_gains(df,        top_n=10, years=10), "top10_gains_10y.csv",    "漲幅(%)", False),
+            ("gains_5y",     find_top_gains(df,        top_n=10, years=5),  "top10_gains_5y.csv",     "漲幅(%)", False),
             ("gains_all",    find_top_gains(df,        top_n=10),           "top10_gains_all.csv",    "漲幅(%)", False),
             ("drops_pt_20y", find_top_point_drops(df,  top_n=10, years=20), "top10_drops_pt_20y.csv", "跌點",    True),
             ("drops_pt_10y", find_top_point_drops(df,  top_n=10, years=10), "top10_drops_pt_10y.csv", "跌點",    True),
+            ("drops_pt_5y",  find_top_point_drops(df,  top_n=10, years=5),  "top10_drops_pt_5y.csv",  "跌點",    True),
             ("drops_pt_all", find_top_point_drops(df,  top_n=10),           "top10_drops_pt_all.csv", "跌點",    True),
             ("gains_pt_20y", find_top_point_gains(df,  top_n=10, years=20), "top10_gains_pt_20y.csv", "漲點",    False),
             ("gains_pt_10y", find_top_point_gains(df,  top_n=10, years=10), "top10_gains_pt_10y.csv", "漲點",    False),
+            ("gains_pt_5y",  find_top_point_gains(df,  top_n=10, years=5),  "top10_gains_pt_5y.csv",  "漲點",    False),
             ("gains_pt_all", find_top_point_gains(df,  top_n=10),           "top10_gains_pt_all.csv", "漲點",    False),
         ]
 
@@ -113,8 +121,22 @@ def refresh_data() -> None:
         print(f"❌ 資料更新失敗：{exc}")
 
 
+def refresh_dca() -> None:
+    try:
+        results = dca_run_all()
+        with _dca_lock:
+            _dca_cache["results"] = results
+            _dca_cache["last_updated"] = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
+            _dca_cache["error"] = None
+    except Exception as exc:
+        with _dca_lock:
+            _dca_cache["error"] = str(exc)
+        print(f"❌ DCA 更新失敗：{exc}")
+
+
 def _schedule_refresh() -> None:
     refresh_data()
+    refresh_dca()
     t = threading.Timer(_REFRESH_SECONDS, _schedule_refresh)
     t.daemon = True
     t.start()
@@ -129,6 +151,17 @@ def index():
 def api_data():
     with _lock:
         return jsonify(dict(_cache))
+
+
+@app.route("/dca")
+def dca_page():
+    return render_template("dca.html")
+
+
+@app.route("/api/dca")
+def api_dca():
+    with _dca_lock:
+        return jsonify(dict(_dca_cache))
 
 
 if __name__ == "__main__":
