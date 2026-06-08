@@ -25,6 +25,26 @@ TICKERS: dict[str, str] = {
     "TQQQ": "ProShares Nasdaq-100 3x",
 }
 
+TICKER_TAGS: dict[str, list[str]] = {
+    "0050.TW":   ["tw", "etf"],
+    "0056.TW":   ["tw", "etf"],
+    "2317.TW":   ["tw", "stock"],
+    "2330.TW":   ["tw", "stock"],
+    "2412.TW":   ["tw", "stock"],
+    "2454.TW":   ["tw", "stock"],
+    "2881.TW":   ["tw", "stock", "finance"],
+    "2884.TW":   ["tw", "stock", "finance"],
+    "2886.TW":   ["tw", "stock", "finance"],
+    "2891.TW":   ["tw", "stock", "finance"],
+    "00631L.TW": ["tw", "etf", "leveraged"],
+    "SPY":       ["us", "etf"],
+    "QQQ":       ["us", "etf"],
+    "SSO":       ["us", "etf", "leveraged"],
+    "UPRO":      ["us", "etf", "leveraged"],
+    "QLD":       ["us", "etf", "leveraged"],
+    "TQQQ":      ["us", "etf", "leveraged"],
+}
+
 
 def _xirr(cashflows: list[tuple[pd.Timestamp, float]]) -> float | None:
     """年化 IRR（XIRR）。cashflows 為 (date, amount) 列表，流出為負值。"""
@@ -76,7 +96,7 @@ def _xirr(cashflows: list[tuple[pd.Timestamp, float]]) -> float | None:
 
 
 def _max_drawdown(
-    share_events: list[tuple[pd.Timestamp, int]],
+    share_events: list[tuple[pd.Timestamp, float]],
     close: pd.Series,
     trading_dates: pd.DatetimeIndex,
 ) -> float | None:
@@ -146,6 +166,16 @@ def run_dca(
     close = hist["Close"]
 
     try:
+        market_cap = stock.fast_info.market_cap
+        if not market_cap:
+            market_cap = stock.info.get("totalAssets")
+    except Exception:
+        try:
+            market_cap = stock.info.get("totalAssets")
+        except Exception:
+            market_cap = None
+
+    try:
         divs = stock.dividends
         if len(divs) > 0:
             divs.index = (
@@ -158,8 +188,14 @@ def run_dca(
         divs = pd.Series(dtype=float)
 
     buy_events: dict[pd.Timestamp, int] = {}
-    month = pd.Timestamp(trading_dates[0].year, trading_dates[0].month, 1)
     last_date = trading_dates[-1]
+    # 若 invest_day 已早於 start_date 當月的日，從下個月起算，確保整 10 年 = 120 次
+    _first = trading_dates[0]
+    if pd.Timestamp(_first.year, _first.month, invest_day) >= start_date:
+        month = pd.Timestamp(_first.year, _first.month, 1)
+    else:
+        _m = _first + pd.DateOffset(months=1)
+        month = pd.Timestamp(_m.year, _m.month, 1)
 
     while month <= last_date:
         target = pd.Timestamp(month.year, month.month, invest_day)
@@ -185,7 +221,7 @@ def run_dca(
 
     shares = 0
     pending_re: dict[pd.Timestamp, float] = {}
-    share_events: list[tuple[pd.Timestamp, int]] = []  # 最大回撤用
+    share_events: list[tuple[pd.Timestamp, float]] = []  # 最大回撤用
 
     invested = 0.0
     buy_count = 0
@@ -196,25 +232,25 @@ def run_dca(
         if date > last_date:
             break
 
-        # ① 股息次日：整股買入，零頭捨去
+        # ① 股息次日：小數股買入，全額投入
         if date in pending_re:
             if date in close.index:
                 price = float(close[date])
                 if not pd.isna(price) and price > 0:
-                    qty = int(pending_re[date] / price)
+                    qty = pending_re[date] / price
                     if qty > 0:
                         shares += qty
                         share_events.append((date, qty))
             pending_re.pop(date)
 
-        # ② 定期定額買入（整股，零頭捨去）
+        # ② 定期定額買入（小數股，全額投入）
         if date in buy_events:
             if date in close.index:
                 price = float(close[date])
                 if not (pd.isna(price) or price <= 0):
-                    qty = int(buy_events[date] / price)
+                    qty = buy_events[date] / price
                     if qty > 0:
-                        actual_cost = qty * price
+                        actual_cost = buy_events[date]
                         shares += qty
                         share_events.append((date, qty))
                         invested += actual_cost
@@ -251,8 +287,10 @@ def run_dca(
         "start_date": actual_start.strftime("%Y-%m-%d"),
         "end_date": last_date.strftime("%Y-%m-%d"),
         "last_price": round(last_price, 2),
+        "market_cap": round(market_cap) if market_cap else None,
+        "tags": TICKER_TAGS.get(ticker, []),
         "reinvest": {
-            "shares": shares,
+            "shares": round(shares, 4),
             "market_value": round(market_value),
             "return_rate": round(return_rate, 2),
             "irr": irr,

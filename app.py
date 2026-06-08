@@ -131,10 +131,10 @@ _CRASH_DATE = pd.Timestamp("2025-04-09")
 
 def refresh_dca() -> None:
     try:
-        results_10y       = dca_run_all(years=10)
-        results_5y        = dca_run_all(years=5)
-        results_crash_10y = dca_run_all(years=10, force_end=_CRASH_DATE)
-        results_crash_5y  = dca_run_all(years=5,  force_end=_CRASH_DATE)
+        results_10y       = dca_run_all(monthly_amount=10_000, years=10)
+        results_5y        = dca_run_all(monthly_amount=10_000, years=5)
+        results_crash_10y = dca_run_all(monthly_amount=10_000, years=10, force_end=_CRASH_DATE)
+        results_crash_5y  = dca_run_all(monthly_amount=10_000, years=5,  force_end=_CRASH_DATE)
         with _dca_lock:
             _dca_cache["results_10y"]       = results_10y
             _dca_cache["results_5y"]        = results_5y

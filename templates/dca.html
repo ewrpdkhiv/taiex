@@ -61,7 +61,7 @@
       }
 
       .container {
-        max-width: 820px;
+        max-width: 1120px;
         margin: 24px auto;
         padding: 0 14px;
       }
@@ -95,7 +95,8 @@
         background: #fff;
         border-radius: 10px;
         box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
-        overflow: hidden;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       table {
@@ -109,7 +110,7 @@
         color: #e2e8f0;
       }
       thead th {
-        padding: 11px 16px;
+        padding: 11px 12px;
         font-weight: 600;
         text-align: right;
         white-space: nowrap;
@@ -155,7 +156,7 @@
       }
 
       td {
-        padding: 11px 16px;
+        padding: 11px 12px;
         text-align: right;
         white-space: nowrap;
       }
@@ -259,6 +260,97 @@
         font-size: 0.9rem;
       }
 
+      .filter-bar {
+        background: #fff;
+        border-radius: 10px;
+        padding: 10px 16px;
+        margin-bottom: 10px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      .filter-group {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      .filter-group + .filter-group {
+        padding-left: 10px;
+        border-left: 1px solid #e2e8f0;
+      }
+      .filter-label {
+        font-size: 0.73rem;
+        color: #94a3b8;
+        margin-right: 2px;
+        white-space: nowrap;
+      }
+      .filter-chip {
+        border: 1px solid #cbd5e1;
+        border-radius: 20px;
+        padding: 3px 11px;
+        font-size: 0.78rem;
+        color: #64748b;
+        cursor: pointer;
+        user-select: none;
+        background: none;
+        transition:
+          background 0.1s,
+          color 0.1s,
+          border-color 0.1s;
+      }
+      .filter-chip:hover {
+        border-color: #94a3b8;
+        color: #334155;
+      }
+      .filter-chip.active {
+        background: #1e293b;
+        border-color: #1e293b;
+        color: #fff;
+      }
+
+      .col-toggle-bar {
+        background: #fff;
+        border-radius: 10px;
+        padding: 10px 16px;
+        margin-bottom: 10px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+      .col-toggle-bar .label {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        margin-right: 4px;
+        white-space: nowrap;
+      }
+      .col-chip {
+        border: 1px solid #cbd5e1;
+        border-radius: 20px;
+        padding: 3px 12px;
+        font-size: 0.78rem;
+        color: #64748b;
+        cursor: pointer;
+        user-select: none;
+        background: none;
+        transition:
+          background 0.1s,
+          color 0.1s,
+          border-color 0.1s;
+      }
+      .col-chip:hover {
+        border-color: #94a3b8;
+        color: #334155;
+      }
+      .col-chip.on {
+        background: #1e293b;
+        border-color: #1e293b;
+        color: #fff;
+      }
+
       /* ── 手機響應式 ── */
       @media (max-width: 600px) {
         header {
@@ -351,8 +443,8 @@
     <div class="container">
       <div class="info-bar" id="info-bar">
         <span
-          >每月 <b>5 日</b> 投入 <b>1,000,000 元</b>・最小單位
-          <b>1 股</b>・股息隔天再投入</span
+          >每月 <b>5 日</b> 投入
+          <b>10,000 元</b>・允許小數股・股息隔天再投入</span
         >
         <span class="period">回測期間：<b id="period-text">載入中…</b></span>
         <div class="period-btns">
@@ -377,6 +469,12 @@
         </div>
       </div>
 
+      <div class="filter-bar" id="filter-bar"></div>
+
+      <div class="col-toggle-bar" id="col-toggles">
+        <span class="label">欄位：</span>
+      </div>
+
       <div class="table-wrap">
         <div id="table-container">
           <div class="loading-msg">資料載入中，首次約需 60 秒…</div>
@@ -394,26 +492,155 @@
         return r >= 0 ? "pos" : "neg";
       }
 
-      let _cache = {}; // { results_10y: [...], results_5y: [...] }
+      let _cache = {};
       let _results = [];
-      let _years = 10;
-      let _sortKey = "irr"; // irr | max_drawdown | calmar
+      let _sortKey = "irr";
+      let _visibleCols = new Set(["irr", "max_drawdown", "calmar"]);
+      let _filters = { market: null, type: null, special: new Set() };
 
-      const SORT_KEYS = ["irr", "max_drawdown", "calmar"];
+      const FILTER_GROUPS = [
+        {
+          key: "market",
+          label: "市場",
+          chips: [
+            { val: "tw", label: "臺股" },
+            { val: "us", label: "美股" },
+          ],
+        },
+        {
+          key: "type",
+          label: "類型",
+          chips: [
+            { val: "stock", label: "個股" },
+            { val: "etf", label: "ETF" },
+          ],
+        },
+        {
+          key: "special",
+          label: "特殊",
+          chips: [
+            { val: "finance", label: "金融股" },
+            { val: "leveraged", label: "槓桿ETF" },
+          ],
+        },
+      ];
+
+      function applyFilters(results) {
+        return results.filter((d) => {
+          const tags = d.tags || [];
+          if (_filters.market && !tags.includes(_filters.market)) return false;
+          if (_filters.type && !tags.includes(_filters.type)) return false;
+          if (
+            _filters.special.size > 0 &&
+            ![..._filters.special].some((s) => tags.includes(s))
+          )
+            return false;
+          return true;
+        });
+      }
+
+      function setFilter(groupKey, val) {
+        if (groupKey === "special") {
+          if (_filters.special.has(val)) _filters.special.delete(val);
+          else _filters.special.add(val);
+        } else {
+          _filters[groupKey] = _filters[groupKey] === val ? null : val;
+        }
+        document.getElementById("filter-bar").innerHTML = renderFilterBar();
+        document.getElementById("table-container").innerHTML = renderTable();
+      }
+
+      function renderFilterBar() {
+        return FILTER_GROUPS.map((g) => {
+          const chips = g.chips
+            .map((c) => {
+              const isActive =
+                g.key === "special"
+                  ? _filters.special.has(c.val)
+                  : _filters[g.key] === c.val;
+              return `<button class="filter-chip ${isActive ? "active" : ""}" onclick="setFilter('${g.key}','${c.val}')">${c.label}</button>`;
+            })
+            .join("");
+          return `<div class="filter-group"><span class="filter-label">${g.label}</span>${chips}</div>`;
+        }).join("");
+      }
+
+      const COL_DEFS = [
+        { key: "invested", label: "成本", sortable: true },
+        { key: "shares", label: "股數", sortable: false },
+        { key: "market_value", label: "市值", sortable: true },
+        { key: "last_price", label: "收盤價", sortable: true },
+        { key: "market_cap", label: "股票市值", sortable: true },
+        { key: "pnl", label: "損益", sortable: true },
+        { key: "return_rate", label: "總報酬", sortable: true },
+        { key: "irr", label: "XIRR", sortable: true },
+        { key: "max_drawdown", label: "最大回撤", sortable: true },
+        { key: "calmar", label: "Calmar", sortable: true },
+      ];
+
+      function moneyStr(v) {
+        if (v == null) return "—";
+        return Math.round(v).toLocaleString();
+      }
+      function sharesStr(v) {
+        if (v == null) return "—";
+        return v.toFixed(2);
+      }
+      function mktCapStr(v) {
+        if (v == null) return "—";
+        if (v >= 1e12) return (v / 1e12).toFixed(2) + " 兆";
+        if (v >= 1e8) return (v / 1e8).toFixed(2) + " 億";
+        if (v >= 1e4) return (v / 1e4).toFixed(2) + " 萬";
+        return Math.round(v).toLocaleString();
+      }
+
+      function pnlVal(d) {
+        if (d.invested == null || d.reinvest.market_value == null) return null;
+        return d.reinvest.market_value - d.invested;
+      }
+      function pnlStr(v) {
+        if (v == null) return "—";
+        return (v >= 0 ? "+" : "") + Math.round(v).toLocaleString();
+      }
 
       function sortValue(d, key) {
+        if (key === "invested") return d.invested ?? -Infinity;
+        if (key === "market_value") return d.reinvest.market_value ?? -Infinity;
+        if (key === "last_price") return d.last_price ?? -Infinity;
+        if (key === "market_cap") return d.market_cap ?? -Infinity;
+        if (key === "pnl") return pnlVal(d) ?? -Infinity;
         const v = d.reinvest[key];
         if (v == null) return -Infinity;
-        // 最大回撤是負值，降冪排序時取絕對值（回撤愈大排愈前）
         return key === "max_drawdown" ? Math.abs(v) : v;
       }
 
+      function renderToggles() {
+        return (
+          '<span class="label">欄位：</span>' +
+          COL_DEFS.map(
+            (c) =>
+              `<button class="col-chip ${_visibleCols.has(c.key) ? "on" : ""}" onclick="toggleCol('${c.key}')">${c.label}</button>`,
+          ).join("")
+        );
+      }
+
+      function toggleCol(key) {
+        if (_visibleCols.has(key)) _visibleCols.delete(key);
+        else _visibleCols.add(key);
+        document.getElementById("col-toggles").innerHTML = renderToggles();
+        document.getElementById("table-container").innerHTML = renderTable();
+      }
+
       function renderTable() {
-        if (!_results.length) {
-          return '<div class="loading-msg">資料尚未就緒，請稍後重新整理</div>';
+        const filtered = applyFilters(_results);
+        if (!filtered.length) {
+          return _results.length
+            ? '<div class="loading-msg">無符合篩選條件的資料</div>'
+            : '<div class="loading-msg">資料尚未就緒，請稍後重新整理</div>';
         }
 
-        const sorted = [..._results].sort(
+        const vis = (key) => _visibleCols.has(key);
+        const sorted = [...filtered].sort(
           (a, b) => sortValue(b, _sortKey) - sortValue(a, _sortKey),
         );
 
@@ -450,31 +677,21 @@
                   : re.calmar >= 0.5
                     ? "mid"
                     : "neg";
+            const pnl = pnlVal(d);
             return `
             <tr>
               <td>${i + 1}</td>
-              <td>
-                <div class="ticker">${d.ticker}</div>
-                <div class="name">${d.name}</div>
-              </td>
-              <td>
-                <div class="bar-wrap">
-                  <span class="${rateClass(re.irr)}">${rateStr(re.irr)}</span>
-                  <div class="bar" style="width:${irrBarW}px"></div>
-                </div>
-              </td>
-              <td>
-                <div class="bar-wrap">
-                  <span class="neg">${re.max_drawdown != null ? re.max_drawdown.toFixed(2) + "%" : "—"}</span>
-                  <div class="bar neg-bar" style="width:${ddBarW}px"></div>
-                </div>
-              </td>
-              <td>
-                <div class="bar-wrap">
-                  <span class="${calmarClass}">${re.calmar != null ? re.calmar.toFixed(2) : "—"}</span>
-                  <div class="bar" style="width:${calmarBarW}px"></div>
-                </div>
-              </td>
+              <td><div class="ticker">${d.ticker}</div><div class="name">${d.name}</div></td>
+              ${vis("invested") ? `<td>${moneyStr(d.invested)}</td>` : ""}
+              ${vis("shares") ? `<td>${sharesStr(re.shares)}</td>` : ""}
+              ${vis("market_value") ? `<td>${moneyStr(re.market_value)}</td>` : ""}
+              ${vis("last_price") ? `<td>${d.last_price != null ? d.last_price.toLocaleString() : "—"}</td>` : ""}
+              ${vis("market_cap") ? `<td>${mktCapStr(d.market_cap)}</td>` : ""}
+              ${vis("pnl") ? `<td><span class="${rateClass(pnl)}">${pnlStr(pnl)}</span></td>` : ""}
+              ${vis("return_rate") ? `<td><span class="${rateClass(re.return_rate)}">${rateStr(re.return_rate)}</span></td>` : ""}
+              ${vis("irr") ? `<td><div class="bar-wrap"><span class="${rateClass(re.irr)}">${rateStr(re.irr)}</span><div class="bar" style="width:${irrBarW}px"></div></div></td>` : ""}
+              ${vis("max_drawdown") ? `<td><div class="bar-wrap"><span class="neg">${re.max_drawdown != null ? re.max_drawdown.toFixed(2) + "%" : "—"}</span><div class="bar neg-bar" style="width:${ddBarW}px"></div></div></td>` : ""}
+              ${vis("calmar") ? `<td><div class="bar-wrap"><span class="${calmarClass}">${re.calmar != null ? re.calmar.toFixed(2) : "—"}</span><div class="bar" style="width:${calmarBarW}px"></div></div></td>` : ""}
             </tr>`;
           })
           .join("");
@@ -493,9 +710,16 @@
               <tr>
                 <th>#</th>
                 <th>標的</th>
-                ${thLabel("irr", "IRR")}
-                ${thLabel("max_drawdown", "最大回撤")}
-                ${thLabel("calmar", "Calmar")}
+                ${vis("invested") ? thLabel("invested", "成本") : ""}
+                ${vis("shares") ? "<th>股數</th>" : ""}
+                ${vis("market_value") ? thLabel("market_value", "市值") : ""}
+                ${vis("last_price") ? thLabel("last_price", "收盤價") : ""}
+                ${vis("market_cap") ? thLabel("market_cap", "股票市值") : ""}
+                ${vis("pnl") ? thLabel("pnl", "損益") : ""}
+                ${vis("return_rate") ? thLabel("return_rate", "總報酬") : ""}
+                ${vis("irr") ? thLabel("irr", "XIRR") : ""}
+                ${vis("max_drawdown") ? thLabel("max_drawdown", "最大回撤") : ""}
+                ${vis("calmar") ? thLabel("calmar", "Calmar") : ""}
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -518,6 +742,7 @@
           document.getElementById("period-text").textContent =
             `${first.start_date} ～ ${first.end_date}`;
         }
+        document.getElementById("filter-bar").innerHTML = renderFilterBar();
         document.getElementById("table-container").innerHTML = renderTable();
       }
 
@@ -547,12 +772,14 @@
             document.getElementById("period-text").textContent =
               `${first.start_date} ～ ${first.end_date}`;
           }
+          document.getElementById("filter-bar").innerHTML = renderFilterBar();
           document.getElementById("table-container").innerHTML = renderTable();
         } catch (e) {
           console.error(e);
         }
       }
 
+      document.getElementById("col-toggles").innerHTML = renderToggles();
       load();
     </script>
   </body>
