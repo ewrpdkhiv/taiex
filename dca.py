@@ -271,7 +271,10 @@ def run_dca(
     if invested <= 0 or actual_start is None:
         return None
 
-    last_price = float(close.iloc[-1])
+    close_valid = close.dropna()
+    if close_valid.empty:
+        return None
+    last_price = float(close_valid.iloc[-1])
     market_value = shares * last_price
     return_rate = (market_value - invested) / invested * 100
     irr = _xirr(buy_history + [(last_date, market_value)])
@@ -287,7 +290,7 @@ def run_dca(
         "start_date": actual_start.strftime("%Y-%m-%d"),
         "end_date": last_date.strftime("%Y-%m-%d"),
         "last_price": round(last_price, 2),
-        "market_cap": round(market_cap) if market_cap else None,
+        "market_cap": round(market_cap) if (market_cap and pd.notna(market_cap)) else None,
         "tags": TICKER_TAGS.get(ticker, []),
         "reinvest": {
             "shares": round(shares, 4),

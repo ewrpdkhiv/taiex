@@ -10,11 +10,13 @@ from dca import run_all as dca_run_all
 from taiex_big_drops import (
     KNOWN_EVENTS,
     calculate_daily_returns,
+    find_bear_markets,
     find_top_drops,
     find_top_gains,
     find_top_point_drops,
     find_top_point_gains,
     load_from_yfinance,
+    load_ohlc_from_yfinance,
 )
 
 _TW = timezone(timedelta(hours=8))
@@ -38,6 +40,12 @@ _dca_cache: dict = {
     "last_updated": None, "error": None,
 }
 _dca_lock = threading.Lock()
+
+_bear_cache: dict = {"bears": [], "last_updated": None, "error": None}
+_bear_lock = threading.Lock()
+
+_ohlc_cache: dict = {"dates": [], "open": [], "high": [], "low": [], "close": [], "last_updated": None, "error": None}
+_ohlc_lock = threading.Lock()
 
 
 def _recovery_days(drop_date: pd.Timestamp, prev_close: float, full_df: pd.DataFrame) -> int | None:
@@ -148,9 +156,40 @@ def refresh_dca() -> None:
         print(f"❌ DCA 更新失敗：{exc}")
 
 
+def refresh_bear() -> None:
+    try:
+        ohlc_df = load_ohlc_from_yfinance()
+        close_df = ohlc_df[["Date", "Close"]].copy()
+        bears = find_bear_markets(close_df)
+
+        clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
+        ohlc_data = {
+            "dates": clean["Date"].dt.strftime("%Y-%m-%d").tolist(),
+            "open":  clean["Open"].round(2).tolist(),
+            "high":  clean["High"].round(2).tolist(),
+            "low":   clean["Low"].round(2).tolist(),
+            "close": clean["Close"].round(2).tolist(),
+        }
+
+        now = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
+        with _bear_lock:
+            _bear_cache["bears"] = bears
+            _bear_cache["last_updated"] = now
+            _bear_cache["error"] = None
+        with _ohlc_lock:
+            _ohlc_cache.update({**ohlc_data, "last_updated": now, "error": None})
+    except Exception as exc:
+        with _bear_lock:
+            _bear_cache["error"] = str(exc)
+        with _ohlc_lock:
+            _ohlc_cache["error"] = str(exc)
+        print(f"❌ 空頭資料更新失敗：{exc}")
+
+
 def _schedule_refresh() -> None:
     refresh_data()
     refresh_dca()
+    refresh_bear()
     t = threading.Timer(_REFRESH_SECONDS, _schedule_refresh)
     t.daemon = True
     t.start()
@@ -176,6 +215,23 @@ def dca_page():
 def api_dca():
     with _dca_lock:
         return jsonify(dict(_dca_cache))
+
+
+@app.route("/bear")
+def bear_page():
+    return render_template("bear.html")
+
+
+@app.route("/api/ohlc")
+def api_ohlc():
+    with _ohlc_lock:
+        return jsonify(dict(_ohlc_cache))
+
+
+@app.route("/api/bear")
+def api_bear():
+    with _bear_lock:
+        return jsonify(dict(_bear_cache))
 
 
 if __name__ == "__main__":

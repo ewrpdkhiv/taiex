@@ -130,6 +130,28 @@ def load_from_yfinance(start: str = START_DATE) -> pd.DataFrame:
     return df
 
 
+def load_ohlc_from_yfinance(start: str = START_DATE) -> pd.DataFrame:
+    """從 yfinance 下載 TAIEX OHLC 資料（Date, Open, High, Low, Close）。"""
+    try:
+        import yfinance as yf  # pylint: disable=import-outside-toplevel
+    except ImportError as exc:
+        raise ImportError("請先安裝 yfinance：pip install yfinance") from exc
+
+    raw = yf.download(TAIEX_TICKER, start=start, progress=False, auto_adjust=True)
+    if raw.empty:
+        raise RuntimeError("OHLC 資料下載失敗")
+
+    if isinstance(raw.columns, pd.MultiIndex):
+        raw.columns = raw.columns.get_level_values(0)
+
+    cols = [c for c in ("Open", "High", "Low", "Close") if c in raw.columns]
+    df = raw[cols].copy()
+    df.index.name = "Date"
+    df = df.reset_index()
+    df["Date"] = pd.to_datetime(df["Date"])
+    return df
+
+
 def load_from_csv(path: str) -> pd.DataFrame:
     """從 CSV 檔案讀取台股加權指數歷史資料。
 
@@ -407,6 +429,110 @@ def save_csv(drops: pd.DataFrame, output_path: str) -> None:
     out["跌幅(%)"] = out["跌幅(%)"].round(2)
     out.to_csv(output_path, index=False, encoding="utf-8-sig")
     print(f"💾 結果已存至：{output_path}")
+
+
+# ── 空頭市場偵測 ──────────────────────────────────────────────────────────────
+
+# 主要空頭事件（鍵為高點的 YYYY-MM）
+BEAR_MARKET_EVENTS: dict[str, str] = {
+    "1990-02": "台灣股市泡沫崩潰（高點 12,682 點）",
+    "1994-01": "升息週期引發修正",
+    "1997-08": "亞洲金融風暴",
+    "2000-02": "科技泡沫崩潰（dot-com bubble）",
+    "2007-10": "全球金融海嘯（雷曼兄弟破產）",
+    "2010-12": "歐洲主權債務危機",
+    "2011-01": "歐洲主權債務危機",
+    "2015-04": "中國股市崩盤，全球景氣疑慮",
+    "2015-05": "中國股市崩盤，全球景氣疑慮",
+    "2018-01": "美中貿易戰升溫",
+    "2018-09": "美中貿易戰持續升溫",
+    "2020-01": "COVID-19 疫情全球蔓延",
+    "2022-01": "聯準會升息縮表打通膨",
+    "2024-07": "AI 高估值修正＋日圓套利平倉",
+    "2025-01": "川普對等關稅衝擊",
+    "2025-02": "川普對等關稅衝擊",
+}
+
+
+def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
+    """找出所有高點到低點跌幅 >= threshold 的空頭市場。
+
+    演算法：
+      1. 從 search_from 掃描，更新高點直到出現 >= threshold 跌幅 → 確認空頭
+      2. 繼續掃描找低點（直到恢復至高點水準或資料結束）
+      3. 下一輪從低點之後繼續（確保中間的次級空頭也被捕捉）
+
+    Returns:
+        每個空頭的 dict：peak_date, peak_value, trough_date, trough_value,
+        drop_pct, recovery_date, recovery_days, event
+    """
+    close = df["Close"].reset_index(drop=True).astype(float)
+    dates = pd.to_datetime(df["Date"]).reset_index(drop=True)
+    n = len(close)
+    bears: list[dict] = []
+    search_from = 0
+
+    while search_from < n - 1:
+        peak_i = search_from
+        peak_p = float(close[search_from])
+        found_bear = False
+
+        for j in range(search_from + 1, n):
+            pj = float(close[j])
+            if pj > peak_p:
+                peak_i = j
+                peak_p = pj
+            if (pj - peak_p) / peak_p <= -threshold:
+                found_bear = True
+                break
+
+        if not found_bear:
+            break
+
+        # 找低點：從高點往後掃，直到回到高點水準或資料結束
+        trough_i = peak_i
+        trough_p = peak_p
+        recovery_i: int | None = None
+
+        for k in range(peak_i + 1, n):
+            pk = float(close[k])
+            if pk < trough_p:
+                trough_p = pk
+                trough_i = k
+            if pk >= peak_p:
+                recovery_i = k
+                break
+
+        drop_pct = (trough_p - peak_p) / peak_p * 100
+        peak_date = dates[peak_i]
+        trough_date = dates[trough_i]
+        ym = peak_date.strftime("%Y-%m")
+
+        bears.append(
+            {
+                "peak_date": peak_date.strftime("%Y-%m-%d"),
+                "peak_value": round(peak_p, 2),
+                "trough_date": trough_date.strftime("%Y-%m-%d"),
+                "trough_value": round(trough_p, 2),
+                "drop_pct": round(drop_pct, 2),
+                "recovery_date": (
+                    dates[recovery_i].strftime("%Y-%m-%d")
+                    if recovery_i is not None
+                    else None
+                ),
+                "recovery_days": (
+                    int((dates[recovery_i] - peak_date).days)
+                    if recovery_i is not None
+                    else None
+                ),
+                "event": BEAR_MARKET_EVENTS.get(ym, ""),
+            }
+        )
+
+        # 從低點之後繼續，確保中間的次級空頭也被捕捉
+        search_from = trough_i + 1
+
+    return bears
 
 
 # ── CLI 入口 ──────────────────────────────────────────────────────────────────
