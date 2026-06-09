@@ -215,6 +215,61 @@
         max-width: 240px;
       }
 
+      /* ── 欄位 toggle ── */
+      .hide-col-peak-val .col-peak-val {
+        display: none;
+      }
+      .hide-col-trough-date .col-trough-date {
+        display: none;
+      }
+      .hide-col-trough-val .col-trough-val {
+        display: none;
+      }
+      .hide-col-drop .col-drop {
+        display: none;
+      }
+      .hide-col-recdays .col-recdays {
+        display: none;
+      }
+      .hide-col-event .col-event {
+        display: none;
+      }
+
+      #bear-toggle-bar {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 7px 16px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      #bear-toggle-bar .toggle-label {
+        font-size: 0.74rem;
+        color: #64748b;
+        white-space: nowrap;
+        margin-right: 2px;
+      }
+      .col-chip {
+        padding: 3px 10px;
+        font-size: 0.74rem;
+        border-radius: 20px;
+        border: 1px solid #cbd5e1;
+        background: #f1f5f9;
+        color: #64748b;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .col-chip:hover {
+        border-color: #94a3b8;
+        color: #334155;
+      }
+      .col-chip.on {
+        background: #1e293b;
+        border-color: #1e293b;
+        color: #f1f5f9;
+      }
+
       #loading {
         text-align: center;
         padding: 60px 20px;
@@ -292,6 +347,10 @@
       <span>回高天數 = 從高點起算至回到高點水準的日曆天</span>
     </div>
 
+    <div id="bear-toggle-bar">
+      <span class="toggle-label">欄位：</span>
+    </div>
+
     <div class="container">
       <!-- 空頭列表 -->
       <div class="card">
@@ -307,12 +366,14 @@
               <tr>
                 <th class="left" data-col="idx">#</th>
                 <th class="left" data-col="peak_date">高點日期</th>
-                <th data-col="peak_value">高點</th>
-                <th class="left" data-col="trough_date">低點日期</th>
-                <th data-col="trough_value">低點</th>
-                <th data-col="drop_pct">跌幅</th>
-                <th data-col="recovery_days">回高天數</th>
-                <th class="left" data-col="event">事件</th>
+                <th class="col-peak-val" data-col="peak_value">高點</th>
+                <th class="left col-trough-date" data-col="trough_date">
+                  低點日期
+                </th>
+                <th class="col-trough-val" data-col="trough_value">低點</th>
+                <th class="col-drop" data-col="drop_pct">跌幅</th>
+                <th class="col-recdays" data-col="recovery_days">回高天數</th>
+                <th class="left col-event" data-col="event">事件</th>
               </tr>
             </thead>
             <tbody id="bear-tbody"></tbody>
@@ -366,14 +427,14 @@
           maximumFractionDigits: 2,
         });
       }
-      function recoveryStr(days) {
+      function recoveryStr(days, hasNested) {
         if (days == null) return '<span class="no-recovery">尚未回高</span>';
         const years = Math.floor(days / 365),
           rem = days % 365;
         let s = days.toLocaleString() + " 天";
         if (years > 0)
           s += `（約 ${years} 年${rem > 0 ? " " + rem + " 天" : ""}）`;
-        return `<span class="recovery-days ${days > 1000 ? "long" : ""}">${s}</span>`;
+        return `<span class="recovery-days ${hasNested ? "long" : ""}">${s}</span>`;
       }
 
       /* ── 表格渲染 ── */
@@ -401,17 +462,26 @@
             return `<tr data-bear='${JSON.stringify(r)}'>
             <td class="left val-cell">${i + 1}</td>
             <td class="left date-cell">${r.peak_date}</td>
-            <td class="val-cell">${fmtNum(r.peak_value)}</td>
-            <td class="left date-cell">${r.trough_date}</td>
-            <td class="val-cell">${fmtNum(r.trough_value)}</td>
-            <td>
+            <td class="val-cell col-peak-val">${fmtNum(r.peak_value)}</td>
+            <td class="left date-cell col-trough-date">${r.trough_date}</td>
+            <td class="val-cell col-trough-val">${fmtNum(r.trough_value)}</td>
+            <td class="col-drop">
               <div class="bar-wrap">
                 <span class="drop-pct">${r.drop_pct.toFixed(2)}%</span>
                 <div class="bar-bg"><div class="bar-fill" style="width:${barW}%"></div></div>
               </div>
             </td>
-            <td>${recoveryStr(r.recovery_days)}</td>
-            <td class="left event-cell">${r.event || ""}</td>
+            <td class="col-recdays">${recoveryStr(
+              r.recovery_days,
+              _data.some(
+                (o) =>
+                  o.peak_date !== r.peak_date &&
+                  r.recovery_date &&
+                  o.peak_date > r.trough_date &&
+                  o.peak_date < r.recovery_date,
+              ),
+            )}</td>
+            <td class="left event-cell col-event">${r.event || ""}</td>
           </tr>`;
           })
           .join("");
@@ -533,7 +603,8 @@
           ]);
         }
 
-        /* 回升期間內的巢狀空頭：橘色標示 */
+        /* 回升期間內的巢狀空頭：橘色標示 + 箭頭說明 */
+        const nestedMarkLineData = [];
         if (bear.recovery_date) {
           for (const other of _data) {
             if (other.peak_date === bear.peak_date) continue;
@@ -548,6 +619,15 @@
                 },
                 { xAxis: other.trough_date },
               ]);
+              const pidx = dates.indexOf(other.peak_date);
+              const tidx = dates.indexOf(other.trough_date);
+              if (pidx >= 0 && tidx >= 0) {
+                const midDate = dates[Math.floor((pidx + tidx) / 2)];
+                nestedMarkLineData.push({
+                  xAxis: midDate,
+                  name: other.event || other.peak_date.slice(0, 7),
+                });
+              }
             }
           }
         }
@@ -595,6 +675,38 @@
                 data: markData,
               },
             },
+            ...(nestedMarkLineData.length > 0
+              ? [
+                  {
+                    type: "line",
+                    data: [],
+                    markLine: {
+                      silent: true,
+                      symbol: ["none", "arrow"],
+                      symbolSize: 8,
+                      lineStyle: {
+                        color: "#f97316",
+                        width: 1.5,
+                        type: "dashed",
+                      },
+                      label: {
+                        show: true,
+                        position: "start",
+                        formatter: (p) => p.name,
+                        color: "#7c2d12",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        backgroundColor: "rgba(255,237,213,0.95)",
+                        padding: [3, 8],
+                        borderRadius: 4,
+                        borderColor: "#f97316",
+                        borderWidth: 1,
+                      },
+                      data: nestedMarkLineData,
+                    },
+                  },
+                ]
+              : []),
           ],
           tooltip: {
             trigger: "axis",
@@ -635,6 +747,30 @@
         _chart.setOption(option, true);
         _chart.resize();
       }
+
+      /* ── 欄位 toggle ── */
+      (function initBearToggles() {
+        const COLS = [
+          { cls: "col-peak-val", label: "高點", on: false },
+          { cls: "col-trough-date", label: "低點日期", on: false },
+          { cls: "col-trough-val", label: "低點", on: false },
+          { cls: "col-drop", label: "跌幅", on: true },
+          { cls: "col-recdays", label: "回高天數", on: true },
+          { cls: "col-event", label: "事件", on: true },
+        ];
+        const bar = document.getElementById("bear-toggle-bar");
+        COLS.forEach((t) => {
+          if (!t.on) document.body.classList.add("hide-" + t.cls);
+          const btn = document.createElement("button");
+          btn.className = "col-chip" + (t.on ? " on" : "");
+          btn.textContent = t.label;
+          btn.addEventListener("click", () => {
+            const nowOn = btn.classList.toggle("on");
+            document.body.classList.toggle("hide-" + t.cls, !nowOn);
+          });
+          bar.appendChild(btn);
+        });
+      })();
 
       /* ── 初始資料載入 ── */
       fetch("/api/bear")

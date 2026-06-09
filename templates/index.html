@@ -292,10 +292,11 @@
         display: none;
       }
 
-      /* 匯出時顯示所有欄位、禁止換行（圖片橫向展開） */
+      /* 匯出時強制顯示所有欄位 */
       .exporting .col-close,
       .exporting .col-prev,
-      .exporting .col-pct {
+      .exporting .col-pct,
+      .exporting .recovery {
         display: table-cell !important;
       }
       .exporting td,
@@ -303,12 +304,56 @@
         white-space: nowrap !important;
       }
 
-      @media (max-width: 600px) {
-        .col-close,
-        .col-prev,
-        .col-pct {
-          display: none;
-        }
+      /* ── 欄位 toggle ── */
+      .hide-col-close .col-close {
+        display: none;
+      }
+      .hide-col-prev .col-prev {
+        display: none;
+      }
+      .hide-col-pct .col-pct {
+        display: none;
+      }
+      .hide-recovery .recovery {
+        display: none;
+      }
+      .hide-col-event .col-event {
+        display: none;
+      }
+
+      #col-toggle-bar {
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 7px 16px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      #col-toggle-bar .toggle-label {
+        font-size: 0.74rem;
+        color: #64748b;
+        white-space: nowrap;
+        margin-right: 2px;
+      }
+      .col-chip {
+        padding: 3px 10px;
+        font-size: 0.74rem;
+        border-radius: 20px;
+        border: 1px solid #cbd5e1;
+        background: #f1f5f9;
+        color: #64748b;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .col-chip:hover {
+        border-color: #94a3b8;
+        color: #334155;
+      }
+      .col-chip.on {
+        background: #1e293b;
+        border-color: #1e293b;
+        color: #f1f5f9;
       }
     </style>
   </head>
@@ -345,6 +390,10 @@
       </div>
     </nav>
 
+    <div id="col-toggle-bar">
+      <span class="toggle-label">欄位：</span>
+    </div>
+
     <div id="error-banner"></div>
 
     <!-- 8 個面板：drops-pct / gains-pct / drops-pt / gains-pt × 20y / all -->
@@ -362,9 +411,9 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pct-20y">
@@ -391,9 +440,9 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pct-10y">
@@ -420,9 +469,9 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pct-5y">
@@ -449,9 +498,9 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="col-pct">跌幅 (%)</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pct-all">
@@ -478,8 +527,8 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pct-20y">
@@ -506,8 +555,8 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pct-10y">
@@ -534,8 +583,8 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pct-5y">
@@ -562,8 +611,8 @@
                 <th class="date-header">日期</th>
                 <th class="col-close">收盤指數</th>
                 <th class="col-prev">前日收盤</th>
-                <th>漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="col-pct">漲幅 (%)</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pct-all">
@@ -592,8 +641,8 @@
                 <th class="col-prev">前日收盤</th>
                 <th>跌點</th>
                 <th class="col-pct">跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pt-20y">
@@ -622,8 +671,8 @@
                 <th class="col-prev">前日收盤</th>
                 <th>跌點</th>
                 <th class="col-pct">跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pt-10y">
@@ -652,8 +701,8 @@
                 <th class="col-prev">前日收盤</th>
                 <th>跌點</th>
                 <th class="col-pct">跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pt-5y">
@@ -682,8 +731,8 @@
                 <th class="col-prev">前日收盤</th>
                 <th>跌點</th>
                 <th class="col-pct">跌幅 (%)</th>
-                <th>回升天數</th>
-                <th class="left">事件</th>
+                <th class="recovery">回升天數</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-drops-pt-all">
@@ -712,7 +761,7 @@
                 <th class="col-prev">前日收盤</th>
                 <th>漲點</th>
                 <th class="col-pct">漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pt-20y">
@@ -741,7 +790,7 @@
                 <th class="col-prev">前日收盤</th>
                 <th>漲點</th>
                 <th class="col-pct">漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pt-10y">
@@ -770,7 +819,7 @@
                 <th class="col-prev">前日收盤</th>
                 <th>漲點</th>
                 <th class="col-pct">漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pt-5y">
@@ -799,7 +848,7 @@
                 <th class="col-prev">前日收盤</th>
                 <th>漲點</th>
                 <th class="col-pct">漲幅 (%)</th>
-                <th class="left">事件</th>
+                <th class="left col-event">事件</th>
               </tr>
             </thead>
             <tbody id="t-gains-pt-all">
@@ -833,8 +882,8 @@
           <td class="date">${r.date}</td>
           <td class="col-close">${fmt(r.close)}</td>
           <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${cls}">${r.change_pct.toFixed(2)}%</td>
-          <td class="event">${r.event}</td>
+          <td class="${cls} col-pct">${r.change_pct.toFixed(2)}%</td>
+          <td class="event col-event">${r.event}</td>
         </tr>`;
       }
 
@@ -844,9 +893,9 @@
           <td class="date">${r.date}</td>
           <td class="col-close">${fmt(r.close)}</td>
           <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${cls}">${r.change_pct.toFixed(2)}%</td>
+          <td class="${cls} col-pct">${r.change_pct.toFixed(2)}%</td>
           <td class="recovery">${recStr(r.recovery_days)}</td>
-          <td class="event">${r.event}</td>
+          <td class="event col-event">${r.event}</td>
         </tr>`;
       }
 
@@ -858,7 +907,7 @@
           <td class="col-prev">${fmt(r.prev_close)}</td>
           <td class="${cls}">${fmt(r.change_pt)}</td>
           <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
-          <td class="event">${r.event}</td>
+          <td class="event col-event">${r.event}</td>
         </tr>`;
       }
 
@@ -871,7 +920,7 @@
           <td class="${cls}">${fmt(r.change_pt)}</td>
           <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
           <td class="recovery">${recStr(r.recovery_days)}</td>
-          <td class="event">${r.event}</td>
+          <td class="event col-event">${r.event}</td>
         </tr>`;
       }
 
@@ -1061,6 +1110,29 @@
 
       fetchData();
       setTimeout(hourlyRefresh, REFRESH_MS);
+
+      // ── 欄位 toggle ──
+      const COL_TOGGLES = [
+        { cls: "col-close", label: "收盤指數", on: false },
+        { cls: "col-prev", label: "前日收盤", on: false },
+        { cls: "col-pct", label: "漲跌幅%", on: true },
+        { cls: "recovery", label: "回升天數", on: true },
+        { cls: "col-event", label: "事件", on: true },
+      ];
+      (function initColToggles() {
+        const bar = document.getElementById("col-toggle-bar");
+        COL_TOGGLES.forEach((t) => {
+          if (!t.on) document.body.classList.add("hide-" + t.cls);
+          const btn = document.createElement("button");
+          btn.className = "col-chip" + (t.on ? " on" : "");
+          btn.textContent = t.label;
+          btn.addEventListener("click", () => {
+            const nowOn = btn.classList.toggle("on");
+            document.body.classList.toggle("hide-" + t.cls, !nowOn);
+          });
+          bar.appendChild(btn);
+        });
+      })();
 
       // ── 排序按鈕 ──
       document.querySelectorAll(".card-header").forEach((header) => {
