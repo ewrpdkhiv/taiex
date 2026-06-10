@@ -429,6 +429,26 @@
           font-size: 0.69rem;
         }
       }
+      .refresh-btn {
+        background: none;
+        border: 1px solid #475569;
+        color: #94a3b8;
+        border-radius: 5px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+      .refresh-btn:hover:not(:disabled) {
+        background: #334155;
+        color: #e2e8f0;
+      }
+      .refresh-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
     </style>
   </head>
   <body>
@@ -436,7 +456,10 @@
       <a href="/">← 漲跌日排行</a>
       <a href="/bear">空頭市場記錄 →</a>
       <h1>定期定額試算</h1>
-      <div class="meta">更新：<b id="last-updated">載入中…</b></div>
+      <div class="meta">
+        <span>更新：<b id="last-updated">載入中…</b></span>
+        <button id="refresh-btn" class="refresh-btn">刷新</button>
+      </div>
     </header>
 
     <div id="error-banner"></div>
@@ -782,6 +805,31 @@
 
       document.getElementById("col-toggles").innerHTML = renderToggles();
       load();
+
+      (function () {
+        const btn = document.getElementById("refresh-btn");
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          btn.textContent = "刷新中…";
+          const orig = document.getElementById("last-updated").textContent;
+          try {
+            await fetch("/api/refresh", { method: "POST" });
+          } catch {}
+          let n = 0;
+          const t = setInterval(async () => {
+            n++;
+            try {
+              const d = await (await fetch("/api/dca")).json();
+              if (d.last_updated !== orig || n >= 60) {
+                clearInterval(t);
+                btn.disabled = false;
+                btn.textContent = "刷新";
+                if (d.last_updated !== orig) load();
+              }
+            } catch {}
+          }, 2000);
+        });
+      })();
     </script>
   </body>
 </html>

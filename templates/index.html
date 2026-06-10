@@ -358,6 +358,26 @@
         border-color: #1e293b;
         color: #f1f5f9;
       }
+      .refresh-btn {
+        background: none;
+        border: 1px solid #475569;
+        color: #94a3b8;
+        border-radius: 5px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+      .refresh-btn:hover:not(:disabled) {
+        background: #334155;
+        color: #e2e8f0;
+      }
+      .refresh-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
     </style>
   </head>
   <body>
@@ -367,6 +387,7 @@
       <a href="/bear" class="dca-link">空頭市場記錄 →</a>
       <div class="meta">
         <span>更新：<b id="last-updated">載入中…</b></span>
+        <button id="refresh-btn" class="refresh-btn">刷新</button>
       </div>
     </header>
 
@@ -407,24 +428,26 @@
             <h2>近 20 年前 10 大跌幅</h2>
             <span class="badge">20Y %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pct-20y">
-              <tr>
-                <td colspan="6" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-20y">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -436,24 +459,26 @@
             <h2>近 10 年前 10 大跌幅</h2>
             <span class="badge">10Y %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pct-10y">
-              <tr>
-                <td colspan="6" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-10y">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -465,24 +490,26 @@
             <h2>近 5 年前 10 大跌幅</h2>
             <span class="badge">5Y %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pct-5y">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-5y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -494,24 +521,26 @@
             <h2>歷史全時前 10 大跌幅</h2>
             <span class="badge">ALL %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pct-all">
-              <tr>
-                <td colspan="6" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-all">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -523,23 +552,25 @@
             <h2>近 20 年前 10 大漲幅</h2>
             <span class="badge">20Y %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pct-20y">
-              <tr>
-                <td colspan="6" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-20y">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -551,23 +582,25 @@
             <h2>近 10 年前 10 大漲幅</h2>
             <span class="badge">10Y %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pct-10y">
-              <tr>
-                <td colspan="6" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-10y">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -579,23 +612,25 @@
             <h2>近 5 年前 10 大漲幅</h2>
             <span class="badge">5Y %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pct-5y">
-              <tr>
-                <td colspan="6" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-5y">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -607,23 +642,25 @@
             <h2>歷史全時前 10 大漲幅</h2>
             <span class="badge">ALL %</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pct-all">
-              <tr>
-                <td colspan="6" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-all">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -635,25 +672,27 @@
             <h2>近 20 年前 10 大跌點</h2>
             <span class="badge">20Y 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>跌點</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pt-20y">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-20y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -665,25 +704,27 @@
             <h2>近 10 年前 10 大跌點</h2>
             <span class="badge">10Y 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>跌點</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pt-10y">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-10y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -695,25 +736,27 @@
             <h2>近 5 年前 10 大跌點</h2>
             <span class="badge">5Y 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>跌點</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pt-5y">
-              <tr>
-                <td colspan="8" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -725,25 +768,27 @@
             <h2>歷史全時前 10 大跌點</h2>
             <span class="badge">ALL 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>跌點</th>
-                <th class="col-pct">跌幅 (%)</th>
-                <th class="recovery">回升天數</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-drops-pt-all">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-all">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -755,24 +800,26 @@
             <h2>近 20 年前 10 大漲點</h2>
             <span class="badge">20Y 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>漲點</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pt-20y">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-20y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -784,24 +831,26 @@
             <h2>近 10 年前 10 大漲點</h2>
             <span class="badge">10Y 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>漲點</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pt-10y">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-10y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -813,24 +862,26 @@
             <h2>近 5 年前 10 大漲點</h2>
             <span class="badge">5Y 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>漲點</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pt-5y">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-5y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -842,24 +893,26 @@
             <h2>歷史全時前 10 大漲點</h2>
             <span class="badge">ALL 點數</span>
           </div>
-          <div class="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th class="date-header">日期</th>
-                <th class="col-close">收盤指數</th>
-                <th class="col-prev">前日收盤</th>
-                <th>漲點</th>
-                <th class="col-pct">漲幅 (%)</th>
-                <th class="left col-event">事件</th>
-              </tr>
-            </thead>
-            <tbody id="t-gains-pt-all">
-              <tr>
-                <td colspan="7" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-all">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1113,6 +1166,31 @@
 
       fetchData();
       setTimeout(hourlyRefresh, REFRESH_MS);
+
+      (function () {
+        const btn = document.getElementById("refresh-btn");
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          btn.textContent = "刷新中…";
+          const orig = document.getElementById("last-updated").textContent;
+          try {
+            await fetch("/api/refresh", { method: "POST" });
+          } catch {}
+          let n = 0;
+          const t = setInterval(async () => {
+            n++;
+            try {
+              const d = await (await fetch("/api/data")).json();
+              if (d.last_updated !== orig || n >= 60) {
+                clearInterval(t);
+                btn.disabled = false;
+                btn.textContent = "刷新";
+                if (d.last_updated !== orig) fetchData();
+              }
+            } catch {}
+          }, 2000);
+        });
+      })();
 
       // ── 欄位 toggle ──
       const COL_TOGGLES = [

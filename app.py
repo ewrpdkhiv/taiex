@@ -47,6 +47,9 @@ _bear_lock = threading.Lock()
 _ohlc_cache: dict = {"dates": [], "open": [], "high": [], "low": [], "close": [], "last_updated": None, "error": None}
 _ohlc_lock = threading.Lock()
 
+_refreshing = False
+_refreshing_lock = threading.Lock()
+
 
 def _recovery_days(drop_date: pd.Timestamp, prev_close: float, full_df: pd.DataFrame) -> int | None:
     future = full_df[full_df["Date"] > drop_date]
@@ -232,6 +235,29 @@ def api_ohlc():
 def api_bear():
     with _bear_lock:
         return jsonify(dict(_bear_cache))
+
+
+@app.route("/api/refresh", methods=["POST"])
+def api_refresh():
+    global _refreshing
+    with _refreshing_lock:
+        if _refreshing:
+            return jsonify({"status": "already_refreshing"})
+        _refreshing = True
+
+    def _do() -> None:
+        global _refreshing
+        try:
+            refresh_data()
+            refresh_dca()
+            refresh_bear()
+        finally:
+            global _refreshing
+            with _refreshing_lock:
+                _refreshing = False
+
+    threading.Thread(target=_do, daemon=True).start()
+    return jsonify({"status": "started"})
 
 
 if __name__ == "__main__":
