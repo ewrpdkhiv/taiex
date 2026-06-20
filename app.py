@@ -37,6 +37,7 @@ _REFRESH_SECONDS = 3600
 _dca_cache: dict = {
     "results_10y": [], "results_5y": [],
     "results_crash_10y": [], "results_crash_5y": [],
+    "results_covid": [],
     "last_updated": None, "error": None,
 }
 _dca_lock = threading.Lock()
@@ -138,19 +139,22 @@ def refresh_data() -> None:
 
 
 _CRASH_DATE = pd.Timestamp("2025-04-09")
+_COVID_START = pd.Timestamp("2020-02-01")
 
 
 def refresh_dca() -> None:
     try:
-        results_10y       = dca_run_all(monthly_amount=10_000, years=10)
-        results_5y        = dca_run_all(monthly_amount=10_000, years=5)
-        results_crash_10y = dca_run_all(monthly_amount=10_000, years=10, force_end=_CRASH_DATE)
-        results_crash_5y  = dca_run_all(monthly_amount=10_000, years=5,  force_end=_CRASH_DATE)
+        results_10y       = dca_run_all(monthly_amount=3_000, years=10)
+        results_5y        = dca_run_all(monthly_amount=3_000, years=5)
+        results_crash_10y = dca_run_all(monthly_amount=3_000, years=10, force_end=_CRASH_DATE)
+        results_crash_5y  = dca_run_all(monthly_amount=3_000, years=5,  force_end=_CRASH_DATE)
+        results_covid     = dca_run_all(monthly_amount=3_000, years=10, force_start=_COVID_START)
         with _dca_lock:
             _dca_cache["results_10y"]       = results_10y
             _dca_cache["results_5y"]        = results_5y
             _dca_cache["results_crash_10y"] = results_crash_10y
             _dca_cache["results_crash_5y"]  = results_crash_5y
+            _dca_cache["results_covid"]     = results_covid
             _dca_cache["last_updated"] = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
             _dca_cache["error"] = None
     except Exception as exc:

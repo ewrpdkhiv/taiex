@@ -310,9 +310,10 @@ def run_all(
     invest_day: int = 5,
     years: int = 10,
     force_end: pd.Timestamp | None = None,
+    force_start: pd.Timestamp | None = None,
 ) -> list[dict]:
     end = force_end if force_end is not None else pd.Timestamp.now().normalize()
-    common_start = end - pd.DateOffset(years=years)
+    common_start = force_start if force_start is not None else end - pd.DateOffset(years=years)
     print(f"📅 起始日：{common_start.date()}  結束日：{end.date()}")
 
     results = []

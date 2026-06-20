@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>定期定額試算</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       * {
         box-sizing: border-box;
@@ -12,89 +18,99 @@
       }
       body {
         font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC",
+          "Noto Sans TC",
+          -apple-system,
+          BlinkMacSystemFont,
           sans-serif;
-        background: #f0f2f5;
-        color: #333;
+        background: #111827;
+        color: #cbd5e1;
       }
 
       header {
-        background: #1a1a2e;
-        color: #fff;
-        padding: 16px 20px;
+        background: #111827;
+        border-bottom: 1px solid #2d3f55;
+        padding: 13px 20px;
         display: flex;
         align-items: center;
         gap: 16px;
         flex-wrap: wrap;
       }
       header a {
-        color: #94a3b8;
-        font-size: 0.82rem;
+        color: #475569;
+        font-size: 0.78rem;
         text-decoration: none;
-        border: 1px solid #334155;
-        padding: 4px 10px;
-        border-radius: 5px;
+        border: 1px solid #2d3f55;
+        padding: 3px 10px;
+        border-radius: 4px;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
       }
       header a:hover {
-        color: #e2e8f0;
-        border-color: #475569;
+        color: #94a3b8;
+        border-color: #334155;
       }
       header h1 {
-        font-size: 1.1rem;
+        font-size: 0.95rem;
         font-weight: 600;
+        color: #e2e8f0;
       }
       .meta {
         margin-left: auto;
-        font-size: 0.78rem;
-        color: #94a3b8;
+        font-size: 0.74rem;
+        color: #334155;
+        display: flex;
+        align-items: center;
+        gap: 10px;
       }
       .meta b {
-        color: #cbd5e1;
+        color: #64748b;
       }
 
       #error-banner {
         display: none;
-        background: #fee2e2;
-        color: #b91c1c;
+        background: rgba(244, 63, 94, 0.1);
+        color: #f43f5e;
         padding: 10px 20px;
-        font-size: 0.85rem;
+        font-size: 0.84rem;
+        border-bottom: 1px solid rgba(244, 63, 94, 0.2);
       }
 
       .container {
         max-width: 1120px;
-        margin: 24px auto;
+        margin: 20px auto;
         padding: 0 14px;
       }
 
       .info-bar {
-        background: #fff;
-        border-radius: 10px;
-        padding: 14px 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+        background: #1f2937;
+        border: 1px solid #2d3f55;
+        border-radius: 6px;
+        padding: 12px 18px;
+        margin-bottom: 12px;
         display: flex;
         flex-wrap: wrap;
-        gap: 20px;
+        gap: 16px;
         align-items: center;
-        font-size: 0.85rem;
+        font-size: 0.83rem;
         color: #475569;
       }
       .info-bar b {
-        color: #1e293b;
+        color: #94a3b8;
       }
       .info-bar .period {
         margin-left: auto;
-        font-size: 0.82rem;
-        color: #64748b;
+        font-size: 0.8rem;
+        color: #334155;
       }
       .info-bar .period b {
-        color: #334155;
+        color: #64748b;
       }
 
       .table-wrap {
-        background: #fff;
-        border-radius: 10px;
-        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+        background: #1f2937;
+        border: 1px solid #2d3f55;
+        border-radius: 6px;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
       }
@@ -102,34 +118,36 @@
       table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.85rem;
+        font-size: 0.84rem;
       }
-
       thead tr {
-        background: #1e293b;
-        color: #e2e8f0;
+        background: #162234;
       }
       thead th {
-        padding: 11px 12px;
-        font-weight: 600;
+        padding: 10px 12px;
+        font-weight: 500;
         text-align: right;
         white-space: nowrap;
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #334155;
+        border-bottom: 1px solid #2d3f55;
       }
       .th-sort {
         cursor: pointer;
         user-select: none;
-        opacity: 0.7;
       }
       .th-sort:hover {
-        opacity: 1;
+        color: #475569;
       }
       .th-active {
         cursor: pointer;
         user-select: none;
-        color: #fbbf24;
+        color: #f59e0b;
       }
       .sort-arrow {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         margin-left: 3px;
       }
       thead th:nth-child(1) {
@@ -145,26 +163,28 @@
       }
 
       tbody tr {
-        border-bottom: 1px solid #f1f5f9;
+        border-bottom: 1px solid #1b2b3f;
         transition: background 0.1s;
       }
       tbody tr:last-child {
         border-bottom: none;
       }
       tbody tr:hover {
-        background: #f8fafc;
+        background: rgba(255, 255, 255, 0.02);
       }
 
       td {
-        padding: 11px 12px;
+        padding: 10px 12px;
         text-align: right;
         white-space: nowrap;
+        color: #475569;
       }
       td:nth-child(1) {
         text-align: center;
-        color: #94a3b8;
-        font-size: 0.78rem;
+        color: #2d3f55;
+        font-size: 0.75rem;
         font-weight: 600;
+        font-family: "JetBrains Mono", monospace;
       }
       td:nth-child(2) {
         text-align: left;
@@ -172,30 +192,33 @@
 
       .ticker {
         font-weight: 700;
-        color: #1e293b;
-        font-size: 0.88rem;
+        color: #94a3b8;
+        font-size: 0.86rem;
       }
       .name {
-        color: #64748b;
-        font-size: 0.76rem;
+        color: #334155;
+        font-size: 0.73rem;
         margin-top: 1px;
       }
 
       .pos {
-        color: #16a34a;
+        color: #10b981;
         font-weight: 700;
+        font-family: "JetBrains Mono", monospace;
       }
       .neg {
-        color: #dc2626;
+        color: #f43f5e;
         font-weight: 700;
+        font-family: "JetBrains Mono", monospace;
       }
       .mid {
-        color: #d97706;
+        color: #f59e0b;
         font-weight: 700;
+        font-family: "JetBrains Mono", monospace;
       }
       .sub {
-        font-size: 0.76rem;
-        color: #64748b;
+        font-size: 0.73rem;
+        color: #334155;
         margin-top: 2px;
       }
 
@@ -206,69 +229,71 @@
         justify-content: flex-end;
       }
       .bar {
-        height: 6px;
-        border-radius: 3px;
+        height: 4px;
+        border-radius: 2px;
         min-width: 2px;
-        background: #16a34a;
+        background: #10b981;
         flex-shrink: 0;
       }
       .bar.neg-bar {
-        background: #dc2626;
+        background: #f43f5e;
       }
 
       .period-btns {
         display: flex;
         gap: 6px;
+        flex-wrap: wrap;
       }
       .period-btn {
         background: none;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        padding: 4px 12px;
-        font-size: 0.82rem;
-        color: #64748b;
+        border: 1px solid #2d3f55;
+        border-radius: 4px;
+        padding: 3px 11px;
+        font-size: 0.78rem;
+        color: #334155;
         cursor: pointer;
+        transition: all 0.15s;
       }
       .period-btn:hover {
-        border-color: #94a3b8;
-        color: #334155;
+        border-color: #334155;
+        color: #64748b;
       }
       .period-btn.active {
-        background: #1e293b;
-        border-color: #1e293b;
-        color: #fff;
+        background: #243448;
+        border-color: #334155;
+        color: #e2e8f0;
         font-weight: 600;
       }
       .period-btn.crash {
-        border-color: #fca5a5;
-        color: #b91c1c;
+        border-color: rgba(244, 63, 94, 0.3);
+        color: #7f1d1d;
       }
       .period-btn.crash:hover {
-        border-color: #f87171;
-        color: #991b1b;
+        border-color: rgba(244, 63, 94, 0.5);
+        color: #f43f5e;
       }
       .period-btn.crash.active {
-        background: #b91c1c;
-        border-color: #b91c1c;
-        color: #fff;
+        background: rgba(244, 63, 94, 0.15);
+        border-color: rgba(244, 63, 94, 0.4);
+        color: #f43f5e;
       }
 
       .loading-msg {
         padding: 48px;
         text-align: center;
-        color: #94a3b8;
+        color: #2d3f55;
         font-size: 0.9rem;
       }
 
       .filter-bar {
-        background: #fff;
-        border-radius: 10px;
-        padding: 10px 16px;
+        background: #1f2937;
+        border: 1px solid #2d3f55;
+        border-radius: 6px;
+        padding: 9px 14px;
         margin-bottom: 10px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
         align-items: center;
       }
       .filter-group {
@@ -278,99 +303,90 @@
       }
       .filter-group + .filter-group {
         padding-left: 10px;
-        border-left: 1px solid #e2e8f0;
+        border-left: 1px solid #2d3f55;
       }
       .filter-label {
-        font-size: 0.73rem;
-        color: #94a3b8;
+        font-size: 0.7rem;
+        color: #334155;
         margin-right: 2px;
         white-space: nowrap;
       }
       .filter-chip {
-        border: 1px solid #cbd5e1;
-        border-radius: 20px;
-        padding: 3px 11px;
-        font-size: 0.78rem;
-        color: #64748b;
+        border: 1px solid #2d3f55;
+        border-radius: 3px;
+        padding: 2px 9px;
+        font-size: 0.74rem;
+        color: #334155;
         cursor: pointer;
         user-select: none;
         background: none;
-        transition:
-          background 0.1s,
-          color 0.1s,
-          border-color 0.1s;
+        transition: all 0.1s;
       }
       .filter-chip:hover {
-        border-color: #94a3b8;
-        color: #334155;
+        border-color: #334155;
+        color: #64748b;
       }
       .filter-chip.active {
-        background: #1e293b;
-        border-color: #1e293b;
-        color: #fff;
+        background: #243448;
+        border-color: #334155;
+        color: #e2e8f0;
       }
 
       .col-toggle-bar {
-        background: #fff;
-        border-radius: 10px;
-        padding: 10px 16px;
+        background: #1f2937;
+        border: 1px solid #2d3f55;
+        border-radius: 6px;
+        padding: 8px 14px;
         margin-bottom: 10px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
         align-items: center;
       }
       .col-toggle-bar .label {
-        font-size: 0.75rem;
-        color: #94a3b8;
+        font-size: 0.7rem;
+        color: #2d3f55;
         margin-right: 4px;
         white-space: nowrap;
       }
       .col-chip {
-        border: 1px solid #cbd5e1;
-        border-radius: 20px;
-        padding: 3px 12px;
-        font-size: 0.78rem;
-        color: #64748b;
+        border: 1px solid #2d3f55;
+        border-radius: 3px;
+        padding: 2px 9px;
+        font-size: 0.72rem;
+        color: #334155;
         cursor: pointer;
         user-select: none;
         background: none;
-        transition:
-          background 0.1s,
-          color 0.1s,
-          border-color 0.1s;
+        transition: all 0.1s;
       }
       .col-chip:hover {
-        border-color: #94a3b8;
-        color: #334155;
+        border-color: #334155;
+        color: #64748b;
       }
       .col-chip.on {
-        background: #1e293b;
-        border-color: #1e293b;
-        color: #fff;
+        background: #243448;
+        border-color: #334155;
+        color: #e2e8f0;
       }
 
-      /* ── 手機響應式 ── */
       @media (max-width: 600px) {
         header {
           padding: 10px 14px;
           gap: 10px;
         }
         header h1 {
-          font-size: 0.95rem;
+          font-size: 0.88rem;
         }
         .meta {
-          font-size: 0.72rem;
+          font-size: 0.7rem;
           margin-left: 0;
           width: 100%;
         }
-
         .container {
           margin: 10px auto;
           padding: 0 8px;
         }
-
         .info-bar {
           flex-direction: column;
           align-items: flex-start;
@@ -384,26 +400,17 @@
           margin-left: 0;
           font-size: 0.78rem;
         }
-
-        .table-wrap {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          border-radius: 8px;
-        }
-
         table {
-          font-size: 0.78rem;
+          font-size: 0.77rem;
           min-width: 340px;
         }
         thead th {
-          padding: 8px 8px;
-          font-size: 0.74rem;
+          padding: 8px;
+          font-size: 0.66rem;
         }
         td {
           padding: 9px 8px;
         }
-
-        /* 第一欄（#）固定 */
         thead th:nth-child(1),
         td:nth-child(1) {
           position: sticky;
@@ -412,41 +419,41 @@
           z-index: 1;
         }
         thead th:nth-child(1) {
-          background: #1e293b;
+          background: #162234;
         }
-
         .bar {
           display: none;
         }
         .bar-wrap {
           gap: 0;
         }
-
         .ticker {
-          font-size: 0.82rem;
+          font-size: 0.8rem;
         }
         .name {
-          font-size: 0.69rem;
+          font-size: 0.66rem;
         }
       }
+
       .refresh-btn {
         background: none;
-        border: 1px solid #475569;
-        color: #94a3b8;
-        border-radius: 5px;
+        border: 1px solid #2d3f55;
+        color: #334155;
+        border-radius: 4px;
         padding: 2px 8px;
-        font-size: 0.75rem;
+        font-size: 0.71rem;
         cursor: pointer;
         transition:
           background 0.15s,
           color 0.15s;
       }
       .refresh-btn:hover:not(:disabled) {
-        background: #334155;
-        color: #e2e8f0;
+        background: #243448;
+        color: #64748b;
+        border-color: #334155;
       }
       .refresh-btn:disabled {
-        opacity: 0.5;
+        opacity: 0.4;
         cursor: default;
       }
     </style>
@@ -468,7 +475,7 @@
       <div class="info-bar" id="info-bar">
         <span
           >每月 <b>5 日</b> 投入
-          <b>10,000 元</b>・允許小數股・股息隔天再投入</span
+          <b>3,000 元</b>・允許小數股・股息隔天再投入</span
         >
         <span class="period">回測期間：<b id="period-text">載入中…</b></span>
         <div class="period-btns">
@@ -489,6 +496,9 @@
             onclick="setPeriod('crash_5y', this)"
           >
             股災前5年
+          </button>
+          <button class="period-btn" onclick="setPeriod('covid', this)">
+            2020/02起
           </button>
         </div>
       </div>
@@ -519,7 +529,12 @@
       let _cache = {};
       let _results = [];
       let _sortKey = "irr";
-      let _visibleCols = new Set(["irr", "max_drawdown", "calmar"]);
+      let _visibleCols = new Set([
+        "return_rate",
+        "irr",
+        "max_drawdown",
+        "calmar",
+      ]);
       let _filters = { market: null, type: null, special: new Set() };
 
       const FILTER_GROUPS = [
@@ -789,6 +804,7 @@
             results_5y: data.results_5y || [],
             results_crash_10y: data.results_crash_10y || [],
             results_crash_5y: data.results_crash_5y || [],
+            results_covid: data.results_covid || [],
           };
           _results = _cache.results_10y;
           const first = _results[0];
