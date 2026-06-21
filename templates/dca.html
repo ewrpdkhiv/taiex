@@ -560,6 +560,7 @@
           chips: [
             { val: "finance", label: "金融股" },
             { val: "leveraged", label: "槓桿ETF" },
+            { val: "no_leverage", label: "無槓桿ETF" },
           ],
         },
       ];
@@ -569,11 +570,24 @@
           const tags = d.tags || [];
           if (_filters.market && !tags.includes(_filters.market)) return false;
           if (_filters.type && !tags.includes(_filters.type)) return false;
-          if (
-            _filters.special.size > 0 &&
-            ![..._filters.special].some((s) => tags.includes(s))
-          )
-            return false;
+          if (_filters.special.size > 0) {
+            const specials = [..._filters.special];
+            const normalSpecials = specials.filter((s) => s !== "no_leverage");
+            const wantNoLeverage = specials.includes("no_leverage");
+            const passNormal =
+              normalSpecials.length === 0 ||
+              normalSpecials.some((s) => tags.includes(s));
+            const passNoLeverage =
+              !wantNoLeverage ||
+              (tags.includes("etf") && !tags.includes("leveraged"));
+            if (!passNormal && !passNoLeverage) return false;
+            if (
+              wantNoLeverage &&
+              normalSpecials.length === 0 &&
+              !passNoLeverage
+            )
+              return false;
+          }
           return true;
         });
       }
