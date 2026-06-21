@@ -24,6 +24,10 @@ TICKERS: dict[str, str] = {
     "UPRO": "ProShares S&P500 3x",
     "QLD":  "ProShares Nasdaq-100 2x",
     "TQQQ": "ProShares Nasdaq-100 3x",
+    "VT":   "Vanguard 全球股票",
+    "VTI":  "Vanguard 全美股票",
+    "SOXX": "iShares 費城半導體",
+    "SOXL": "Direxion 半導體 3x",
 }
 
 TICKER_TAGS: dict[str, list[str]] = {
@@ -45,6 +49,10 @@ TICKER_TAGS: dict[str, list[str]] = {
     "UPRO":      ["us", "etf", "leveraged"],
     "QLD":       ["us", "etf", "leveraged"],
     "TQQQ":      ["us", "etf", "leveraged"],
+    "VT":        ["us", "etf"],
+    "VTI":       ["us", "etf"],
+    "SOXX":      ["us", "etf"],
+    "SOXL":      ["us", "etf", "leveraged"],
 }
 
 
