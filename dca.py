@@ -28,6 +28,17 @@ TICKERS: dict[str, str] = {
     "VTI":  "Vanguard 全美股票",
     "SOXX": "iShares 費城半導體",
     "SOXL": "Direxion 半導體 3x",
+    "2603.TW": "長榮",
+    "2609.TW": "陽明",
+    "2615.TW": "萬海",
+    "3231.TW": "緯創",
+    "4128.TWO": "中天",
+    "4192.TWO": "杏國",
+    "4743.TWO": "合一",
+    "1734.TW":  "杏輝",
+    "3176.TWO": "基亞",
+    "MU":    "Micron Technology",
+    "GOOGL": "Alphabet (Google)",
 }
 
 TICKER_TAGS: dict[str, list[str]] = {
@@ -53,6 +64,17 @@ TICKER_TAGS: dict[str, list[str]] = {
     "VTI":       ["us", "etf"],
     "SOXX":      ["us", "etf"],
     "SOXL":      ["us", "etf", "leveraged"],
+    "2603.TW":   ["tw", "stock", "shipping"],
+    "2609.TW":   ["tw", "stock", "shipping"],
+    "2615.TW":   ["tw", "stock", "shipping"],
+    "3231.TW":   ["tw", "stock"],
+    "4128.TWO":  ["tw", "stock", "biotech"],
+    "4192.TWO":  ["tw", "stock", "biotech"],
+    "4743.TWO":  ["tw", "stock", "biotech"],
+    "1734.TW":   ["tw", "stock", "biotech"],
+    "3176.TWO":  ["tw", "stock", "biotech"],
+    "MU":        ["us", "stock"],
+    "GOOGL":     ["us", "stock"],
 }
 
 

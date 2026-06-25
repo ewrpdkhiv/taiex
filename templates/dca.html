@@ -456,6 +456,94 @@
         opacity: 0.4;
         cursor: default;
       }
+
+      tbody tr {
+        cursor: pointer;
+      }
+      tbody tr.selected td {
+        background: rgba(139, 92, 246, 0.1);
+      }
+      tbody tr.selected td:nth-child(1) {
+        color: #8b5cf6;
+      }
+
+      #portfolio-bar {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #1f2937;
+        border-top: 2px solid #8b5cf6;
+        padding: 12px 20px;
+        z-index: 200;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      #portfolio-bar.visible {
+        display: flex;
+      }
+      .portfolio-label {
+        font-size: 0.72rem;
+        color: #475569;
+        white-space: nowrap;
+      }
+      .portfolio-chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        flex: 1;
+      }
+      .portfolio-chip {
+        background: rgba(139, 92, 246, 0.15);
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        color: #a78bfa;
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        font-family: "JetBrains Mono", monospace;
+        cursor: pointer;
+      }
+      .portfolio-chip:hover {
+        background: rgba(139, 92, 246, 0.25);
+      }
+      .portfolio-stats {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .portfolio-stat {
+        text-align: right;
+      }
+      .portfolio-stat .s-label {
+        font-size: 0.65rem;
+        color: #475569;
+        display: block;
+      }
+      .portfolio-stat .s-val {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.85rem;
+        font-weight: 700;
+      }
+      .portfolio-clear {
+        background: none;
+        border: 1px solid #374151;
+        color: #475569;
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 0.74rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .portfolio-clear:hover {
+        border-color: #f43f5e;
+        color: #f43f5e;
+      }
+      body.has-portfolio {
+        padding-bottom: 64px;
+      }
     </style>
   </head>
   <body>
@@ -529,6 +617,7 @@
       let _cache = {};
       let _results = [];
       let _sortKey = "irr";
+      let _portfolio = new Set();
       let _visibleCols = new Set([
         "return_rate",
         "irr",
@@ -559,35 +648,30 @@
           label: "特殊",
           chips: [
             { val: "finance", label: "金融股" },
+            { val: "shipping", label: "航運" },
+            { val: "biotech", label: "生技" },
             { val: "leveraged", label: "槓桿ETF" },
             { val: "no_leverage", label: "無槓桿ETF" },
           ],
         },
       ];
 
+      function matchesSpecial(tags, val) {
+        if (val === "no_leverage")
+          return tags.includes("etf") && !tags.includes("leveraged");
+        return tags.includes(val);
+      }
+
       function applyFilters(results) {
         return results.filter((d) => {
           const tags = d.tags || [];
           if (_filters.market && !tags.includes(_filters.market)) return false;
           if (_filters.type && !tags.includes(_filters.type)) return false;
-          if (_filters.special.size > 0) {
-            const specials = [..._filters.special];
-            const normalSpecials = specials.filter((s) => s !== "no_leverage");
-            const wantNoLeverage = specials.includes("no_leverage");
-            const passNormal =
-              normalSpecials.length === 0 ||
-              normalSpecials.some((s) => tags.includes(s));
-            const passNoLeverage =
-              !wantNoLeverage ||
-              (tags.includes("etf") && !tags.includes("leveraged"));
-            if (!passNormal && !passNoLeverage) return false;
-            if (
-              wantNoLeverage &&
-              normalSpecials.length === 0 &&
-              !passNoLeverage
-            )
-              return false;
-          }
+          if (
+            _filters.special.size > 0 &&
+            ![..._filters.special].some((s) => matchesSpecial(tags, s))
+          )
+            return false;
           return true;
         });
       }
@@ -731,9 +815,10 @@
                     ? "mid"
                     : "neg";
             const pnl = pnlVal(d);
+            const sel = _portfolio.has(d.ticker);
             return `
-            <tr>
-              <td>${i + 1}</td>
+            <tr class="${sel ? "selected" : ""}" onclick="togglePortfolio('${d.ticker}')">
+              <td>${sel ? "✓" : i + 1}</td>
               <td><div class="ticker">${d.ticker}</div><div class="name">${d.name}</div></td>
               ${vis("invested") ? `<td>${moneyStr(d.invested)}</td>` : ""}
               ${vis("shares") ? `<td>${sharesStr(re.shares)}</td>` : ""}
@@ -784,6 +869,77 @@
         document.getElementById("table-container").innerHTML = renderTable();
       }
 
+      function togglePortfolio(ticker) {
+        if (_portfolio.has(ticker)) _portfolio.delete(ticker);
+        else _portfolio.add(ticker);
+        document.getElementById("table-container").innerHTML = renderTable();
+        updatePortfolioBar();
+      }
+
+      function clearPortfolio() {
+        _portfolio.clear();
+        document.getElementById("table-container").innerHTML = renderTable();
+        updatePortfolioBar();
+      }
+
+      function updatePortfolioBar() {
+        const bar = document.getElementById("portfolio-bar");
+        const selected = _results.filter((d) => _portfolio.has(d.ticker));
+        if (!selected.length) {
+          bar.classList.remove("visible");
+          document.body.classList.remove("has-portfolio");
+          return;
+        }
+        bar.classList.add("visible");
+        document.body.classList.add("has-portfolio");
+
+        document.getElementById("portfolio-chips").innerHTML = selected
+          .map(
+            (d) =>
+              `<span class="portfolio-chip" onclick="event.stopPropagation();togglePortfolio('${d.ticker}')" title="點擊移除">${d.ticker} ${d.name} ✕</span>`,
+          )
+          .join("");
+
+        if (selected.length >= 2) {
+          const totalInvested = selected.reduce(
+            (s, d) => s + (d.invested ?? 0),
+            0,
+          );
+          const totalMV = selected.reduce(
+            (s, d) => s + (d.reinvest.market_value ?? 0),
+            0,
+          );
+          const combinedReturn =
+            totalInvested > 0
+              ? ((totalMV - totalInvested) / totalInvested) * 100
+              : null;
+          const pnl = totalMV - totalInvested;
+          const retClass =
+            combinedReturn == null ? "" : combinedReturn >= 0 ? "pos" : "neg";
+          const pnlClass = pnl >= 0 ? "pos" : "neg";
+          document.getElementById("portfolio-stats").innerHTML = `
+            <div class="portfolio-stat">
+              <span class="s-label">總投入</span>
+              <span class="s-val">${Math.round(totalInvested).toLocaleString()}</span>
+            </div>
+            <div class="portfolio-stat">
+              <span class="s-label">總市值</span>
+              <span class="s-val">${Math.round(totalMV).toLocaleString()}</span>
+            </div>
+            <div class="portfolio-stat">
+              <span class="s-label">損益</span>
+              <span class="s-val ${pnlClass}">${pnl >= 0 ? "+" : ""}${Math.round(pnl).toLocaleString()}</span>
+            </div>
+            <div class="portfolio-stat">
+              <span class="s-label">組合總報酬</span>
+              <span class="s-val ${retClass}">${combinedReturn != null ? (combinedReturn >= 0 ? "+" : "") + combinedReturn.toFixed(2) + "%" : "—"}</span>
+            </div>`;
+        } else {
+          document.getElementById("portfolio-stats").innerHTML =
+            `<span style="font-size:0.75rem;color:#475569">再選一檔計算組合報酬</span>`;
+        }
+      }
+
       function setPeriod(key, btn) {
         _results = _cache["results_" + key] || [];
         document
@@ -797,6 +953,7 @@
         }
         document.getElementById("filter-bar").innerHTML = renderFilterBar();
         document.getElementById("table-container").innerHTML = renderTable();
+        updatePortfolioBar();
       }
 
       async function load() {
@@ -861,5 +1018,11 @@
         });
       })();
     </script>
+    <div id="portfolio-bar">
+      <span class="portfolio-label">組合</span>
+      <div class="portfolio-chips" id="portfolio-chips"></div>
+      <div class="portfolio-stats" id="portfolio-stats"></div>
+      <button class="portfolio-clear" onclick="clearPortfolio()">清除</button>
+    </div>
   </body>
 </html>
