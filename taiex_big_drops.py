@@ -152,6 +152,27 @@ def load_ohlc_from_yfinance(start: str = START_DATE) -> pd.DataFrame:
     return df
 
 
+def load_vix_from_yfinance(start: str = START_DATE) -> dict[str, float]:
+    """下載 VIX 收盤價，回傳 {date_str: vix_close}。下載失敗回傳空 dict。"""
+    try:
+        import yfinance as yf  # pylint: disable=import-outside-toplevel
+        raw = yf.download("^VIX", start=start, progress=False, auto_adjust=True)
+        if raw.empty:
+            return {}
+        if isinstance(raw.columns, pd.MultiIndex):
+            raw.columns = raw.columns.get_level_values(0)
+        result: dict[str, float] = {}
+        for ts, row in raw.iterrows():
+            try:
+                result[pd.Timestamp(ts).strftime("%Y-%m-%d")] = round(float(row["Close"]), 2)
+            except (KeyError, ValueError, TypeError):
+                pass
+        return result
+    except Exception as e:
+        print(f"⚠ VIX 下載失敗：{e}")
+        return {}
+
+
 def load_from_csv(path: str) -> pd.DataFrame:
     """從 CSV 檔案讀取台股加權指數歷史資料。
 

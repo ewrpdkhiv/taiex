@@ -17,6 +17,7 @@ from taiex_big_drops import (
     find_top_point_gains,
     load_from_yfinance,
     load_ohlc_from_yfinance,
+    load_vix_from_yfinance,
 )
 
 _TW = timezone(timedelta(hours=8))
@@ -170,12 +171,18 @@ def refresh_bear() -> None:
         bears = find_bear_markets(close_df)
 
         clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
+        dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()
+
+        vix_dict = load_vix_from_yfinance()
+        vix_values = [vix_dict.get(d) for d in dates]  # None 表示無對應 VIX 交易日
+
         ohlc_data = {
-            "dates": clean["Date"].dt.strftime("%Y-%m-%d").tolist(),
+            "dates": dates,
             "open":  clean["Open"].round(2).tolist(),
             "high":  clean["High"].round(2).tolist(),
             "low":   clean["Low"].round(2).tolist(),
             "close": clean["Close"].round(2).tolist(),
+            "vix":   vix_values,
         }
 
         now = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")

@@ -462,7 +462,7 @@
         color: #334155;
       }
       #chart-container {
-        height: 440px;
+        height: 520px;
       }
     </style>
   </head>
@@ -1452,7 +1452,9 @@
           H = ohlc.high,
           L = ohlc.low,
           C = ohlc.close;
+        const vixRaw = ohlc.vix || [];
         const candleData = dates.map((_, i) => [O[i], C[i], L[i], H[i]]);
+        const vixData = dates.map((_, i) => vixRaw[i] ?? null);
 
         const dropIdx = dates.indexOf(r.date);
         if (dropIdx < 0) return;
@@ -1496,34 +1498,64 @@
         const option = {
           animation: false,
           backgroundColor: "#1f2937",
-          grid: { left: "7%", right: "2%", top: "10%", bottom: "18%" },
-          xAxis: {
-            type: "category",
-            data: dates,
-            boundaryGap: true,
-            axisLabel: {
-              formatter: (v) => v.slice(0, 7),
-              fontSize: 11,
-              rotate: 30,
-              color: "#475569",
+          axisPointer: { link: [{ xAxisIndex: "all" }] },
+          grid: [
+            { left: "7%", right: "3%", top: "6%", bottom: "42%" },
+            { left: "7%", right: "3%", top: "66%", bottom: "12%" },
+          ],
+          xAxis: [
+            {
+              type: "category",
+              data: dates,
+              boundaryGap: true,
+              gridIndex: 0,
+              axisLabel: { show: false },
+              axisLine: { lineStyle: { color: "#2d3f55" } },
+              axisTick: { show: false },
             },
-            axisLine: { lineStyle: { color: "#2d3f55" } },
-            axisTick: { lineStyle: { color: "#2d3f55" } },
-          },
-          yAxis: {
-            type: "value",
-            scale: true,
-            splitLine: { lineStyle: { color: "#2d3f55" } },
-            axisLabel: {
-              formatter: (v) => v.toLocaleString(),
-              fontSize: 11,
-              color: "#64748b",
+            {
+              type: "category",
+              data: dates,
+              boundaryGap: true,
+              gridIndex: 1,
+              axisLabel: {
+                formatter: (v) => v.slice(0, 7),
+                fontSize: 10,
+                rotate: 30,
+                color: "#475569",
+              },
+              axisLine: { lineStyle: { color: "#2d3f55" } },
+              axisTick: { lineStyle: { color: "#2d3f55" } },
             },
-          },
+          ],
+          yAxis: [
+            {
+              type: "value",
+              scale: true,
+              gridIndex: 0,
+              splitLine: { lineStyle: { color: "#2d3f55" } },
+              axisLabel: {
+                formatter: (v) => v.toLocaleString(),
+                fontSize: 11,
+                color: "#64748b",
+              },
+            },
+            {
+              type: "value",
+              scale: true,
+              gridIndex: 1,
+              splitLine: { lineStyle: { color: "#1e3048" } },
+              axisLabel: { fontSize: 10, color: "#64748b" },
+              name: "VIX",
+              nameTextStyle: { color: "#f59e0b", fontSize: 10 },
+            },
+          ],
           series: [
             {
               type: "candlestick",
               data: candleData,
+              xAxisIndex: 0,
+              yAxisIndex: 0,
               itemStyle: {
                 color: "#ef4444",
                 color0: "#22c55e",
@@ -1533,6 +1565,32 @@
               },
               markArea: { silent: true, data: markData },
             },
+            {
+              type: "line",
+              name: "VIX",
+              data: vixData,
+              xAxisIndex: 1,
+              yAxisIndex: 1,
+              symbol: "none",
+              lineStyle: { color: "#f59e0b", width: 1.5 },
+              areaStyle: { color: "rgba(245,158,11,0.06)" },
+              connectNulls: false,
+              markLine: {
+                silent: true,
+                symbol: "none",
+                lineStyle: {
+                  color: "#f59e0b",
+                  type: "dashed",
+                  width: 1,
+                  opacity: 0.4,
+                },
+                label: { fontSize: 9, color: "#f59e0b", position: "end" },
+                data: [
+                  { yAxis: 30, name: "30" },
+                  { yAxis: 40, name: "40" },
+                ],
+              },
+            },
           ],
           tooltip: {
             trigger: "axis",
@@ -1540,20 +1598,33 @@
             backgroundColor: "#162234",
             borderColor: "#2d3f55",
             textStyle: { color: "#e2e8f0", fontSize: 12 },
+            position(point, params, dom, rect, size) {
+              const [px] = point;
+              const [cw, ch] = size.viewSize;
+              const dw = dom.offsetWidth || 100;
+              const x = px + dw + 16 > cw ? px - dw - 8 : px + 12;
+              return [x, ch * 0.08];
+            },
             formatter(params) {
               const p = params.find((x) => x.seriesType === "candlestick");
+              const v = params.find((x) => x.seriesName === "VIX");
               if (!p) return "";
-              const [o, c, l, h] = p.value;
+              const [o, c] = p.value;
               const cc = c >= o ? "#fca5a5" : "#86efac";
-              return `<b style="color:#f1f5f9">${p.name}</b><br/>開 ${o.toFixed(2)} 高 <span style="color:#fca5a5">${h.toFixed(2)}</span> 低 <span style="color:#86efac">${l.toFixed(2)}</span> 收 <span style="color:${cc}">${c.toFixed(2)}</span>`;
+              const vStr =
+                v?.value != null
+                  ? `<br/><span style="color:#f59e0b">VIX ${v.value.toFixed(1)}</span>`
+                  : "";
+              return `<span style="color:#94a3b8;font-size:11px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}`;
             },
           },
           dataZoom: [
-            { type: "inside", start: zoomS, end: zoomE },
+            { type: "inside", xAxisIndex: [0, 1], start: zoomS, end: zoomE },
             {
               type: "slider",
-              bottom: "4%",
-              height: 22,
+              xAxisIndex: [0, 1],
+              bottom: "3%",
+              height: 20,
               start: zoomS,
               end: zoomE,
               borderColor: "#2d3f55",
