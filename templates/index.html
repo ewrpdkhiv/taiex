@@ -399,6 +399,71 @@
         opacity: 0.4;
         cursor: default;
       }
+
+      /* K 線圖面板 */
+      .clickable-drop {
+        cursor: pointer;
+      }
+      .clickable-drop.active td {
+        background: rgba(244, 63, 94, 0.08) !important;
+      }
+      #chart-outer {
+        display: none;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 14px 24px;
+      }
+      #chart-outer .card {
+        border-left: 3px solid #f43f5e;
+      }
+      .chart-panel-header {
+        background: #162234;
+        border-bottom: 1px solid #2d3f55;
+        color: #e2e8f0;
+        padding: 11px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .chart-info {
+        flex: 1;
+        font-size: 0.8rem;
+        color: #64748b;
+      }
+      .chart-legend {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        font-size: 0.73rem;
+      }
+      .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        flex-shrink: 0;
+      }
+      .close-btn {
+        background: none;
+        border: 1px solid #2d3f55;
+        color: #475569;
+        border-radius: 4px;
+        padding: 3px 10px;
+        cursor: pointer;
+        font-size: 0.76rem;
+      }
+      .close-btn:hover {
+        color: #94a3b8;
+        border-color: #334155;
+      }
+      #chart-loading {
+        text-align: center;
+        padding: 36px;
+        color: #334155;
+      }
+      #chart-container {
+        height: 440px;
+      }
     </style>
   </head>
   <body>
@@ -938,6 +1003,30 @@
       </div>
     </div>
 
+    <!-- K 線圖面板（跌幅/跌點點擊後顯示） -->
+    <div id="chart-outer">
+      <div class="card">
+        <div class="chart-panel-header">
+          <span class="chart-info" id="chart-info">—</span>
+          <div class="chart-legend">
+            <div
+              class="legend-dot"
+              style="background: rgba(220, 38, 38, 0.45)"
+            ></div>
+            <span style="color: #fca5a5">跌幅當日</span>
+            <div
+              class="legend-dot"
+              style="background: rgba(34, 197, 94, 0.35)"
+            ></div>
+            <span style="color: #86efac">回升期間</span>
+          </div>
+          <button class="close-btn" onclick="closeDropChart()">✕ 關閉</button>
+        </div>
+        <div id="chart-loading" style="display: none">K 線載入中…</div>
+        <div id="chart-container"></div>
+      </div>
+    </div>
+
     <script>
       const REFRESH_MS = 3600 * 1000;
       let currentType = "drops-pct";
@@ -965,7 +1054,7 @@
       }
 
       function dropPctRow(r, cls) {
-        return `<tr>
+        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
           <td>${r.rank}</td>
           <td class="date">${r.date}</td>
           <td class="col-close">${fmt(r.close)}</td>
@@ -989,7 +1078,7 @@
       }
 
       function dropPtRow(r, cls) {
-        return `<tr>
+        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
           <td>${r.rank}</td>
           <td class="date">${r.date}</td>
           <td class="col-close">${fmt(r.close)}</td>
@@ -1302,7 +1391,188 @@
         });
         header.appendChild(btn);
       });
+
+      // ── K 線圖（跌幅/跌點點擊） ──
+      let _ohlc = null;
+      let _dropChart = null;
+      let _activeDropRow = null;
+
+      document.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr.clickable-drop");
+        if (!tr) return;
+        const r = JSON.parse(decodeURIComponent(tr.dataset.drop));
+        if (_activeDropRow) _activeDropRow.classList.remove("active");
+        _activeDropRow = tr;
+        tr.classList.add("active");
+        openDropChart(r);
+      });
+
+      async function loadOhlc() {
+        if (_ohlc) return _ohlc;
+        const resp = await fetch("/api/ohlc");
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        _ohlc = data;
+        return _ohlc;
+      }
+
+      function closeDropChart() {
+        document.getElementById("chart-outer").style.display = "none";
+        if (_activeDropRow) {
+          _activeDropRow.classList.remove("active");
+          _activeDropRow = null;
+        }
+      }
+
+      function openDropChart(r) {
+        const outer = document.getElementById("chart-outer");
+        outer.style.display = "block";
+        document.getElementById("chart-info").textContent =
+          `${r.date}  跌幅 ${r.change_pct.toFixed(2)}%  ` +
+          `前收 ${fmt(r.prev_close)} → 收 ${fmt(r.close)}` +
+          (r.event ? `  ｜${r.event}` : "");
+        const loading = document.getElementById("chart-loading");
+        loading.style.display = "block";
+        document.getElementById("chart-container").style.display = "none";
+        loadOhlc()
+          .then((ohlc) => {
+            loading.style.display = "none";
+            document.getElementById("chart-container").style.display = "block";
+            renderDropChart(r, ohlc);
+            outer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          })
+          .catch((err) => {
+            loading.textContent = "K 線載入失敗：" + err.message;
+          });
+      }
+
+      function renderDropChart(r, ohlc) {
+        const dates = ohlc.dates;
+        const O = ohlc.open,
+          H = ohlc.high,
+          L = ohlc.low,
+          C = ohlc.close;
+        const candleData = dates.map((_, i) => [O[i], C[i], L[i], H[i]]);
+
+        const dropIdx = dates.indexOf(r.date);
+        if (dropIdx < 0) return;
+
+        // 找回升日（第一個 close >= prev_close）
+        let recoveryDate = null;
+        for (let i = dropIdx + 1; i < dates.length; i++) {
+          if (C[i] >= r.prev_close) {
+            recoveryDate = dates[i];
+            break;
+          }
+        }
+        const nextDate = dates[dropIdx + 1] || null;
+
+        // markArea
+        const markData = [
+          [
+            { xAxis: r.date, itemStyle: { color: "rgba(220,38,38,0.22)" } },
+            { xAxis: nextDate || r.date },
+          ],
+        ];
+        if (recoveryDate && nextDate) {
+          markData.push([
+            { xAxis: nextDate, itemStyle: { color: "rgba(34,197,94,0.12)" } },
+            { xAxis: recoveryDate },
+          ]);
+        }
+
+        // 縮放範圍
+        const bufPre = 60,
+          bufPost = 60;
+        const startI = Math.max(0, dropIdx - bufPre);
+        const recIdx = recoveryDate ? dates.indexOf(recoveryDate) : -1;
+        const endI =
+          recIdx >= 0
+            ? Math.min(dates.length - 1, recIdx + bufPost)
+            : Math.min(dates.length - 1, dropIdx + 250);
+        const zoomS = (startI / dates.length) * 100;
+        const zoomE = (endI / dates.length) * 100;
+
+        const option = {
+          animation: false,
+          backgroundColor: "#1f2937",
+          grid: { left: "7%", right: "2%", top: "10%", bottom: "18%" },
+          xAxis: {
+            type: "category",
+            data: dates,
+            boundaryGap: true,
+            axisLabel: {
+              formatter: (v) => v.slice(0, 7),
+              fontSize: 11,
+              rotate: 30,
+              color: "#475569",
+            },
+            axisLine: { lineStyle: { color: "#2d3f55" } },
+            axisTick: { lineStyle: { color: "#2d3f55" } },
+          },
+          yAxis: {
+            type: "value",
+            scale: true,
+            splitLine: { lineStyle: { color: "#2d3f55" } },
+            axisLabel: {
+              formatter: (v) => v.toLocaleString(),
+              fontSize: 11,
+              color: "#64748b",
+            },
+          },
+          series: [
+            {
+              type: "candlestick",
+              data: candleData,
+              itemStyle: {
+                color: "#ef4444",
+                color0: "#22c55e",
+                borderColor: "#ef4444",
+                borderColor0: "#22c55e",
+                borderWidth: 1,
+              },
+              markArea: { silent: true, data: markData },
+            },
+          ],
+          tooltip: {
+            trigger: "axis",
+            axisPointer: { type: "cross", crossStyle: { color: "#94a3b8" } },
+            backgroundColor: "#162234",
+            borderColor: "#2d3f55",
+            textStyle: { color: "#e2e8f0", fontSize: 12 },
+            formatter(params) {
+              const p = params.find((x) => x.seriesType === "candlestick");
+              if (!p) return "";
+              const [o, c, l, h] = p.value;
+              const cc = c >= o ? "#fca5a5" : "#86efac";
+              return `<b style="color:#f1f5f9">${p.name}</b><br/>開 ${o.toFixed(2)} 高 <span style="color:#fca5a5">${h.toFixed(2)}</span> 低 <span style="color:#86efac">${l.toFixed(2)}</span> 收 <span style="color:${cc}">${c.toFixed(2)}</span>`;
+            },
+          },
+          dataZoom: [
+            { type: "inside", start: zoomS, end: zoomE },
+            {
+              type: "slider",
+              bottom: "4%",
+              height: 22,
+              start: zoomS,
+              end: zoomE,
+              borderColor: "#2d3f55",
+              fillerColor: "rgba(244,63,94,0.12)",
+              handleStyle: { color: "#f43f5e" },
+              textStyle: { fontSize: 10, color: "#475569" },
+            },
+          ],
+        };
+
+        if (!_dropChart) {
+          _dropChart = echarts.init(document.getElementById("chart-container"));
+          window.addEventListener("resize", () => _dropChart.resize());
+        }
+        _dropChart.setOption(option, true);
+        _dropChart.resize();
+      }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   </body>
 </html>
