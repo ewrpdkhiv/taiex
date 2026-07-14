@@ -469,11 +469,10 @@
   <body>
     <header>
       <h1>台股加權指數 (TAIEX) 漲跌日排行</h1>
-      <a href="/dca" class="dca-link">定期定額試算 →</a>
-      <a href="/bear" class="dca-link">空頭市場記錄 →</a>
+      <a href="dca.html" class="dca-link">定期定額試算 →</a>
+      <a href="bear.html" class="dca-link">空頭市場記錄 →</a>
       <div class="meta">
         <span>更新：<b id="last-updated">載入中…</b></span>
-        <button id="refresh-btn" class="refresh-btn">刷新</button>
       </div>
     </header>
 
@@ -1212,7 +1211,7 @@
 
       async function fetchData() {
         try {
-          const res = await fetch("/api/data");
+          const res = await fetch("data/data.json");
           const data = await res.json();
           const err = document.getElementById("error-banner");
           if (data.error) {
@@ -1276,31 +1275,6 @@
 
       fetchData();
       setTimeout(hourlyRefresh, REFRESH_MS);
-
-      (function () {
-        const btn = document.getElementById("refresh-btn");
-        btn.addEventListener("click", async () => {
-          btn.disabled = true;
-          btn.textContent = "刷新中…";
-          const orig = document.getElementById("last-updated").textContent;
-          try {
-            await fetch("/api/refresh", { method: "POST" });
-          } catch {}
-          let n = 0;
-          const t = setInterval(async () => {
-            n++;
-            try {
-              const d = await (await fetch("/api/data")).json();
-              if (d.last_updated !== orig || n >= 60) {
-                clearInterval(t);
-                btn.disabled = false;
-                btn.textContent = "刷新";
-                if (d.last_updated !== orig) fetchData();
-              }
-            } catch {}
-          }, 2000);
-        });
-      })();
 
       // ── 欄位 toggle ──
       const COL_TOGGLES = [
@@ -1409,7 +1383,7 @@
 
       async function loadOhlc() {
         if (_ohlc) return _ohlc;
-        const resp = await fetch("/api/ohlc");
+        const resp = await fetch("data/ohlc.json");
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
         _ohlc = data;

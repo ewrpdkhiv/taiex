@@ -383,13 +383,12 @@
   <body>
     <header>
       <h1>🐻 TAIEX 空頭市場記錄</h1>
-      <a href="/" class="nav-link">漲跌排行 →</a>
-      <a href="/dca" class="nav-link">定期定額試算 →</a>
+      <a href="index.html" class="nav-link">漲跌排行 →</a>
+      <a href="dca.html" class="nav-link">定期定額試算 →</a>
     </header>
 
     <div class="meta">
       <span>更新：<b id="last-updated">載入中…</b></span>
-      <button id="refresh-btn" class="refresh-btn">刷新</button>
       <span class="def-chip">定義：高點到低點跌幅 ≥ 20%</span>
       <span>回高天數 = 從高點起算至回到高點水準的日曆天</span>
     </div>
@@ -561,7 +560,7 @@
       /* ── K 線：載入 OHLC ── */
       async function loadOhlc() {
         if (_ohlc) return _ohlc;
-        const resp = await fetch("/api/ohlc");
+        const resp = await fetch("data/ohlc.json");
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
         _ohlc = data;
@@ -890,7 +889,7 @@
 
       /* ── 初始資料載入 ── */
       function loadBear() {
-        fetch("/api/bear")
+        fetch("data/bear.json")
           .then((r) => r.json())
           .then((data) => {
             document.getElementById("loading").style.display = "none";
@@ -916,31 +915,6 @@
           });
       }
       loadBear();
-
-      (function () {
-        const btn = document.getElementById("refresh-btn");
-        btn.addEventListener("click", async () => {
-          btn.disabled = true;
-          btn.textContent = "刷新中…";
-          const orig = document.getElementById("last-updated").textContent;
-          try {
-            await fetch("/api/refresh", { method: "POST" });
-          } catch {}
-          let n = 0;
-          const t = setInterval(async () => {
-            n++;
-            try {
-              const d = await (await fetch("/api/bear")).json();
-              if (d.last_updated !== orig || n >= 60) {
-                clearInterval(t);
-                btn.disabled = false;
-                btn.textContent = "刷新";
-                if (d.last_updated !== orig) loadBear();
-              }
-            } catch {}
-          }, 2000);
-        });
-      })();
     </script>
   </body>
 </html>

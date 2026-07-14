@@ -11,3 +11,24 @@ wheels/
 
 # Generated data files (auto-created at runtime)
 *.csv
+
+# 空白佔位，讓 git 追蹤 docs/data/ 目錄
+!docs/data/.gitkeep
+
+# IDE / Editor
+.idea
+.vscode
+
+# Claude Code 設定
+.claude/
+
+# 沙盒環境佔位符（null device 檔案）
+.bash_profile
+.bashrc
+.gitconfig
+.gitmodules
+.mcp.json
+.profile
+.ripgreprc
+.zprofile
+.zshrc

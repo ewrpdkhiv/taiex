@@ -548,12 +548,11 @@
   </head>
   <body>
     <header>
-      <a href="/">← 漲跌日排行</a>
-      <a href="/bear">空頭市場記錄 →</a>
+      <a href="index.html">← 漲跌日排行</a>
+      <a href="bear.html">空頭市場記錄 →</a>
       <h1>定期定額試算</h1>
       <div class="meta">
         <span>更新：<b id="last-updated">載入中…</b></span>
-        <button id="refresh-btn" class="refresh-btn">刷新</button>
       </div>
     </header>
 
@@ -958,7 +957,7 @@
 
       async function load() {
         try {
-          const res = await fetch("/api/dca");
+          const res = await fetch("data/dca.json");
           const data = await res.json();
           const err = document.getElementById("error-banner");
           if (data.error) {
@@ -992,31 +991,6 @@
 
       document.getElementById("col-toggles").innerHTML = renderToggles();
       load();
-
-      (function () {
-        const btn = document.getElementById("refresh-btn");
-        btn.addEventListener("click", async () => {
-          btn.disabled = true;
-          btn.textContent = "刷新中…";
-          const orig = document.getElementById("last-updated").textContent;
-          try {
-            await fetch("/api/refresh", { method: "POST" });
-          } catch {}
-          let n = 0;
-          const t = setInterval(async () => {
-            n++;
-            try {
-              const d = await (await fetch("/api/dca")).json();
-              if (d.last_updated !== orig || n >= 60) {
-                clearInterval(t);
-                btn.disabled = false;
-                btn.textContent = "刷新";
-                if (d.last_updated !== orig) load();
-              }
-            } catch {}
-          }, 2000);
-        });
-      })();
     </script>
     <div id="portfolio-bar">
       <span class="portfolio-label">組合</span>
