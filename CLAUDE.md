@@ -46,12 +46,12 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 唯一的「後端」入口，輸出四個 JSON 至 `docs/data/`：
 
-| 輸出檔案    | 內容                                       |
-| ----------- | ------------------------------------------ |
-| `data.json` | 前 10 大跌／漲幅（%）與跌／漲點，各 4 時段 |
-| `dca.json`  | DCA 回測結果（5y/10y + 崩盤/COVID 情境）   |
-| `bear.json` | 空頭週期列表                               |
-| `ohlc.json` | OHLC + VIX 時序資料（K 線圖用）            |
+| 輸出檔案    | 內容                                                                                                                                |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.json` | 16 組排行（跌幅%、漲幅%、跌點、漲點 × 5y/10y/20y/all），各取前 10 名                                                                |
+| `dca.json`  | 5 個情境：`results_10y`、`results_5y`、`results_crash_10y`（截至 2025-04-09）、`results_crash_5y`、`results_covid`（自 2020-02-01） |
+| `bear.json` | 空頭週期列表                                                                                                                        |
+| `ohlc.json` | OHLC + VIX 時序資料（K 線圖用）                                                                                                     |
 
 每個函式（`generate_data` / `generate_dca` / `generate_bear`）獨立執行，其中一個失敗不影響其他；最終 `sys.exit(1)` 讓 GitHub Actions 能偵測到錯誤。
 
@@ -72,11 +72,13 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 `run_all(monthly_amount, years, force_start, force_end)` 對 `TICKERS`（33 檔標的）逐一呼叫 `run_dca()`。`generate_static.py` 固定使用 `monthly_amount=3_000`。
 
+每個標的附有 `TICKER_TAGS`（`tw/us`、`etf/stock`、`leveraged` 等），前端用於篩選。
+
 關鍵演算法：
 
 - **XIRR**（`_xirr()`）：Newton-Raphson + Bisection 雙重求解，cashflow 流出為負值
 - **最大回撤**（`_max_drawdown()`）：逐日重建持倉市值，追蹤 peak
-- **股息再投入**：除息日次交易日以當日收盤價買入小數股
+- **股息再投入**：除息日次交易日以當日收盤價買入小數股；`run_dca()` 使用 `auto_adjust=False` 以取得未調整的原始股息資料（`stock.dividends`）
 
 ### 前端頁面：[docs/](docs/)
 
@@ -101,3 +103,4 @@ K 線圖使用 ECharts 5（CDN），PNG 匯出使用 html2canvas（CDN）。
 - **空頭演算法**：從 `search_from` 向前滾動高點，跌幅 ≥ threshold 確認空頭後找低點與恢復日；每輪從低點之後繼續以捕捉次級空頭
 - **VIX 對齊**：K 線日期與 VIX 交易日不一定相同，以 `None` 填充（ECharts `connectNulls: false` 顯示斷點）
 - **ohlc.json 大小**：約 1～2 MB（含 1990 年至今逾 9,000 個交易日），為最大的靜態資料檔
+- **data/bfi_history.json**：專案根目錄下的三大法人每日淨買賣資料（格式 `{YYYYMMDD: {自營商: N, 投信: N, 外資: N, 合計: N}}`），手動維護、不由 `generate_static.py` 產生，亦不部署至 `docs/data/`
