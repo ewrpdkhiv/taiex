@@ -13,10 +13,13 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dca import run_all as dca_run_all
+from dca import run_dip_buy_comparison as dca_run_dip_buy_comparison
 from taiex_big_drops import (
     KNOWN_EVENTS,
+    analyze_post_drop_returns,
     calculate_daily_returns,
     find_bear_markets,
+    find_longest_streaks,
     find_top_drops,
     find_top_gains,
     find_top_point_drops,
@@ -29,6 +32,7 @@ from taiex_big_drops import (
 _TW = timezone(timedelta(hours=8))
 OUT_DIR = Path(__file__).parent.parent / "docs" / "data"
 
+_OHLC_DATE_EPOCH = "1990-01-01"
 _CRASH_DATE = pd.Timestamp("2025-04-09")
 _COVID_START = pd.Timestamp("2020-02-01")
 
@@ -90,6 +94,8 @@ def generate_data() -> None:
     payload: dict = {"last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"), "error": None}
     for key, result_df, include_recovery in batches:
         payload[key] = _df_to_records(result_df, df if include_recovery else None)
+    payload["post_drop_stats"] = analyze_post_drop_returns(df)
+    payload["streaks"] = find_longest_streaks(df)
 
     out = OUT_DIR / "data.json"
     out.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
@@ -104,6 +110,7 @@ def generate_dca() -> None:
         "results_crash_10y": dca_run_all(monthly_amount=3_000, years=10, force_end=_CRASH_DATE),
         "results_crash_5y":  dca_run_all(monthly_amount=3_000, years=5,  force_end=_CRASH_DATE),
         "results_covid":     dca_run_all(monthly_amount=3_000, years=10, force_start=_COVID_START),
+        "dip_buy_comparison": dca_run_dip_buy_comparison(monthly_amount=3_000, years=10),
         "last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"),
         "error": None,
     }
@@ -129,14 +136,24 @@ def generate_bear() -> None:
     )
     print(f"✅ 寫出 {OUT_DIR / 'bear.json'}")
 
+    # 壓縮：日期存成相對 epoch 的整數天數偏移，OHLC 四值取整數，VIX 取 1 位小數，
+    # 讓 ohlc.json（最大的靜態檔）大幅縮小；前端載入後再還原成 ISO 日期字串。
+    epoch = pd.Timestamp(_OHLC_DATE_EPOCH)
+    date_offsets = [(pd.Timestamp(d) - epoch).days for d in dates]
+
     (OUT_DIR / "ohlc.json").write_text(
         json.dumps({
-            "dates": dates,
-            "open":  clean["Open"].round(2).tolist(),
-            "high":  clean["High"].round(2).tolist(),
-            "low":   clean["Low"].round(2).tolist(),
-            "close": clean["Close"].round(2).tolist(),
-            "vix":   [vix_dict.get(d) for d in dates],
+            "date_epoch": _OHLC_DATE_EPOCH,
+            "dates": date_offsets,
+            "open":  clean["Open"].round().astype(int).tolist(),
+            "high":  clean["High"].round().astype(int).tolist(),
+            "low":   clean["Low"].round().astype(int).tolist(),
+            "close": clean["Close"].round().astype(int).tolist(),
+            "vix":   [
+                round(v, 1) if (v := vix_dict.get(d)) is not None else None
+                for d in dates
+            ],
+            "events": KNOWN_EVENTS,
             "last_updated": now,
             "error": None,
         }, ensure_ascii=False, separators=(",", ":"))

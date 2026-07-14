@@ -601,6 +601,18 @@
           <div class="loading-msg">資料載入中，首次約需 60 秒…</div>
         </div>
       </div>
+
+      <div class="info-bar" style="margin-top: 20px">
+        <span
+          >台股加權指數單日跌幅 ≥ <b>5%</b> 時，隔一個交易日加碼
+          <b>2 倍</b>月扣款金額，與固定扣款比較（近 10 年）</span
+        >
+      </div>
+      <div class="table-wrap">
+        <div id="dip-compare-container">
+          <div class="loading-msg">資料載入中…</div>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -863,6 +875,66 @@
           </table>`;
       }
 
+      function renderDipCompareTable(rows) {
+        if (!rows || !rows.length) {
+          return '<div class="loading-msg">資料尚未就緒，請稍後重新整理</div>';
+        }
+        const withDelta = rows.map((d) => ({
+          ...d,
+          deltaIrr:
+            d.baseline.irr != null && d.dip_buy.irr != null
+              ? d.dip_buy.irr - d.baseline.irr
+              : null,
+        }));
+        const sorted = [...withDelta].sort(
+          (a, b) => (b.deltaIrr ?? -Infinity) - (a.deltaIrr ?? -Infinity),
+        );
+        const ddStr = (v) => (v != null ? v.toFixed(2) + "%" : "—");
+
+        const rows_ = sorted
+          .map((d, i) => {
+            const b = d.baseline,
+              dp = d.dip_buy;
+            const deltaClass =
+              d.deltaIrr == null ? "" : d.deltaIrr >= 0 ? "pos" : "neg";
+            const deltaStr =
+              d.deltaIrr != null
+                ? (d.deltaIrr >= 0 ? "+" : "") + d.deltaIrr.toFixed(2) + "%"
+                : "—";
+            return `<tr>
+              <td>${i + 1}</td>
+              <td><div class="ticker">${d.ticker}</div><div class="name">${d.name}</div></td>
+              <td>${d.dip_trigger_count}</td>
+              <td>${moneyStr(b.invested)}</td>
+              <td>${moneyStr(dp.invested)}</td>
+              <td><span class="${rateClass(b.irr)}">${rateStr(b.irr)}</span></td>
+              <td><span class="${rateClass(dp.irr)}">${rateStr(dp.irr)}</span></td>
+              <td><span class="${deltaClass}">${deltaStr}</span></td>
+              <td>${ddStr(b.max_drawdown)}</td>
+              <td>${ddStr(dp.max_drawdown)}</td>
+            </tr>`;
+          })
+          .join("");
+
+        return `<table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>標的</th>
+              <th>加碼次數</th>
+              <th>固定投入</th>
+              <th>加碼投入</th>
+              <th>固定 XIRR</th>
+              <th>加碼 XIRR</th>
+              <th>XIRR 差異</th>
+              <th>固定回撤</th>
+              <th>加碼回撤</th>
+            </tr>
+          </thead>
+          <tbody>${rows_}</tbody>
+        </table>`;
+      }
+
       function setSort(key) {
         _sortKey = key;
         document.getElementById("table-container").innerHTML = renderTable();
@@ -984,6 +1056,8 @@
           }
           document.getElementById("filter-bar").innerHTML = renderFilterBar();
           document.getElementById("table-container").innerHTML = renderTable();
+          document.getElementById("dip-compare-container").innerHTML =
+            renderDipCompareTable(data.dip_buy_comparison || []);
         } catch (e) {
           console.error(e);
         }

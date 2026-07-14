@@ -556,6 +556,123 @@ def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
     return bears
 
 
+# ── 連續漲跌天數 ──────────────────────────────────────────────────────────────
+
+
+def find_longest_streaks(df: pd.DataFrame, top_n: int = 10) -> dict[str, list[dict]]:
+    """找出連續上漲／連續下跌天數最長的區間。
+
+    連續的定義：change_pct 同號（正為上漲、負為下跌，0 視為中斷）。
+
+    Args:
+        df: 含 Date、Close、prev_close、change_pct 欄位的 DataFrame（需先呼叫
+            calculate_daily_returns）。
+        top_n: 各方向取前幾名。
+
+    Returns:
+        {"up": [...], "down": [...]}，每筆包含 start_date、end_date、days、
+        cumulative_pct（區間累積漲跌幅%）。依天數由多到少排序，同天數時
+        依累積漲跌幅排序（up 取最大漲幅在前，down 取最大跌幅在前）。
+    """
+    d = df.dropna(subset=["change_pct"]).reset_index(drop=True)
+    n = len(d)
+
+    streaks: list[dict] = []
+    i = 0
+    while i < n:
+        change = float(d.loc[i, "change_pct"])
+        sign = 1 if change > 0 else (-1 if change < 0 else 0)
+        if sign == 0:
+            i += 1
+            continue
+
+        j = i
+        while j + 1 < n:
+            next_change = float(d.loc[j + 1, "change_pct"])
+            next_sign = 1 if next_change > 0 else (-1 if next_change < 0 else 0)
+            if next_sign != sign:
+                break
+            j += 1
+
+        start_close = float(d.loc[i, "prev_close"])
+        end_close = float(d.loc[j, "Close"])
+        streaks.append({
+            "direction": "up" if sign > 0 else "down",
+            "start_date": pd.Timestamp(d.loc[i, "Date"]).strftime("%Y-%m-%d"),
+            "end_date": pd.Timestamp(d.loc[j, "Date"]).strftime("%Y-%m-%d"),
+            "days": j - i + 1,
+            "cumulative_pct": round((end_close - start_close) / start_close * 100, 2),
+        })
+        i = j + 1
+
+    up = sorted(
+        (s for s in streaks if s["direction"] == "up"),
+        key=lambda s: (-s["days"], -s["cumulative_pct"]),
+    )[:top_n]
+    down = sorted(
+        (s for s in streaks if s["direction"] == "down"),
+        key=lambda s: (-s["days"], s["cumulative_pct"]),
+    )[:top_n]
+    return {"up": up, "down": down}
+
+
+# ── 大跌後報酬統計 ────────────────────────────────────────────────────────────
+
+
+def analyze_post_drop_returns(
+    df: pd.DataFrame,
+    threshold: float = DEFAULT_THRESHOLD,
+    horizons: tuple[int, ...] = (5, 20, 60),
+) -> dict:
+    """統計單日跌幅 >= threshold 之後 N 個交易日的報酬與勝率。
+
+    以大跌當日收盤價為基準（模擬「當天收盤價接刀」），計算之後第 N 個
+    交易日收盤價的報酬率；用於回答「大跌後該不該進場」。
+
+    Args:
+        df: 含 Date、Close、change_pct 欄位的 DataFrame（需先呼叫
+            calculate_daily_returns）。
+        threshold: 跌幅門檻（正數，如 5 代表 >= 5%）。
+        horizons: 要統計的交易日數列表。
+
+    Returns:
+        {"threshold": float, "sample_size": int, "horizons": [
+            {"days": int, "avg_return_pct": float, "median_return_pct": float,
+             "win_rate_pct": float, "sample_size": int} | {"days": int, "sample_size": 0}
+            ...
+        ]}
+    """
+    d = df.dropna(subset=["change_pct"]).reset_index(drop=True)
+    closes = d["Close"].to_numpy()
+    n = len(d)
+    drop_indices = d.index[d["change_pct"] <= -threshold].tolist()
+
+    horizon_stats = []
+    for h in horizons:
+        returns = [
+            (closes[i + h] - closes[i]) / closes[i] * 100
+            for i in drop_indices
+            if i + h < n
+        ]
+        if returns:
+            s = pd.Series(returns)
+            horizon_stats.append({
+                "days": h,
+                "avg_return_pct": round(float(s.mean()), 2),
+                "median_return_pct": round(float(s.median()), 2),
+                "win_rate_pct": round(float((s > 0).mean() * 100), 2),
+                "sample_size": len(returns),
+            })
+        else:
+            horizon_stats.append({"days": h, "sample_size": 0})
+
+    return {
+        "threshold": threshold,
+        "sample_size": len(drop_indices),
+        "horizons": horizon_stats,
+    }
+
+
 # ── CLI 入口 ──────────────────────────────────────────────────────────────────
 
 

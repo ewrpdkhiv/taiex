@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="vendor/echarts.min.js"></script>
     <style>
       * {
         box-sizing: border-box;
@@ -127,6 +127,7 @@
 
       .table-wrap {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       table {
         width: 100%;
@@ -378,6 +379,121 @@
         opacity: 0.4;
         cursor: default;
       }
+
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1px;
+        background: #2d3f55;
+      }
+      .stat-tile {
+        background: #1f2937;
+        padding: 14px 16px;
+      }
+      .stat-label {
+        font-size: 0.7rem;
+        color: #475569;
+        margin-bottom: 6px;
+        letter-spacing: 0.03em;
+      }
+      .stat-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        font-family: "JetBrains Mono", monospace;
+        color: #e2e8f0;
+      }
+      .stat-value.drop-pct {
+        color: #f43f5e;
+      }
+      .hist-wrap {
+        padding: 16px 20px;
+        border-top: 1px solid #2d3f55;
+      }
+      .hist-title {
+        font-size: 0.76rem;
+        color: #64748b;
+        margin-bottom: 10px;
+      }
+      .hist-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-size: 0.78rem;
+      }
+      .hist-row:last-child {
+        margin-bottom: 0;
+      }
+      .hist-label {
+        width: 90px;
+        flex-shrink: 0;
+        color: #475569;
+      }
+      .hist-bar-bg {
+        width: 140px;
+        height: 8px;
+        background: rgba(139, 92, 246, 0.12);
+        border-radius: 2px;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .hist-bar-fill {
+        height: 100%;
+        background: #8b5cf6;
+        border-radius: 2px;
+      }
+      .hist-count {
+        color: #334155;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.74rem;
+      }
+
+      @media (max-width: 600px) {
+        header {
+          padding: 10px 14px;
+          gap: 10px;
+        }
+        header h1 {
+          font-size: 0.86rem;
+        }
+        .meta {
+          padding: 8px 14px;
+          font-size: 0.7rem;
+        }
+        .container {
+          margin: 10px auto;
+          padding: 0 8px;
+        }
+        table {
+          font-size: 0.77rem;
+        }
+        th {
+          padding: 7px 8px;
+          font-size: 0.64rem;
+        }
+        td {
+          padding: 8px;
+        }
+        th:first-child,
+        td:first-child {
+          position: sticky;
+          left: 0;
+          background: inherit;
+          z-index: 1;
+        }
+        th:first-child {
+          background: #162234;
+        }
+        .stat-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .stat-value {
+          font-size: 1.1rem;
+        }
+        #chart-container {
+          height: 400px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -398,6 +514,19 @@
     </div>
 
     <div class="container">
+      <!-- 統計摘要 -->
+      <div class="card">
+        <div class="card-header">
+          <h2>空頭市場統計摘要</h2>
+          <span class="badge" id="summary-badge">—</span>
+        </div>
+        <div id="summary-body">
+          <div style="padding: 36px; text-align: center; color: #2d3f55">
+            載入中…
+          </div>
+        </div>
+      </div>
+
       <!-- 空頭列表 -->
       <div class="card">
         <div class="card-header">
@@ -483,6 +612,128 @@
         return `<span class="recovery-days ${hasNested ? "long" : ""}">${s}</span>`;
       }
 
+      /* ── 統計摘要 ── */
+      const RECOVERY_BUCKETS = [
+        { label: "< 3 個月", max: 90 },
+        { label: "3–6 個月", max: 180 },
+        { label: "6–12 個月", max: 365 },
+        { label: "1–2 年", max: 730 },
+        { label: "> 2 年", max: Infinity },
+      ];
+
+      function daysBetween(a, b) {
+        return Math.round((new Date(b) - new Date(a)) / 86400000);
+      }
+
+      function computeSummary(bears) {
+        if (!bears.length) return null;
+
+        const drops = bears.map((b) => b.drop_pct);
+        const avgDrop = drops.reduce((a, b) => a + b, 0) / drops.length;
+        const maxDrop = Math.min(...drops);
+
+        const durations = bears.map((b) =>
+          daysBetween(b.peak_date, b.trough_date),
+        );
+        const avgDuration =
+          durations.reduce((a, b) => a + b, 0) / durations.length;
+
+        const recovered = bears.filter((b) => b.recovery_date);
+        const recoveryDurations = recovered.map((b) =>
+          daysBetween(b.trough_date, b.recovery_date),
+        );
+        const avgRecovery = recoveryDurations.length
+          ? recoveryDurations.reduce((a, b) => a + b, 0) /
+            recoveryDurations.length
+          : null;
+        const sortedRec = [...recoveryDurations].sort((a, b) => a - b);
+        const medianRecovery = sortedRec.length
+          ? sortedRec[Math.floor(sortedRec.length / 2)]
+          : null;
+
+        const hist = RECOVERY_BUCKETS.map((b) => ({
+          label: b.label,
+          count: 0,
+        }));
+        recoveryDurations.forEach((d) => {
+          for (let i = 0; i < RECOVERY_BUCKETS.length; i++) {
+            if (d <= RECOVERY_BUCKETS[i].max) {
+              hist[i].count++;
+              break;
+            }
+          }
+        });
+
+        return {
+          count: bears.length,
+          avgDrop,
+          maxDrop,
+          avgDuration,
+          avgRecovery,
+          medianRecovery,
+          hist,
+          notRecoveredCount: bears.length - recovered.length,
+        };
+      }
+
+      function renderSummary(bears) {
+        const s = computeSummary(bears);
+        const body = document.getElementById("summary-body");
+        document.getElementById("summary-badge").textContent = s
+          ? s.count + " 次"
+          : "—";
+        if (!s) {
+          body.innerHTML =
+            '<div style="padding:36px;text-align:center;color:#2d3f55">暫無資料</div>';
+          return;
+        }
+
+        const maxHistCount = Math.max(...s.hist.map((h) => h.count), 1);
+        const histHtml = s.hist
+          .map((h) => {
+            const w = ((h.count / maxHistCount) * 100).toFixed(1);
+            return `<div class="hist-row">
+              <span class="hist-label">${h.label}</span>
+              <div class="hist-bar-bg"><div class="hist-bar-fill" style="width:${w}%"></div></div>
+              <span class="hist-count">${h.count} 次</span>
+            </div>`;
+          })
+          .join("");
+
+        body.innerHTML = `
+          <div class="stat-grid">
+            <div class="stat-tile">
+              <div class="stat-label">空頭次數</div>
+              <div class="stat-value">${s.count}</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">平均跌幅</div>
+              <div class="stat-value drop-pct">${s.avgDrop.toFixed(2)}%</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">最大跌幅</div>
+              <div class="stat-value drop-pct">${s.maxDrop.toFixed(2)}%</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">平均持續天數（高點→低點）</div>
+              <div class="stat-value">${Math.round(s.avgDuration)} 天</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">平均恢復天數（低點→回高）</div>
+              <div class="stat-value">${s.avgRecovery != null ? Math.round(s.avgRecovery) + " 天" : "—"}</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">中位數恢復天數</div>
+              <div class="stat-value">${s.medianRecovery != null ? s.medianRecovery + " 天" : "—"}</div>
+            </div>
+          </div>
+          <div class="hist-wrap">
+            <div class="hist-title">低點恢復時間分布${s.notRecoveredCount ? `（另有 ${s.notRecoveredCount} 次尚未恢復，不計入分布）` : ""}</div>
+            ${histHtml}
+          </div>
+        `;
+      }
+
       /* ── 表格渲染 ── */
       function renderTable() {
         const sorted = [..._data].sort((a, b) => {
@@ -558,11 +809,24 @@
       });
 
       /* ── K 線：載入 OHLC ── */
+      function offsetsToISODates(epochStr, offsets) {
+        const epoch = Date.UTC(
+          ...epochStr.split("-").map((v, i) => (i === 1 ? +v - 1 : +v)),
+        );
+        const DAY_MS = 86400000;
+        return offsets.map((o) =>
+          new Date(epoch + o * DAY_MS).toISOString().slice(0, 10),
+        );
+      }
+
       async function loadOhlc() {
         if (_ohlc) return _ohlc;
         const resp = await fetch("data/ohlc.json");
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
+        if (data.date_epoch && typeof data.dates[0] === "number") {
+          data.dates = offsetsToISODates(data.date_epoch, data.dates);
+        }
         _ohlc = data;
         return _ohlc;
       }
@@ -681,6 +945,15 @@
           }
         }
 
+        /* KNOWN_EVENTS：單日重大事件標注（僅取當前縮放範圍內，避免過於雜亂） */
+        const events = ohlc.events || {};
+        const eventMarkData = Object.entries(events)
+          .filter(([d]) => {
+            const idx = dates.indexOf(d);
+            return idx >= startI && idx <= endI;
+          })
+          .map(([d, desc]) => ({ xAxis: d, name: desc }));
+
         const option = {
           animation: false,
           backgroundColor: "#1f2937",
@@ -781,6 +1054,38 @@
                         borderWidth: 1,
                       },
                       data: nestedMarkLineData,
+                    },
+                  },
+                ]
+              : []),
+            ...(eventMarkData.length > 0
+              ? [
+                  {
+                    type: "line",
+                    data: [],
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    markLine: {
+                      silent: true,
+                      symbol: ["none", "none"],
+                      lineStyle: {
+                        color: "#38bdf8",
+                        width: 1,
+                        type: "dashed",
+                        opacity: 0.5,
+                      },
+                      label: {
+                        show: true,
+                        position: "insideEndTop",
+                        formatter: (p) => p.name,
+                        color: "#0c4a6e",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        backgroundColor: "rgba(224,242,254,0.9)",
+                        padding: [2, 5],
+                        borderRadius: 3,
+                      },
+                      data: eventMarkData,
                     },
                   },
                 ]
@@ -906,6 +1211,7 @@
               _data.length + " 次";
             document.getElementById("table-wrap").style.display = "block";
             renderTable();
+            renderSummary(_data);
           })
           .catch((err) => {
             document.getElementById("loading").style.display = "none";

@@ -160,6 +160,7 @@
       }
       .table-wrap {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       .card-header {
         padding: 11px 16px;
@@ -464,6 +465,46 @@
       #chart-container {
         height: 520px;
       }
+
+      @media (max-width: 600px) {
+        header {
+          padding: 10px 14px;
+          gap: 8px;
+        }
+        header h1 {
+          font-size: 0.86rem;
+        }
+        .meta {
+          font-size: 0.7rem;
+        }
+        .panel-inner {
+          margin: 14px auto;
+          padding: 0 8px;
+        }
+        table {
+          font-size: 0.77rem;
+        }
+        th {
+          padding: 6px 8px;
+          font-size: 0.64rem;
+        }
+        td {
+          padding: 8px;
+        }
+        th:first-child,
+        td:first-child {
+          position: sticky;
+          left: 0;
+          background: inherit;
+          z-index: 1;
+        }
+        th:first-child {
+          background: #162234;
+        }
+        #chart-container {
+          height: 380px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -498,6 +539,100 @@
         <button class="period-btn" data-period="all">全 時</button>
       </div>
     </nav>
+
+    <div class="panel-inner" style="margin: 14px auto 0">
+      <div class="card" data-color="drop">
+        <div class="card-header">
+          <h2>大跌後表現統計</h2>
+          <span class="badge" id="post-drop-badge">跌幅 ≥ 5%</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="left">之後交易日數</th>
+                <th>平均報酬</th>
+                <th>中位數報酬</th>
+                <th>勝率</th>
+                <th>樣本數</th>
+              </tr>
+            </thead>
+            <tbody id="t-post-drop-stats">
+              <tr>
+                <td colspan="5" class="loading">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-inner" style="margin: 14px auto 0">
+      <div class="card" data-color="drop">
+        <div class="card-header">
+          <h2>連續漲跌天數排行</h2>
+          <span class="badge">TOP 5</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap">
+          <div style="flex: 1; min-width: 260px">
+            <div
+              style="
+                padding: 8px 12px 0;
+                font-size: 0.72rem;
+                color: #10b981;
+                font-weight: 600;
+              "
+            >
+              📈 連續上漲
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">期間</th>
+                    <th>天數</th>
+                    <th>累積漲幅</th>
+                  </tr>
+                </thead>
+                <tbody id="t-streak-up">
+                  <tr>
+                    <td colspan="3" class="loading">載入中…</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style="flex: 1; min-width: 260px">
+            <div
+              style="
+                padding: 8px 12px 0;
+                font-size: 0.72rem;
+                color: #f43f5e;
+                font-weight: 600;
+              "
+            >
+              📉 連續下跌
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">期間</th>
+                    <th>天數</th>
+                    <th>累積跌幅</th>
+                  </tr>
+                </thead>
+                <tbody id="t-streak-down">
+                  <tr>
+                    <td colspan="3" class="loading">載入中…</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div id="col-toggle-bar">
       <span class="toggle-label">欄位：</span>
@@ -1209,6 +1344,61 @@
         tbody.innerHTML = rows.map((r) => rowFn(r, cls)).join("");
       }
 
+      function streakRow(s, cls) {
+        return `<tr>
+          <td class="left date" style="text-align: left">${s.start_date} ~ ${s.end_date}</td>
+          <td class="pct">${s.days} 天</td>
+          <td class="${cls}">${s.cumulative_pct.toFixed(2)}%</td>
+        </tr>`;
+      }
+
+      function renderStreaks(streaks) {
+        const upBody = document.getElementById("t-streak-up");
+        const downBody = document.getElementById("t-streak-down");
+        if (!streaks || !streaks.up || !streaks.up.length) {
+          upBody.innerHTML = `<tr><td colspan="3" class="loading">暫無資料</td></tr>`;
+        } else {
+          upBody.innerHTML = streaks.up
+            .map((s) => streakRow(s, "gain"))
+            .join("");
+        }
+        if (!streaks || !streaks.down || !streaks.down.length) {
+          downBody.innerHTML = `<tr><td colspan="3" class="loading">暫無資料</td></tr>`;
+        } else {
+          downBody.innerHTML = streaks.down
+            .map((s) => streakRow(s, "drop"))
+            .join("");
+        }
+      }
+
+      function renderPostDropStats(stats) {
+        const tbody = document.getElementById("t-post-drop-stats");
+        if (!stats || !stats.horizons || !stats.horizons.length) {
+          tbody.innerHTML = `<tr><td colspan="5" class="loading">暫無資料</td></tr>`;
+          return;
+        }
+        const badge = document.getElementById("post-drop-badge");
+        badge.textContent = `跌幅 ≥ ${stats.threshold}%（樣本 ${stats.sample_size} 次）`;
+        tbody.innerHTML = stats.horizons
+          .map((h) => {
+            if (!h.avg_return_pct && h.avg_return_pct !== 0) {
+              return `<tr>
+                <td class="left date">${h.days} 日</td>
+                <td colspan="4" class="loading">樣本不足</td>
+              </tr>`;
+            }
+            const cls = h.avg_return_pct >= 0 ? "gain" : "drop";
+            return `<tr>
+              <td class="left date">${h.days} 日</td>
+              <td class="${cls}">${h.avg_return_pct.toFixed(2)}%</td>
+              <td class="pct">${h.median_return_pct.toFixed(2)}%</td>
+              <td class="pct">${h.win_rate_pct.toFixed(1)}%</td>
+              <td class="pct">${h.sample_size}</td>
+            </tr>`;
+          })
+          .join("");
+      }
+
       async function fetchData() {
         try {
           const res = await fetch("data/data.json");
@@ -1224,6 +1414,8 @@
             data.last_updated || "—";
 
           _data = data;
+          renderPostDropStats(data.post_drop_stats);
+          renderStreaks(data.streaks);
           Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
             renderTable(
               id,
@@ -1381,13 +1573,36 @@
         openDropChart(r);
       });
 
+      function offsetsToISODates(epochStr, offsets) {
+        const epoch = Date.UTC(
+          ...epochStr.split("-").map((v, i) => (i === 1 ? +v - 1 : +v)),
+        );
+        const DAY_MS = 86400000;
+        return offsets.map((o) =>
+          new Date(epoch + o * DAY_MS).toISOString().slice(0, 10),
+        );
+      }
+
       async function loadOhlc() {
         if (_ohlc) return _ohlc;
         const resp = await fetch("data/ohlc.json");
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
+        if (data.date_epoch && typeof data.dates[0] === "number") {
+          data.dates = offsetsToISODates(data.date_epoch, data.dates);
+        }
         _ohlc = data;
         return _ohlc;
+      }
+
+      let _bears = null;
+      async function loadBears() {
+        if (_bears) return _bears;
+        const resp = await fetch("data/bear.json");
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        _bears = data.bears || [];
+        return _bears;
       }
 
       function closeDropChart() {
@@ -1408,11 +1623,11 @@
         const loading = document.getElementById("chart-loading");
         loading.style.display = "block";
         document.getElementById("chart-container").style.display = "none";
-        loadOhlc()
-          .then((ohlc) => {
+        Promise.all([loadOhlc(), loadBears()])
+          .then(([ohlc, bears]) => {
             loading.style.display = "none";
             document.getElementById("chart-container").style.display = "block";
-            renderDropChart(r, ohlc);
+            renderDropChart(r, ohlc, bears);
             outer.scrollIntoView({ behavior: "smooth", block: "nearest" });
           })
           .catch((err) => {
@@ -1420,7 +1635,7 @@
           });
       }
 
-      function renderDropChart(r, ohlc) {
+      function renderDropChart(r, ohlc, bears) {
         const dates = ohlc.dates;
         const O = ohlc.open,
           H = ohlc.high,
@@ -1443,19 +1658,26 @@
         }
         const nextDate = dates[dropIdx + 1] || null;
 
-        // markArea
-        const markData = [
-          [
-            { xAxis: r.date, itemStyle: { color: "rgba(220,38,38,0.22)" } },
-            { xAxis: nextDate || r.date },
-          ],
-        ];
+        // markArea：空頭區間底色（先畫，讓當日跌幅／回升標記疊在上層）
+        const markData = (bears || []).map((b) => [
+          { xAxis: b.peak_date, itemStyle: { color: "rgba(139,92,246,0.07)" } },
+          { xAxis: b.recovery_date || b.trough_date },
+        ]);
+        markData.push([
+          { xAxis: r.date, itemStyle: { color: "rgba(220,38,38,0.22)" } },
+          { xAxis: nextDate || r.date },
+        ]);
         if (recoveryDate && nextDate) {
           markData.push([
             { xAxis: nextDate, itemStyle: { color: "rgba(34,197,94,0.12)" } },
             { xAxis: recoveryDate },
           ]);
         }
+
+        // markLine：KNOWN_EVENTS 歷史事件標注
+        const eventMarkData = Object.entries(ohlc.events || {})
+          .filter(([d]) => dates.includes(d))
+          .map(([d, desc]) => ({ xAxis: d, name: desc }));
 
         // 縮放範圍
         const bufPre = 60,
@@ -1539,6 +1761,38 @@
               },
               markArea: { silent: true, data: markData },
             },
+            ...(eventMarkData.length > 0
+              ? [
+                  {
+                    type: "line",
+                    data: [],
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    markLine: {
+                      silent: true,
+                      symbol: ["none", "none"],
+                      lineStyle: {
+                        color: "#38bdf8",
+                        width: 1,
+                        type: "dashed",
+                        opacity: 0.5,
+                      },
+                      label: {
+                        show: true,
+                        position: "insideEndTop",
+                        formatter: (p) => p.name,
+                        color: "#0c4a6e",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        backgroundColor: "rgba(224,242,254,0.9)",
+                        padding: [2, 5],
+                        borderRadius: 3,
+                      },
+                      data: eventMarkData,
+                    },
+                  },
+                ]
+              : []),
             {
               type: "line",
               name: "VIX",
@@ -1617,7 +1871,7 @@
         _dropChart.resize();
       }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="vendor/html2canvas.min.js"></script>
+    <script src="vendor/echarts.min.js"></script>
   </body>
 </html>

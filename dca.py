@@ -170,6 +170,28 @@ def _next_trading_day(
     return future[0] if len(future) > 0 else None
 
 
+def _merge_extra_buys(
+    buy_events: dict[pd.Timestamp, float],
+    extra_buys: dict[pd.Timestamp, float] | None,
+    trading_dates: pd.DatetimeIndex,
+) -> dict[pd.Timestamp, float]:
+    """將加碼買點（如大跌日）併入既有的定期定額買點，對齊至下一個交易日。
+
+    若加碼日與既有買點對齊到同一個交易日，金額相加而非覆蓋。
+    """
+    if not extra_buys:
+        return buy_events
+    merged = dict(buy_events)
+    first_date, last_date = trading_dates[0], trading_dates[-1]
+    for d, amt in extra_buys.items():
+        if d < first_date or d > last_date:
+            continue
+        actual = _next_trading_day(d, trading_dates)
+        if actual is not None and actual <= last_date:
+            merged[actual] = merged.get(actual, 0.0) + amt
+    return merged
+
+
 def run_dca(
     ticker: str,
     monthly_amount: int = 1_000_000,
@@ -177,6 +199,7 @@ def run_dca(
     years: int = 10,
     force_start: pd.Timestamp | None = None,
     force_end: pd.Timestamp | None = None,
+    extra_buys: dict[pd.Timestamp, float] | None = None,
 ) -> dict | None:
     end_date = force_end if force_end is not None else pd.Timestamp.now().normalize()
     start_date = force_start if force_start is not None else end_date - pd.DateOffset(years=years)
@@ -237,6 +260,8 @@ def run_dca(
         if actual is not None and actual <= last_date:
             buy_events[actual] = monthly_amount
         month += pd.DateOffset(months=1)
+
+    buy_events = _merge_extra_buys(buy_events, extra_buys, trading_dates)
 
     if not buy_events:
         return None
@@ -355,4 +380,58 @@ def run_all(
                     force_start=common_start, force_end=force_end)
         if r:
             results.append(r)
+    return results
+
+
+def run_dip_buy_comparison(
+    monthly_amount: int = 1_000_000,
+    invest_day: int = 5,
+    years: int = 10,
+    dip_threshold: float = 5.0,
+    dip_multiplier: float = 2.0,
+    force_end: pd.Timestamp | None = None,
+    force_start: pd.Timestamp | None = None,
+) -> list[dict]:
+    """比較「固定定期定額」與「大跌加碼」兩種策略的績效差異。
+
+    大跌加碼：台股加權指數單日跌幅 >= dip_threshold 時，於下一個交易日
+    額外加碼 (dip_multiplier - 1) 倍的月扣款金額，其餘扣款排程不變。
+
+    Returns:
+        每檔標的一筆，含 baseline（固定扣款）與 dip_buy（大跌加碼）兩組
+        reinvest 績效指標，方便前端並排比較。
+    """
+    from taiex_big_drops import calculate_daily_returns, find_big_drops, load_from_yfinance
+
+    end = force_end if force_end is not None else pd.Timestamp.now().normalize()
+    start = force_start if force_start is not None else end - pd.DateOffset(years=years)
+    print(f"📅 加碼策略比較：{start.date()} ~ {end.date()}")
+
+    taiex_df = load_from_yfinance(start=(start - pd.DateOffset(days=10)).strftime("%Y-%m-%d"))
+    taiex_df = calculate_daily_returns(taiex_df)
+    drops = find_big_drops(taiex_df, threshold=dip_threshold)
+    extra_amount = monthly_amount * (dip_multiplier - 1)
+    extra_buys = {
+        pd.Timestamp(d): extra_amount
+        for d in drops["Date"]
+        if start <= pd.Timestamp(d) <= end
+    }
+    print(f"   偵測到 {len(extra_buys)} 次跌幅 >= {dip_threshold}% 的加碼觸發日")
+
+    results = []
+    for ticker in TICKERS:
+        baseline = run_dca(ticker, monthly_amount, invest_day, years,
+                            force_start=start, force_end=end)
+        dip_buy = run_dca(ticker, monthly_amount, invest_day, years,
+                           force_start=start, force_end=end, extra_buys=extra_buys)
+        if not baseline or not dip_buy:
+            continue
+        results.append({
+            "ticker": ticker,
+            "name": TICKERS.get(ticker, ticker),
+            "tags": TICKER_TAGS.get(ticker, []),
+            "dip_trigger_count": len(extra_buys),
+            "baseline": {"invested": baseline["invested"], **baseline["reinvest"]},
+            "dip_buy": {"invested": dip_buy["invested"], **dip_buy["reinvest"]},
+        })
     return results
