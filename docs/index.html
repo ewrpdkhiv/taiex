@@ -10,6 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="site-tabs.css" />
     <style>
       * {
         box-sizing: border-box;
@@ -42,22 +43,6 @@
         color: #e2e8f0;
         letter-spacing: 0.02em;
       }
-      header a.dca-link {
-        font-size: 0.76rem;
-        color: #475569;
-        text-decoration: none;
-        border: 1px solid #2d3f55;
-        padding: 3px 10px;
-        border-radius: 4px;
-        white-space: nowrap;
-        transition:
-          color 0.15s,
-          border-color 0.15s;
-      }
-      header a.dca-link:hover {
-        color: #94a3b8;
-        border-color: #334155;
-      }
       .meta {
         font-size: 0.74rem;
         color: #334155;
@@ -76,7 +61,7 @@
       }
       .type-row {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         border-bottom: 1px solid #2d3f55;
       }
       .type-btn {
@@ -103,6 +88,10 @@
       .type-btn[data-color="gain"].active {
         color: #10b981;
         border-bottom-color: #10b981;
+      }
+      .type-btn[data-color="stats"].active {
+        color: #8b5cf6;
+        border-bottom-color: #8b5cf6;
       }
 
       .period-row {
@@ -176,6 +165,9 @@
       .card[data-color="gain"] .card-header {
         border-left: 3px solid #10b981;
       }
+      .card[data-color="stats"] .card-header {
+        border-left: 3px solid #8b5cf6;
+      }
       .card-header h2 {
         font-size: 0.86rem;
         font-weight: 600;
@@ -195,6 +187,10 @@
       .card[data-color="gain"] .badge {
         background: rgba(16, 185, 129, 0.15);
         color: #10b981;
+      }
+      .card[data-color="stats"] .badge {
+        background: rgba(139, 92, 246, 0.15);
+        color: #8b5cf6;
       }
 
       table {
@@ -276,6 +272,9 @@
       }
       .card[data-color="gain"] tr:hover td {
         background: rgba(16, 185, 129, 0.04);
+      }
+      .card[data-color="stats"] tr:hover td {
+        background: rgba(139, 92, 246, 0.04);
       }
 
       .loading {
@@ -508,10 +507,14 @@
     </style>
   </head>
   <body>
+    <div class="site-tabs">
+      <a href="index.html" class="site-tab active">📊 漲跌排行</a>
+      <a href="dca.html" class="site-tab">💰 定期定額</a>
+      <a href="bear.html" class="site-tab">🐻 空頭市場</a>
+    </div>
+
     <header>
       <h1>台股加權指數 (TAIEX) 漲跌日排行</h1>
-      <a href="dca.html" class="dca-link">定期定額試算 →</a>
-      <a href="bear.html" class="dca-link">空頭市場記錄 →</a>
       <div class="meta">
         <span>更新：<b id="last-updated">載入中…</b></span>
       </div>
@@ -531,8 +534,11 @@
         <button class="type-btn" data-color="gain" data-type="gains-pt">
           📈 漲點
         </button>
+        <button class="type-btn" data-color="stats" data-type="stats">
+          📊 統計分析
+        </button>
       </div>
-      <div class="period-row">
+      <div class="period-row" id="period-row">
         <button class="period-btn active" data-period="20y">近 20 年</button>
         <button class="period-btn" data-period="10y">近 10 年</button>
         <button class="period-btn" data-period="5y">近 5 年</button>
@@ -540,105 +546,108 @@
       </div>
     </nav>
 
-    <div class="panel-inner" style="margin: 14px auto 0">
-      <div class="card" data-color="drop">
-        <div class="card-header">
-          <h2>大跌後表現統計</h2>
-          <span class="badge" id="post-drop-badge">跌幅 ≥ 5%</span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th class="left">之後交易日數</th>
-                <th>平均報酬</th>
-                <th>中位數報酬</th>
-                <th>勝率</th>
-                <th>樣本數</th>
-              </tr>
-            </thead>
-            <tbody id="t-post-drop-stats">
-              <tr>
-                <td colspan="5" class="loading">載入中…</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel-inner" style="margin: 14px auto 0">
-      <div class="card" data-color="drop">
-        <div class="card-header">
-          <h2>連續漲跌天數排行</h2>
-          <span class="badge">TOP 5</span>
-        </div>
-        <div style="display: flex; flex-wrap: wrap">
-          <div style="flex: 1; min-width: 260px">
-            <div
-              style="
-                padding: 8px 12px 0;
-                font-size: 0.72rem;
-                color: #10b981;
-                font-weight: 600;
-              "
-            >
-              📈 連續上漲
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th class="left">期間</th>
-                    <th>天數</th>
-                    <th>累積漲幅</th>
-                  </tr>
-                </thead>
-                <tbody id="t-streak-up">
-                  <tr>
-                    <td colspan="3" class="loading">載入中…</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div style="flex: 1; min-width: 260px">
-            <div
-              style="
-                padding: 8px 12px 0;
-                font-size: 0.72rem;
-                color: #f43f5e;
-                font-weight: 600;
-              "
-            >
-              📉 連續下跌
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th class="left">期間</th>
-                    <th>天數</th>
-                    <th>累積跌幅</th>
-                  </tr>
-                </thead>
-                <tbody id="t-streak-down">
-                  <tr>
-                    <td colspan="3" class="loading">載入中…</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div id="col-toggle-bar">
       <span class="toggle-label">欄位：</span>
     </div>
 
     <div id="error-banner"></div>
+
+    <!-- 統計分析面板：大跌後表現統計、連續漲跌天數排行 -->
+    <div id="panel-stats" class="tab-panel">
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>大跌後表現統計</h2>
+            <span class="badge" id="post-drop-badge">跌幅 ≥ 5%</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-post-drop-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>連續漲跌天數排行</h2>
+            <span class="badge">TOP 10</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap">
+            <div style="flex: 1; min-width: 260px">
+              <div
+                style="
+                  padding: 8px 12px 8px;
+                  font-size: 0.72rem;
+                  color: #10b981;
+                  font-weight: 600;
+                "
+              >
+                📈 連續上漲
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="left">期間</th>
+                      <th>天數</th>
+                      <th>累積漲幅</th>
+                    </tr>
+                  </thead>
+                  <tbody id="t-streak-up">
+                    <tr>
+                      <td colspan="3" class="loading">載入中…</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style="flex: 1; min-width: 260px">
+              <div
+                style="
+                  padding: 8px 12px 8px;
+                  font-size: 0.72rem;
+                  color: #f43f5e;
+                  font-weight: 600;
+                "
+              >
+                📉 連續下跌
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="left">期間</th>
+                      <th>天數</th>
+                      <th>累積跌幅</th>
+                    </tr>
+                  </thead>
+                  <tbody id="t-streak-down">
+                    <tr>
+                      <td colspan="3" class="loading">載入中…</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 8 個面板：drops-pct / gains-pct / drops-pt / gains-pt × 20y / all -->
     <div id="panel-drops-pct-20y" class="tab-panel active">
@@ -1431,7 +1440,10 @@
       }
 
       function switchPanel() {
-        const target = `panel-${currentType}-${currentPeriod}`;
+        const target =
+          currentType === "stats"
+            ? "panel-stats"
+            : `panel-${currentType}-${currentPeriod}`;
         document
           .querySelectorAll(".tab-panel")
           .forEach((p) => p.classList.remove("active"));
@@ -1445,6 +1457,13 @@
             .forEach((b) => b.classList.remove("active"));
           btn.classList.add("active");
           currentType = btn.dataset.type;
+          const isStats = currentType === "stats";
+          document.getElementById("period-row").style.display = isStats
+            ? "none"
+            : "";
+          document.getElementById("col-toggle-bar").style.display = isStats
+            ? "none"
+            : "";
           switchPanel();
         });
       });
@@ -1491,69 +1510,95 @@
         });
       })();
 
-      // ── 排序按鈕 ──
+      // ── 排序按鈕（僅套用在有對應 TABLE_CONFIG 的排行表格）與匯出 PNG 按鈕 ──
       document.querySelectorAll(".card-header").forEach((header) => {
         const tbody = header.closest(".card").querySelector("tbody");
         const tbodyId = tbody.id;
-        _sortState[tbodyId] = "original";
 
-        const sortBtn = document.createElement("button");
-        sortBtn.className = "sort-btn";
-        sortBtn.textContent = SORT_LABELS.original;
-        sortBtn.addEventListener("click", () => {
-          const cur = _sortState[tbodyId];
-          const next =
-            SORT_MODES[(SORT_MODES.indexOf(cur) + 1) % SORT_MODES.length];
-          _sortState[tbodyId] = next;
-          sortBtn.textContent = SORT_LABELS[next];
-          if (_data) {
-            const cfg = TABLE_CONFIG[tbodyId];
-            renderTable(
-              tbodyId,
-              sortedRows(_data[cfg.key], next),
-              cfg.fn,
-              cfg.cls,
-              cfg.cols,
-            );
-          }
-        });
-        header.appendChild(sortBtn);
-      });
+        if (TABLE_CONFIG[tbodyId]) {
+          _sortState[tbodyId] = "original";
 
-      // ── 匯出 PNG ──
-      document.querySelectorAll(".card-header").forEach((header) => {
+          const sortBtn = document.createElement("button");
+          sortBtn.className = "sort-btn";
+          sortBtn.textContent = SORT_LABELS.original;
+          sortBtn.addEventListener("click", () => {
+            const cur = _sortState[tbodyId];
+            const next =
+              SORT_MODES[(SORT_MODES.indexOf(cur) + 1) % SORT_MODES.length];
+            _sortState[tbodyId] = next;
+            sortBtn.textContent = SORT_LABELS[next];
+            if (_data) {
+              const cfg = TABLE_CONFIG[tbodyId];
+              renderTable(
+                tbodyId,
+                sortedRows(_data[cfg.key], next),
+                cfg.fn,
+                cfg.cls,
+                cfg.cols,
+              );
+            }
+          });
+          header.appendChild(sortBtn);
+        }
+
         const btn = document.createElement("button");
         btn.className = "export-btn";
         btn.textContent = "⬇ PNG";
         btn.addEventListener("click", () => {
           const card = btn.closest(".card");
           const title = card.querySelector("h2").textContent.trim();
-          card.classList.add("exporting");
+
+          // 複製一份到畫面外撐寬、截圖，原本畫面上的卡片完全不受影響（不會閃一下）
+          const clone = card.cloneNode(true);
+          clone.classList.add("exporting");
+          clone.style.position = "fixed";
+          clone.style.top = "-99999px";
+          clone.style.left = "0";
+          clone.style.overflow = "visible";
+          document.body.appendChild(clone);
 
           // 量表格完整寬度（所有欄位顯示後）
-          const table = card.querySelector("table");
-          const fullW = (table ? table.scrollWidth : card.scrollWidth) + 40;
-          const fullH = card.scrollHeight;
+          const tables = clone.querySelectorAll("table");
+          let fullW;
+          if (tables.length > 1) {
+            // 並排多表格（如連續漲跌卡片）：讓每個表格依自身內容寬度顯示，
+            // 否則 flex:1 會平分寬度，寬的表格會被裁掉右側欄位
+            let sum = 0;
+            tables.forEach((t) => {
+              const w = t.scrollWidth;
+              const flexItem = t.closest(".table-wrap")?.parentElement;
+              if (flexItem) {
+                flexItem.style.flex = "none";
+                flexItem.style.width = w + "px";
+              }
+              sum += w;
+            });
+            fullW = sum + 60;
+          } else {
+            fullW =
+              (tables[0] ? tables[0].scrollWidth : clone.scrollWidth) + 40;
+          }
+          clone.style.width = fullW + "px";
+          const fullH = clone.scrollHeight;
 
-          // 撐開 card，避免手機裁切
-          card.style.width = fullW + "px";
-          card.style.overflow = "visible";
-
-          html2canvas(card, {
+          html2canvas(clone, {
             scale: 2,
             backgroundColor: "#ffffff",
             width: fullW,
             height: fullH,
             windowWidth: 1280,
-          }).then((canvas) => {
-            card.classList.remove("exporting");
-            card.style.width = "";
-            card.style.overflow = "";
-            const a = document.createElement("a");
-            a.download = `TAIEX_${title}.png`;
-            a.href = canvas.toDataURL("image/png");
-            a.click();
-          });
+          })
+            .then((canvas) => {
+              document.body.removeChild(clone);
+              const a = document.createElement("a");
+              a.download = `TAIEX_${title}.png`;
+              a.href = canvas.toDataURL("image/png");
+              a.click();
+            })
+            .catch((err) => {
+              document.body.removeChild(clone);
+              console.error(err);
+            });
         });
         header.appendChild(btn);
       });

@@ -10,6 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="site-tabs.css" />
     <style>
       * {
         box-sizing: border-box;
@@ -34,21 +35,6 @@
         align-items: center;
         gap: 16px;
         flex-wrap: wrap;
-      }
-      header a {
-        color: #475569;
-        font-size: 0.78rem;
-        text-decoration: none;
-        border: 1px solid #2d3f55;
-        padding: 3px 10px;
-        border-radius: 4px;
-        transition:
-          color 0.15s,
-          border-color 0.15s;
-      }
-      header a:hover {
-        color: #94a3b8;
-        border-color: #334155;
       }
       header h1 {
         font-size: 0.95rem;
@@ -547,9 +533,13 @@
     </style>
   </head>
   <body>
+    <div class="site-tabs">
+      <a href="index.html" class="site-tab">📊 漲跌排行</a>
+      <a href="dca.html" class="site-tab active">💰 定期定額</a>
+      <a href="bear.html" class="site-tab">🐻 空頭市場</a>
+    </div>
+
     <header>
-      <a href="index.html">← 漲跌日排行</a>
-      <a href="bear.html">空頭市場記錄 →</a>
       <h1>定期定額試算</h1>
       <div class="meta">
         <span>更新：<b id="last-updated">載入中…</b></span>
@@ -605,7 +595,8 @@
       <div class="info-bar" style="margin-top: 20px">
         <span
           >台股加權指數單日跌幅 ≥ <b>5%</b> 時，隔一個交易日加碼
-          <b>2 倍</b>月扣款金額，與固定扣款比較（近 10 年）</span
+          <b>2 倍</b>月扣款金額，與固定扣款比較（固定「近 10
+          年」情境，會套用上方篩選，但不隨期間按鈕變動）</span
         >
       </div>
       <div class="table-wrap">
@@ -627,6 +618,7 @@
 
       let _cache = {};
       let _results = [];
+      let _dipCompare = [];
       let _sortKey = "irr";
       let _portfolio = new Set();
       let _visibleCols = new Set([
@@ -696,6 +688,8 @@
         }
         document.getElementById("filter-bar").innerHTML = renderFilterBar();
         document.getElementById("table-container").innerHTML = renderTable();
+        document.getElementById("dip-compare-container").innerHTML =
+          renderDipCompareTable();
       }
 
       function renderFilterBar() {
@@ -875,9 +869,12 @@
           </table>`;
       }
 
-      function renderDipCompareTable(rows) {
-        if (!rows || !rows.length) {
-          return '<div class="loading-msg">資料尚未就緒，請稍後重新整理</div>';
+      function renderDipCompareTable() {
+        const rows = applyFilters(_dipCompare);
+        if (!rows.length) {
+          return _dipCompare.length
+            ? '<div class="loading-msg">無符合篩選條件的資料</div>'
+            : '<div class="loading-msg">資料尚未就緒，請稍後重新整理</div>';
         }
         const withDelta = rows.map((d) => ({
           ...d,
@@ -1056,8 +1053,9 @@
           }
           document.getElementById("filter-bar").innerHTML = renderFilterBar();
           document.getElementById("table-container").innerHTML = renderTable();
+          _dipCompare = data.dip_buy_comparison || [];
           document.getElementById("dip-compare-container").innerHTML =
-            renderDipCompareTable(data.dip_buy_comparison || []);
+            renderDipCompareTable();
         } catch (e) {
           console.error(e);
         }

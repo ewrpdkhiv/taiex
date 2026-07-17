@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <script src="vendor/echarts.min.js"></script>
+    <link rel="stylesheet" href="site-tabs.css" />
     <style>
       * {
         box-sizing: border-box;
@@ -31,33 +32,12 @@
         background: #111827;
         border-bottom: 1px solid #2d3f55;
         padding: 13px 20px;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        flex-wrap: wrap;
       }
       header h1 {
         font-size: 0.95rem;
         font-weight: 600;
         color: #e2e8f0;
         letter-spacing: 0.02em;
-        flex: 1;
-      }
-      header a.nav-link {
-        font-size: 0.76rem;
-        color: #475569;
-        text-decoration: none;
-        border: 1px solid #2d3f55;
-        padding: 3px 10px;
-        border-radius: 4px;
-        white-space: nowrap;
-        transition:
-          color 0.15s,
-          border-color 0.15s;
-      }
-      header a.nav-link:hover {
-        color: #94a3b8;
-        border-color: #334155;
       }
 
       .meta {
@@ -497,10 +477,14 @@
     </style>
   </head>
   <body>
+    <div class="site-tabs">
+      <a href="index.html" class="site-tab">📊 漲跌排行</a>
+      <a href="dca.html" class="site-tab">💰 定期定額</a>
+      <a href="bear.html" class="site-tab active">🐻 空頭市場</a>
+    </div>
+
     <header>
       <h1>🐻 TAIEX 空頭市場記錄</h1>
-      <a href="index.html" class="nav-link">漲跌排行 →</a>
-      <a href="dca.html" class="nav-link">定期定額試算 →</a>
     </header>
 
     <div class="meta">
