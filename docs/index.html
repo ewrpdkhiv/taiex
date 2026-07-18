@@ -407,6 +407,21 @@
       .clickable-drop.active td {
         background: rgba(244, 63, 94, 0.08) !important;
       }
+
+      /* 大跌後表現統計：明細面板 */
+      .clickable-horizon {
+        cursor: pointer;
+      }
+      .clickable-horizon.active td {
+        background: rgba(139, 92, 246, 0.08) !important;
+      }
+      #post-drop-detail {
+        display: none;
+        border-top: 1px solid #2d3f55;
+      }
+      #post-drop-detail .chart-panel-header {
+        padding: 9px 16px;
+      }
       #chart-outer {
         display: none;
         max-width: 1100px;
@@ -577,6 +592,26 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+          <div id="post-drop-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="post-drop-detail-info">—</span>
+              <button class="close-btn" onclick="closePostDropDetail()">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="post-drop-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">大跌日期</th>
+                    <th>當日跌幅</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-post-drop-detail"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -1388,6 +1423,7 @@
         }
         const badge = document.getElementById("post-drop-badge");
         badge.textContent = `跌幅 ≥ ${stats.threshold}%（樣本 ${stats.sample_size} 次）`;
+        closePostDropDetail();
         tbody.innerHTML = stats.horizons
           .map((h) => {
             if (!h.avg_return_pct && h.avg_return_pct !== 0) {
@@ -1397,7 +1433,7 @@
               </tr>`;
             }
             const cls = h.avg_return_pct >= 0 ? "gain" : "drop";
-            return `<tr>
+            return `<tr class="clickable-horizon" data-days="${h.days}">
               <td class="left date">${h.days} 日</td>
               <td class="${cls}">${h.avg_return_pct.toFixed(2)}%</td>
               <td class="pct">${h.median_return_pct.toFixed(2)}%</td>
@@ -1406,6 +1442,52 @@
             </tr>`;
           })
           .join("");
+      }
+
+      // ── 大跌後表現統計：明細面板 ──
+      let _activePostDropRow = null;
+
+      document.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr.clickable-horizon");
+        if (!tr) return;
+        const days = Number(tr.dataset.days);
+        if (_activePostDropRow) _activePostDropRow.classList.remove("active");
+        _activePostDropRow = tr;
+        tr.classList.add("active");
+        openPostDropDetail(days);
+      });
+
+      function closePostDropDetail() {
+        const outer = document.getElementById("post-drop-detail");
+        if (outer) outer.style.display = "none";
+        if (_activePostDropRow) {
+          _activePostDropRow.classList.remove("active");
+          _activePostDropRow = null;
+        }
+      }
+
+      function openPostDropDetail(days) {
+        const stats = _data && _data.post_drop_stats;
+        const horizon = stats && stats.horizons.find((h) => h.days === days);
+        if (!horizon || !horizon.events) return;
+
+        const outer = document.getElementById("post-drop-detail");
+        document.getElementById("post-drop-detail-info").textContent =
+          `大跌之後 ${days} 個交易日的個別報酬（共 ${horizon.events.length} 次）`;
+
+        const rows = [...horizon.events].reverse();
+        document.getElementById("t-post-drop-detail").innerHTML = rows
+          .map((ev) => {
+            const cls = ev.return_pct >= 0 ? "gain" : "drop";
+            return `<tr>
+              <td class="left date">${ev.date}</td>
+              <td class="drop">${ev.drop_pct.toFixed(2)}%</td>
+              <td class="${cls}">${ev.return_pct.toFixed(2)}%</td>
+            </tr>`;
+          })
+          .join("");
+
+        outer.style.display = "block";
       }
 
       async function fetchData() {
@@ -1423,6 +1505,12 @@
             data.last_updated || "—";
 
           _data = data;
+          if (data.data_start) {
+            const allBtn = document.querySelector(
+              '.period-btn[data-period="all"]',
+            );
+            if (allBtn) allBtn.textContent = `全時（${data.data_start}～）`;
+          }
           renderPostDropStats(data.post_drop_stats);
           renderStreaks(data.streaks);
           Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
