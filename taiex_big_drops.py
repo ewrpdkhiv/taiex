@@ -622,7 +622,7 @@ def find_longest_streaks(df: pd.DataFrame, top_n: int = 10) -> dict[str, list[di
 def analyze_post_drop_returns(
     df: pd.DataFrame,
     threshold: float = DEFAULT_THRESHOLD,
-    horizons: tuple[int, ...] = (5, 20, 60),
+    horizons: tuple[int, ...] = (1, 5, 20, 60),
 ) -> dict:
     """統計單日跌幅 >= threshold 之後 N 個交易日的報酬與勝率。
 
@@ -638,30 +638,39 @@ def analyze_post_drop_returns(
     Returns:
         {"threshold": float, "sample_size": int, "horizons": [
             {"days": int, "avg_return_pct": float, "median_return_pct": float,
-             "win_rate_pct": float, "sample_size": int} | {"days": int, "sample_size": 0}
+             "win_rate_pct": float, "sample_size": int,
+             "events": [{"date": str, "drop_pct": float, "return_pct": float}, ...]}
+            | {"days": int, "sample_size": 0}
             ...
         ]}
     """
     d = df.dropna(subset=["change_pct"]).reset_index(drop=True)
     closes = d["Close"].to_numpy()
+    dates = d["Date"].to_numpy()
+    change_pcts = d["change_pct"].to_numpy()
     n = len(d)
     drop_indices = d.index[d["change_pct"] <= -threshold].tolist()
 
     horizon_stats = []
     for h in horizons:
-        returns = [
-            (closes[i + h] - closes[i]) / closes[i] * 100
+        events = [
+            {
+                "date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+                "drop_pct": round(float(change_pcts[i]), 2),
+                "return_pct": round(float((closes[i + h] - closes[i]) / closes[i] * 100), 2),
+            }
             for i in drop_indices
             if i + h < n
         ]
-        if returns:
-            s = pd.Series(returns)
+        if events:
+            s = pd.Series([e["return_pct"] for e in events])
             horizon_stats.append({
                 "days": h,
                 "avg_return_pct": round(float(s.mean()), 2),
                 "median_return_pct": round(float(s.median()), 2),
                 "win_rate_pct": round(float((s > 0).mean() * 100), 2),
-                "sample_size": len(returns),
+                "sample_size": len(events),
+                "events": events,
             })
         else:
             horizon_stats.append({"days": h, "sample_size": 0})
@@ -670,6 +679,130 @@ def analyze_post_drop_returns(
         "threshold": threshold,
         "sample_size": len(drop_indices),
         "horizons": horizon_stats,
+    }
+
+
+# ── 跌破均線後報酬統計 ────────────────────────────────────────────────────────
+
+
+def analyze_ma_touch_returns(
+    df: pd.DataFrame,
+    ma_window: int,
+    horizons: tuple[int, ...] = (1, 5, 20, 60),
+) -> dict:
+    """統計收盤價由上向下首次跌破 N 日均線之後 M 個交易日的報酬與勝率。
+
+    「跌破」只在轉折當天算一次事件：前一天收盤價高於均線、當天收盤價
+    小於等於均線；同一段下跌若連續多天都在均線之下，只計入起跌的那天。
+
+    Args:
+        df: 含 Date、Close 欄位的 DataFrame。
+        ma_window: 均線天數（如 120 代表 120 日均線）。
+        horizons: 要統計的交易日數列表。
+
+    Returns:
+        {"ma_window": int, "sample_size": int, "horizons": [
+            {"days": int, "avg_return_pct": float, "median_return_pct": float,
+             "win_rate_pct": float, "sample_size": int,
+             "events": [{"date": str, "touch_pct": float, "return_pct": float}, ...]}
+            | {"days": int, "sample_size": 0}
+            ...
+        ]}
+    """
+    d = df.sort_values("Date").reset_index(drop=True)
+    closes = d["Close"].to_numpy()
+    dates = d["Date"].to_numpy()
+    ma = d["Close"].rolling(ma_window).mean().to_numpy()
+    n = len(d)
+
+    touch_indices = [
+        i
+        for i in range(1, n)
+        if not pd.isna(ma[i])
+        and not pd.isna(ma[i - 1])
+        and closes[i - 1] > ma[i - 1]
+        and closes[i] <= ma[i]
+    ]
+
+    horizon_stats = []
+    for h in horizons:
+        events = [
+            {
+                "date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+                "touch_pct": round(float((closes[i] - ma[i]) / ma[i] * 100), 2),
+                "return_pct": round(float((closes[i + h] - closes[i]) / closes[i] * 100), 2),
+            }
+            for i in touch_indices
+            if i + h < n
+        ]
+        if events:
+            s = pd.Series([e["return_pct"] for e in events])
+            horizon_stats.append({
+                "days": h,
+                "avg_return_pct": round(float(s.mean()), 2),
+                "median_return_pct": round(float(s.median()), 2),
+                "win_rate_pct": round(float((s > 0).mean() * 100), 2),
+                "sample_size": len(events),
+                "events": events,
+            })
+        else:
+            horizon_stats.append({"days": h, "sample_size": 0})
+
+    return {
+        "ma_window": ma_window,
+        "sample_size": len(touch_indices),
+        "horizons": horizon_stats,
+    }
+
+
+# ── 距離熊市 ──────────────────────────────────────────────────────────────────
+
+
+def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> dict:
+    """計算最新收盤價距離「自歷史高點下跌 threshold」熊市門檻還差多少點與百分比。
+
+    以資料中最新一筆收盤價為基準，找出至今的歷史高點（含當天），
+    門檻價 = 高點 * (1 - threshold)。若目前已跌破門檻，points_to_bear／
+    pct_to_bear 會被限制在 0（不會是負值），改由 is_bear_market 標示已進入熊市。
+
+    Args:
+        df: 含 Date、Close 欄位的 DataFrame。
+        threshold: 熊市跌幅門檻（正數，如 0.20 代表自高點下跌 20%）。
+
+    Returns:
+        {"as_of_date": str, "current_close": float, "peak_date": str,
+         "peak_value": float, "current_drawdown_pct": float,
+         "bear_threshold_pct": float, "bear_threshold_value": float,
+         "points_to_bear": float, "pct_to_bear": float, "is_bear_market": bool}
+    """
+    d = df.sort_values("Date").reset_index(drop=True)
+    close = d["Close"].astype(float)
+
+    latest_date = pd.Timestamp(d["Date"].iloc[-1])
+    latest_close = float(close.iloc[-1])
+
+    peak_value = float(close.cummax().iloc[-1])
+    peak_idx = int(close[close == peak_value].index[-1])
+    peak_date = pd.Timestamp(d["Date"].iloc[peak_idx])
+
+    threshold_value = peak_value * (1 - threshold)
+    current_drawdown_pct = (latest_close - peak_value) / peak_value * 100
+    is_bear_market = current_drawdown_pct <= -threshold * 100
+
+    points_to_bear = max(0.0, latest_close - threshold_value)
+    pct_to_bear = max(0.0, (latest_close - threshold_value) / latest_close * 100)
+
+    return {
+        "as_of_date": latest_date.strftime("%Y-%m-%d"),
+        "current_close": round(latest_close, 2),
+        "peak_date": peak_date.strftime("%Y-%m-%d"),
+        "peak_value": round(peak_value, 2),
+        "current_drawdown_pct": round(current_drawdown_pct, 2),
+        "bear_threshold_pct": round(-threshold * 100, 2),
+        "bear_threshold_value": round(threshold_value, 2),
+        "points_to_bear": round(points_to_bear, 2),
+        "pct_to_bear": round(pct_to_bear, 2),
+        "is_bear_market": bool(is_bear_market),
     }
 
 

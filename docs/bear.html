@@ -498,6 +498,19 @@
     </div>
 
     <div class="container">
+      <!-- 距離熊市 -->
+      <div class="card">
+        <div class="card-header">
+          <h2>距離熊市還有多少</h2>
+          <span class="badge" id="distance-badge">—</span>
+        </div>
+        <div id="distance-body">
+          <div style="padding: 36px; text-align: center; color: #2d3f55">
+            載入中…
+          </div>
+        </div>
+      </div>
+
       <!-- 統計摘要 -->
       <div class="card">
         <div class="card-header">
@@ -658,6 +671,51 @@
           hist,
           notRecoveredCount: bears.length - recovered.length,
         };
+      }
+
+      /* ── 距離熊市 ── */
+      function renderDistance(d) {
+        const badge = document.getElementById("distance-badge");
+        const body = document.getElementById("distance-body");
+        if (!d) {
+          badge.textContent = "—";
+          body.innerHTML =
+            '<div style="padding:36px;text-align:center;color:#2d3f55">暫無資料</div>';
+          return;
+        }
+
+        badge.textContent = d.is_bear_market
+          ? "🐻 已進入熊市"
+          : `距門檻 ${d.pct_to_bear.toFixed(2)}%`;
+
+        body.innerHTML = `
+          <div class="stat-grid">
+            <div class="stat-tile">
+              <div class="stat-label">最新收盤（${d.as_of_date}）</div>
+              <div class="stat-value">${fmtNum(d.current_close)}</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">歷史高點（${d.peak_date}）</div>
+              <div class="stat-value">${fmtNum(d.peak_value)}</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">目前拉回幅度</div>
+              <div class="stat-value drop-pct">${d.current_drawdown_pct.toFixed(2)}%</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">熊市門檻（${d.bear_threshold_pct.toFixed(0)}%）</div>
+              <div class="stat-value">${fmtNum(d.bear_threshold_value)}</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">距門檻還差點數</div>
+              <div class="stat-value">${d.is_bear_market ? "已跌破" : fmtNum(d.points_to_bear) + " 點"}</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-label">距門檻還差百分比</div>
+              <div class="stat-value">${d.is_bear_market ? "已跌破" : d.pct_to_bear.toFixed(2) + "%"}</div>
+            </div>
+          </div>
+        `;
       }
 
       function renderSummary(bears) {
@@ -1196,6 +1254,7 @@
             document.getElementById("table-wrap").style.display = "block";
             renderTable();
             renderSummary(_data);
+            renderDistance(data.distance_to_bear);
           })
           .catch((err) => {
             document.getElementById("loading").style.display = "none";

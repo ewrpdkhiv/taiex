@@ -3,6 +3,8 @@ import pytest
 
 from taiex_big_drops import (
     _parse_roc_or_ad_date,
+    analyze_bear_market_distance,
+    analyze_ma_touch_returns,
     analyze_post_drop_returns,
     calculate_daily_returns,
     find_bear_markets,
@@ -114,6 +116,23 @@ class TestAnalyzePostDropReturns:
         assert h4["avg_return_pct"] == pytest.approx(7.71, abs=0.01)
         assert h4["win_rate_pct"] == pytest.approx(100.0, abs=0.01)
 
+    def test_horizon_includes_per_event_details(self):
+        df = self._make_returns_df()
+        result = analyze_post_drop_returns(df, threshold=5.0, horizons=(2,))
+        events = result["horizons"][0]["events"]
+        assert events == [
+            {
+                "date": "2020-01-02",
+                "drop_pct": pytest.approx(-6.0, abs=0.01),
+                "return_pct": pytest.approx(-4.26, abs=0.01),
+            },
+            {
+                "date": "2020-01-04",
+                "drop_pct": pytest.approx(-5.26, abs=0.01),
+                "return_pct": pytest.approx(7.78, abs=0.01),
+            },
+        ]
+
     def test_horizon_beyond_available_data_has_zero_sample(self):
         df = self._make_returns_df()
         # 資料只有 10 筆，horizon=100 一定超出範圍
@@ -125,6 +144,63 @@ class TestAnalyzePostDropReturns:
         result = analyze_post_drop_returns(df, threshold=5.0, horizons=(1,))
         assert result["sample_size"] == 0
         assert result["horizons"][0] == {"days": 1, "sample_size": 0}
+
+
+# ── analyze_ma_touch_returns ──────────────────────────────────────────────
+
+
+class TestAnalyzeMaTouchReturns:
+    def test_touch_event_and_returns(self):
+        # MA3：索引 6 的異常高點推高均線，索引 7 收盤價回落至均線之下 → 觸及事件
+        closes = [10, 10, 10, 10, 10, 10, 20, 10, 10, 10]
+        df = _make_df(closes)
+        result = analyze_ma_touch_returns(df, ma_window=3, horizons=(1, 2))
+
+        assert result["ma_window"] == 3
+        assert result["sample_size"] == 1
+
+        by_days = {h["days"]: h for h in result["horizons"]}
+        h1 = by_days[1]
+        assert h1["sample_size"] == 1
+        assert h1["events"] == [
+            {
+                "date": "2020-01-08",
+                "touch_pct": pytest.approx(-25.0, abs=0.01),
+                "return_pct": pytest.approx(0.0, abs=0.01),
+            }
+        ]
+
+    def test_no_touch_when_always_above_ma(self):
+        df = _make_df([100, 101, 102, 103, 104, 105])
+        result = analyze_ma_touch_returns(df, ma_window=3, horizons=(1,))
+        assert result["sample_size"] == 0
+        assert result["horizons"][0] == {"days": 1, "sample_size": 0}
+
+
+# ── analyze_bear_market_distance ──────────────────────────────────────────
+
+
+class TestAnalyzeBearMarketDistance:
+    def test_already_in_bear_market(self):
+        df = _make_df([100, 120, 90])
+        result = analyze_bear_market_distance(df, threshold=0.20)
+
+        assert result["peak_value"] == 120
+        assert result["current_close"] == 90
+        assert result["current_drawdown_pct"] == pytest.approx(-25.0, abs=0.01)
+        assert result["is_bear_market"] is True
+        assert result["points_to_bear"] == 0
+        assert result["pct_to_bear"] == 0
+
+    def test_not_yet_bear_market(self):
+        df = _make_df([100, 120, 110])
+        result = analyze_bear_market_distance(df, threshold=0.20)
+
+        assert result["is_bear_market"] is False
+        assert result["current_drawdown_pct"] == pytest.approx(-8.33, abs=0.01)
+        assert result["bear_threshold_value"] == 96
+        assert result["points_to_bear"] == pytest.approx(14.0, abs=0.01)
+        assert result["pct_to_bear"] == pytest.approx(14 / 110 * 100, abs=0.01)
 
 
 # ── find_longest_streaks ──────────────────────────────────────────────────

@@ -596,7 +596,7 @@
           <div id="post-drop-detail">
             <div class="chart-panel-header">
               <span class="chart-info" id="post-drop-detail-info">—</span>
-              <button class="close-btn" onclick="closePostDropDetail()">
+              <button class="close-btn" onclick="closeStatsDetail('post-drop')">
                 ✕ 關閉
               </button>
             </div>
@@ -610,6 +610,100 @@
                   </tr>
                 </thead>
                 <tbody id="t-post-drop-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 120 日均線後表現統計</h2>
+            <span class="badge" id="ma120-badge">120MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma120-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma120-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma120-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma120')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma120-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma120-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 240 日均線後表現統計</h2>
+            <span class="badge" id="ma240-badge">240MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma240-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma240-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma240-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma240')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma240-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma240-detail"></tbody>
               </table>
             </div>
           </div>
@@ -1415,15 +1509,60 @@
         }
       }
 
-      function renderPostDropStats(stats) {
-        const tbody = document.getElementById("t-post-drop-stats");
+      // ── 大跌後 / 跌破均線後表現統計：共用渲染邏輯 ──
+      const STATS_PANELS = {
+        "post-drop": {
+          tbodyId: "t-post-drop-stats",
+          badgeId: "post-drop-badge",
+          detailId: "post-drop-detail",
+          detailInfoId: "post-drop-detail-info",
+          detailTbodyId: "t-post-drop-detail",
+          extraField: "drop_pct",
+          getStats: (data) => data && data.post_drop_stats,
+          badgeText: (s) =>
+            `跌幅 ≥ ${s.threshold}%（樣本 ${s.sample_size} 次）`,
+          detailInfo: (days, count) =>
+            `大跌之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
+        },
+        ma120: {
+          tbodyId: "t-ma120-stats",
+          badgeId: "ma120-badge",
+          detailId: "ma120-detail",
+          detailInfoId: "ma120-detail-info",
+          detailTbodyId: "t-ma120-detail",
+          extraField: "touch_pct",
+          getStats: (data) =>
+            data && data.ma_touch_stats && data.ma_touch_stats.ma120,
+          badgeText: (s) =>
+            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
+          detailInfo: (days, count) =>
+            `跌破 120 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
+        },
+        ma240: {
+          tbodyId: "t-ma240-stats",
+          badgeId: "ma240-badge",
+          detailId: "ma240-detail",
+          detailInfoId: "ma240-detail-info",
+          detailTbodyId: "t-ma240-detail",
+          extraField: "touch_pct",
+          getStats: (data) =>
+            data && data.ma_touch_stats && data.ma_touch_stats.ma240,
+          badgeText: (s) =>
+            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
+          detailInfo: (days, count) =>
+            `跌破 240 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
+        },
+      };
+
+      function renderStatsPanel(panelKey, stats) {
+        const cfg = STATS_PANELS[panelKey];
+        const tbody = document.getElementById(cfg.tbodyId);
         if (!stats || !stats.horizons || !stats.horizons.length) {
           tbody.innerHTML = `<tr><td colspan="5" class="loading">暫無資料</td></tr>`;
           return;
         }
-        const badge = document.getElementById("post-drop-badge");
-        badge.textContent = `跌幅 ≥ ${stats.threshold}%（樣本 ${stats.sample_size} 次）`;
-        closePostDropDetail();
+        document.getElementById(cfg.badgeId).textContent = cfg.badgeText(stats);
+        closeStatsDetail(panelKey);
         tbody.innerHTML = stats.horizons
           .map((h) => {
             if (!h.avg_return_pct && h.avg_return_pct !== 0) {
@@ -1433,7 +1572,7 @@
               </tr>`;
             }
             const cls = h.avg_return_pct >= 0 ? "gain" : "drop";
-            return `<tr class="clickable-horizon" data-days="${h.days}">
+            return `<tr class="clickable-horizon" data-panel="${panelKey}" data-days="${h.days}">
               <td class="left date">${h.days} 日</td>
               <td class="${cls}">${h.avg_return_pct.toFixed(2)}%</td>
               <td class="pct">${h.median_return_pct.toFixed(2)}%</td>
@@ -1444,44 +1583,50 @@
           .join("");
       }
 
-      // ── 大跌後表現統計：明細面板 ──
-      let _activePostDropRow = null;
+      const _activeStatsRow = {};
 
       document.addEventListener("click", (e) => {
         const tr = e.target.closest("tr.clickable-horizon");
         if (!tr) return;
+        const panelKey = tr.dataset.panel;
         const days = Number(tr.dataset.days);
-        if (_activePostDropRow) _activePostDropRow.classList.remove("active");
-        _activePostDropRow = tr;
+        if (_activeStatsRow[panelKey]) {
+          _activeStatsRow[panelKey].classList.remove("active");
+        }
+        _activeStatsRow[panelKey] = tr;
         tr.classList.add("active");
-        openPostDropDetail(days);
+        openStatsDetail(panelKey, days);
       });
 
-      function closePostDropDetail() {
-        const outer = document.getElementById("post-drop-detail");
+      function closeStatsDetail(panelKey) {
+        const cfg = STATS_PANELS[panelKey];
+        const outer = document.getElementById(cfg.detailId);
         if (outer) outer.style.display = "none";
-        if (_activePostDropRow) {
-          _activePostDropRow.classList.remove("active");
-          _activePostDropRow = null;
+        if (_activeStatsRow[panelKey]) {
+          _activeStatsRow[panelKey].classList.remove("active");
+          _activeStatsRow[panelKey] = null;
         }
       }
 
-      function openPostDropDetail(days) {
-        const stats = _data && _data.post_drop_stats;
+      function openStatsDetail(panelKey, days) {
+        const cfg = STATS_PANELS[panelKey];
+        const stats = cfg.getStats(_data);
         const horizon = stats && stats.horizons.find((h) => h.days === days);
         if (!horizon || !horizon.events) return;
 
-        const outer = document.getElementById("post-drop-detail");
-        document.getElementById("post-drop-detail-info").textContent =
-          `大跌之後 ${days} 個交易日的個別報酬（共 ${horizon.events.length} 次）`;
+        const outer = document.getElementById(cfg.detailId);
+        document.getElementById(cfg.detailInfoId).textContent = cfg.detailInfo(
+          days,
+          horizon.events.length,
+        );
 
         const rows = [...horizon.events].reverse();
-        document.getElementById("t-post-drop-detail").innerHTML = rows
+        document.getElementById(cfg.detailTbodyId).innerHTML = rows
           .map((ev) => {
             const cls = ev.return_pct >= 0 ? "gain" : "drop";
             return `<tr>
               <td class="left date">${ev.date}</td>
-              <td class="drop">${ev.drop_pct.toFixed(2)}%</td>
+              <td class="drop">${ev[cfg.extraField].toFixed(2)}%</td>
               <td class="${cls}">${ev.return_pct.toFixed(2)}%</td>
             </tr>`;
           })
@@ -1511,7 +1656,9 @@
             );
             if (allBtn) allBtn.textContent = `全時（${data.data_start}～）`;
           }
-          renderPostDropStats(data.post_drop_stats);
+          Object.keys(STATS_PANELS).forEach((key) => {
+            renderStatsPanel(key, STATS_PANELS[key].getStats(data));
+          });
           renderStreaks(data.streaks);
           Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
             renderTable(

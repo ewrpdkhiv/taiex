@@ -16,6 +16,8 @@ from dca import run_all as dca_run_all
 from dca import run_dip_buy_comparison as dca_run_dip_buy_comparison
 from taiex_big_drops import (
     KNOWN_EVENTS,
+    analyze_bear_market_distance,
+    analyze_ma_touch_returns,
     analyze_post_drop_returns,
     calculate_daily_returns,
     find_bear_markets,
@@ -95,7 +97,12 @@ def generate_data() -> None:
     for key, result_df, include_recovery in batches:
         payload[key] = _df_to_records(result_df, df if include_recovery else None)
     payload["post_drop_stats"] = analyze_post_drop_returns(df)
+    payload["ma_touch_stats"] = {
+        "ma120": analyze_ma_touch_returns(df, ma_window=120),
+        "ma240": analyze_ma_touch_returns(df, ma_window=240),
+    }
     payload["streaks"] = find_longest_streaks(df)
+    payload["data_start"] = pd.Timestamp(df["Date"].min()).strftime("%Y-%m-%d")
 
     out = OUT_DIR / "data.json"
     out.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
@@ -123,6 +130,7 @@ def generate_bear() -> None:
     print("=== 產生空頭市場 + OHLC 資料 ===")
     ohlc_df = load_ohlc_from_yfinance()
     bears = find_bear_markets(ohlc_df[["Date", "Close"]].copy())
+    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close"]].copy())
 
     clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
     dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()
@@ -131,8 +139,12 @@ def generate_bear() -> None:
     now = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
 
     (OUT_DIR / "bear.json").write_text(
-        json.dumps({"bears": bears, "last_updated": now, "error": None},
-                   ensure_ascii=False, separators=(",", ":"))
+        json.dumps({
+            "bears": bears,
+            "distance_to_bear": distance_to_bear,
+            "last_updated": now,
+            "error": None,
+        }, ensure_ascii=False, separators=(",", ":"))
     )
     print(f"✅ 寫出 {OUT_DIR / 'bear.json'}")
 
