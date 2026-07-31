@@ -777,6 +777,72 @@ def analyze_post_drop_returns(
     }
 
 
+# ── 大漲後報酬統計 ────────────────────────────────────────────────────────────
+
+
+def analyze_post_gain_returns(
+    df: pd.DataFrame,
+    threshold: float = DEFAULT_THRESHOLD,
+    horizons: tuple[int, ...] = (1, 5, 20, 60),
+) -> dict:
+    """統計單日漲幅 >= threshold 之後 N 個交易日的報酬與勝率。
+
+    以大漲當日收盤價為基準，計算之後第 N 個交易日收盤價的報酬率；
+    用於回答「大漲後追高該不該進場」。
+
+    Args:
+        df: 含 Date、Close、change_pct 欄位的 DataFrame（需先呼叫
+            calculate_daily_returns）。
+        threshold: 漲幅門檻（正數，如 5 代表 >= 5%）。
+        horizons: 要統計的交易日數列表。
+
+    Returns:
+        {"threshold": float, "sample_size": int, "horizons": [
+            {"days": int, "avg_return_pct": float, "median_return_pct": float,
+             "win_rate_pct": float, "sample_size": int,
+             "events": [{"date": str, "gain_pct": float, "return_pct": float}, ...]}
+            | {"days": int, "sample_size": 0}
+            ...
+        ]}
+    """
+    d = df.dropna(subset=["change_pct"]).reset_index(drop=True)
+    closes = d["Close"].to_numpy()
+    dates = d["Date"].to_numpy()
+    change_pcts = d["change_pct"].to_numpy()
+    n = len(d)
+    gain_indices = d.index[d["change_pct"] >= threshold].tolist()
+
+    horizon_stats = []
+    for h in horizons:
+        events = [
+            {
+                "date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
+                "gain_pct": round(float(change_pcts[i]), 2),
+                "return_pct": round(float((closes[i + h] - closes[i]) / closes[i] * 100), 2),
+            }
+            for i in gain_indices
+            if i + h < n
+        ]
+        if events:
+            s = pd.Series([e["return_pct"] for e in events])
+            horizon_stats.append({
+                "days": h,
+                "avg_return_pct": round(float(s.mean()), 2),
+                "median_return_pct": round(float(s.median()), 2),
+                "win_rate_pct": round(float((s > 0).mean() * 100), 2),
+                "sample_size": len(events),
+                "events": events,
+            })
+        else:
+            horizon_stats.append({"days": h, "sample_size": 0})
+
+    return {
+        "threshold": threshold,
+        "sample_size": len(gain_indices),
+        "horizons": horizon_stats,
+    }
+
+
 # ── 跌破均線後報酬統計 ────────────────────────────────────────────────────────
 
 
@@ -856,12 +922,12 @@ def analyze_ma_touch_returns(
 def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> dict:
     """計算最新收盤價距離「自歷史高點下跌 threshold」熊市門檻還差多少點與百分比。
 
-    以資料中最新一筆收盤價為基準，找出至今的歷史高點（含當天），
+    以資料中最新一筆收盤價為基準，找出至今的歷史高點（以最高價 High 認定，含當天），
     門檻價 = 高點 * (1 - threshold)。若目前已跌破門檻，points_to_bear／
     pct_to_bear 會被限制在 0（不會是負值），改由 is_bear_market 標示已進入熊市。
 
     Args:
-        df: 含 Date、Close 欄位的 DataFrame。
+        df: 含 Date、Close、High 欄位的 DataFrame。
         threshold: 熊市跌幅門檻（正數，如 0.20 代表自高點下跌 20%）。
 
     Returns:
@@ -872,12 +938,13 @@ def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> d
     """
     d = df.sort_values("Date").reset_index(drop=True)
     close = d["Close"].astype(float)
+    high = d["High"].astype(float)
 
     latest_date = pd.Timestamp(d["Date"].iloc[-1])
     latest_close = float(close.iloc[-1])
 
-    peak_value = float(close.cummax().iloc[-1])
-    peak_idx = int(close[close == peak_value].index[-1])
+    peak_value = float(high.cummax().iloc[-1])
+    peak_idx = int(high[high == peak_value].index[-1])
     peak_date = pd.Timestamp(d["Date"].iloc[peak_idx])
 
     threshold_value = peak_value * (1 - threshold)

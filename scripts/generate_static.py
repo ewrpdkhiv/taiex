@@ -21,6 +21,7 @@ from taiex_big_drops import (
     analyze_bear_market_distance,
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
+    analyze_post_gain_returns,
     calculate_daily_returns,
     find_bear_markets,
     find_longest_streaks,
@@ -101,6 +102,7 @@ def generate_data() -> None:
     for key, result_df, include_recovery in batches:
         payload[key] = _df_to_records(result_df, df if include_recovery else None)
     payload["post_drop_stats"] = analyze_post_drop_returns(df)
+    payload["post_gain_stats"] = analyze_post_gain_returns(df)
     payload["ma_touch_stats"] = {
         "ma120": analyze_ma_touch_returns(df, ma_window=120),
         "ma240": analyze_ma_touch_returns(df, ma_window=240),
@@ -136,7 +138,7 @@ def generate_bear() -> None:
     ohlc_df = load_ohlc_from_yfinance()
     ohlc_df = patch_missing_trading_days(ohlc_df)
     bears = find_bear_markets(ohlc_df[["Date", "Close"]].copy())
-    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close"]].copy())
+    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close", "High"]].copy())
 
     clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
     dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()

@@ -619,6 +619,53 @@
       <div class="panel-inner" style="margin: 14px auto">
         <div class="card" data-color="stats">
           <div class="card-header">
+            <h2>大漲後表現統計</h2>
+            <span class="badge" id="post-gain-badge">漲幅 ≥ 5%</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-post-gain-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="post-gain-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="post-gain-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('post-gain')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="post-gain-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">大漲日期</th>
+                    <th>當日漲幅</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-post-gain-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
             <h2>跌破 120 日均線後表現統計</h2>
             <span class="badge" id="ma120-badge">120MA</span>
           </div>
@@ -1524,6 +1571,20 @@
           detailInfo: (days, count) =>
             `大跌之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
         },
+        "post-gain": {
+          tbodyId: "t-post-gain-stats",
+          badgeId: "post-gain-badge",
+          detailId: "post-gain-detail",
+          detailInfoId: "post-gain-detail-info",
+          detailTbodyId: "t-post-gain-detail",
+          extraField: "gain_pct",
+          extraFieldCls: "gain",
+          getStats: (data) => data && data.post_gain_stats,
+          badgeText: (s) =>
+            `漲幅 ≥ ${s.threshold}%（樣本 ${s.sample_size} 次）`,
+          detailInfo: (days, count) =>
+            `大漲之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
+        },
         ma120: {
           tbodyId: "t-ma120-stats",
           badgeId: "ma120-badge",
@@ -1621,12 +1682,13 @@
         );
 
         const rows = [...horizon.events].reverse();
+        const extraCls = cfg.extraFieldCls || "drop";
         document.getElementById(cfg.detailTbodyId).innerHTML = rows
           .map((ev) => {
             const cls = ev.return_pct >= 0 ? "gain" : "drop";
             return `<tr>
               <td class="left date">${ev.date}</td>
-              <td class="drop">${ev[cfg.extraField].toFixed(2)}%</td>
+              <td class="${extraCls}">${ev[cfg.extraField].toFixed(2)}%</td>
               <td class="${cls}">${ev.return_pct.toFixed(2)}%</td>
             </tr>`;
           })

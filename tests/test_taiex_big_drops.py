@@ -7,6 +7,7 @@ from taiex_big_drops import (
     analyze_bear_market_distance,
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
+    analyze_post_gain_returns,
     calculate_daily_returns,
     find_bear_markets,
     find_longest_streaks,
@@ -243,6 +244,51 @@ class TestAnalyzePostDropReturns:
         assert result["horizons"][0] == {"days": 1, "sample_size": 0}
 
 
+# ── analyze_post_gain_returns ────────────────────────────────────────────
+
+
+class TestAnalyzePostGainReturns:
+    def _make_returns_df(self):
+        # 索引 1（100→106，+6%）與索引 3（100→105.26，+5.26%）皆為 >=5% 大漲日
+        closes = [100, 106, 100, 105.26, 102, 97, 99, 101, 103, 105]
+        return calculate_daily_returns(_make_df(closes))
+
+    def test_sample_size_counts_gain_days(self):
+        df = self._make_returns_df()
+        result = analyze_post_gain_returns(df, threshold=5.0, horizons=(2, 4))
+        assert result["threshold"] == 5.0
+        assert result["sample_size"] == 2
+
+    def test_horizon_includes_per_event_details(self):
+        df = self._make_returns_df()
+        result = analyze_post_gain_returns(df, threshold=5.0, horizons=(2,))
+        events = result["horizons"][0]["events"]
+        assert events == [
+            {
+                "date": "2020-01-02",
+                "gain_pct": pytest.approx(6.0, abs=0.01),
+                "return_pct": pytest.approx(-0.70, abs=0.01),
+            },
+            {
+                "date": "2020-01-04",
+                "gain_pct": pytest.approx(5.26, abs=0.01),
+                "return_pct": pytest.approx(-7.85, abs=0.01),
+            },
+        ]
+
+    def test_horizon_beyond_available_data_has_zero_sample(self):
+        df = self._make_returns_df()
+        # 資料只有 10 筆，horizon=100 一定超出範圍
+        result = analyze_post_gain_returns(df, threshold=5.0, horizons=(100,))
+        assert result["horizons"][0] == {"days": 100, "sample_size": 0}
+
+    def test_no_gains_above_threshold(self):
+        df = calculate_daily_returns(_make_df([100, 99, 98, 97]))
+        result = analyze_post_gain_returns(df, threshold=5.0, horizons=(1,))
+        assert result["sample_size"] == 0
+        assert result["horizons"][0] == {"days": 1, "sample_size": 0}
+
+
 # ── analyze_ma_touch_returns ──────────────────────────────────────────────
 
 
@@ -280,6 +326,7 @@ class TestAnalyzeMaTouchReturns:
 class TestAnalyzeBearMarketDistance:
     def test_already_in_bear_market(self):
         df = _make_df([100, 120, 90])
+        df["High"] = df["Close"]
         result = analyze_bear_market_distance(df, threshold=0.20)
 
         assert result["peak_value"] == 120
@@ -291,6 +338,7 @@ class TestAnalyzeBearMarketDistance:
 
     def test_not_yet_bear_market(self):
         df = _make_df([100, 120, 110])
+        df["High"] = df["Close"]
         result = analyze_bear_market_distance(df, threshold=0.20)
 
         assert result["is_bear_market"] is False
@@ -298,6 +346,15 @@ class TestAnalyzeBearMarketDistance:
         assert result["bear_threshold_value"] == 96
         assert result["points_to_bear"] == pytest.approx(14.0, abs=0.01)
         assert result["pct_to_bear"] == pytest.approx(14 / 110 * 100, abs=0.01)
+
+    def test_peak_uses_high_not_close(self):
+        # 收盤未創新高，但盤中最高價創新高 → 歷史高點應以 High 為準
+        df = _make_df([100, 95, 90])
+        df["High"] = [100, 130, 90]
+        result = analyze_bear_market_distance(df, threshold=0.20)
+
+        assert result["peak_value"] == 130
+        assert result["peak_date"] == "2020-01-02"
 
 
 # ── find_longest_streaks ──────────────────────────────────────────────────
