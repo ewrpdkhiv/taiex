@@ -29,6 +29,7 @@ from taiex_big_drops import (
     load_from_yfinance,
     load_ohlc_from_yfinance,
     load_vix_from_yfinance,
+    patch_missing_trading_days,
 )
 
 _TW = timezone(timedelta(hours=8))
@@ -72,6 +73,7 @@ def _df_to_records(df: pd.DataFrame, full_df: pd.DataFrame | None = None) -> lis
 def generate_data() -> None:
     print("=== 產生漲跌排行資料 ===")
     df = load_from_yfinance()
+    df = patch_missing_trading_days(df)
     df = calculate_daily_returns(df)
 
     batches = [
@@ -129,6 +131,7 @@ def generate_dca() -> None:
 def generate_bear() -> None:
     print("=== 產生空頭市場 + OHLC 資料 ===")
     ohlc_df = load_ohlc_from_yfinance()
+    ohlc_df = patch_missing_trading_days(ohlc_df)
     bears = find_bear_markets(ohlc_df[["Date", "Close"]].copy())
     distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close"]].copy())
 

@@ -3,12 +3,14 @@ import pytest
 
 from taiex_big_drops import (
     _parse_roc_or_ad_date,
+    _parse_twse_month_payload,
     analyze_bear_market_distance,
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
     calculate_daily_returns,
     find_bear_markets,
     find_longest_streaks,
+    patch_missing_trading_days,
 )
 
 
@@ -37,6 +39,101 @@ class TestParseRocOrAdDate:
 
     def test_non_numeric_slash_format_returns_none(self):
         assert _parse_roc_or_ad_date("abc/def/ghi") is None
+
+
+# ── _parse_twse_month_payload ────────────────────────────────────────────
+
+
+class TestParseTwseMonthPayload:
+    def test_parses_real_api_shape(self):
+        # 對應 TWSE MI_5MINS_HIST API 實際回傳格式（1999 年 2 月，含補行上班日
+        # 星期六 88/02/20，這正是 yfinance 缺漏的那筆）
+        payload = {
+            "stat": "OK",
+            "title": "88年02月 發行量加權股價指數歷史資料",
+            "date": "19990201",
+            "fields": ["日期", "開盤指數", "最高指數", "最低指數", "收盤指數"],
+            "data": [
+                [" 88/02/10", "5,669.23", "5,811.33", "5,669.23", "5,798.00"],
+                [" 88/02/20", "6,040.57", "6,086.76", "5,977.01", "6,072.33"],
+                [" 88/02/22", "6,216.01", "6,343.84", "6,168.94", "6,313.63"],
+            ],
+            "total": 3,
+        }
+        result = _parse_twse_month_payload(payload)
+
+        assert list(result["Date"]) == [
+            pd.Timestamp("1999-02-10"),
+            pd.Timestamp("1999-02-20"),
+            pd.Timestamp("1999-02-22"),
+        ]
+        row = result.iloc[1]
+        assert row["Open"] == pytest.approx(6040.57)
+        assert row["High"] == pytest.approx(6086.76)
+        assert row["Low"] == pytest.approx(5977.01)
+        assert row["Close"] == pytest.approx(6072.33)
+
+    def test_non_ok_status_returns_empty(self):
+        result = _parse_twse_month_payload({"stat": "查無資料", "data": []})
+        assert result.empty
+        assert list(result.columns) == ["Date", "Open", "High", "Low", "Close"]
+
+
+# ── patch_missing_trading_days ────────────────────────────────────────────
+
+
+class TestPatchMissingTradingDays:
+    def test_inserts_dates_missing_from_source(self):
+        # df 缺了 1999-02-20（補行上班日星期六），TWSE 官方資料裡有
+        df = pd.DataFrame({
+            "Date": [pd.Timestamp("1999-02-10"), pd.Timestamp("1999-02-22")],
+            "Close": [5798.00, 6313.63],
+        })
+
+        def fake_fetch_month(year, month):
+            if (year, month) != (1999, 2):
+                return pd.DataFrame(columns=["Date", "Open", "High", "Low", "Close"])
+            return pd.DataFrame([
+                {"Date": pd.Timestamp("1999-02-10"), "Open": 5669.23, "High": 5811.33, "Low": 5669.23, "Close": 5798.00},
+                {"Date": pd.Timestamp("1999-02-20"), "Open": 6040.57, "High": 6086.76, "Low": 5977.01, "Close": 6072.33},
+                {"Date": pd.Timestamp("1999-02-22"), "Open": 6216.01, "High": 6343.84, "Low": 6168.94, "Close": 6313.63},
+            ])
+
+        result = patch_missing_trading_days(
+            df,
+            start="1999-01-01",
+            end="1999-03-31",
+            fetch_month=fake_fetch_month,
+        )
+
+        assert list(result["Date"]) == [
+            pd.Timestamp("1999-02-10"),
+            pd.Timestamp("1999-02-20"),
+            pd.Timestamp("1999-02-22"),
+        ]
+        inserted = result[result["Date"] == pd.Timestamp("1999-02-20")].iloc[0]
+        assert inserted["Close"] == pytest.approx(6072.33)
+
+    def test_no_missing_dates_returns_original_df(self):
+        df = pd.DataFrame({
+            "Date": [pd.Timestamp("1999-02-10"), pd.Timestamp("1999-02-22")],
+            "Close": [5798.00, 6313.63],
+        })
+
+        def fake_fetch_month(year, month):
+            return pd.DataFrame([
+                {"Date": pd.Timestamp("1999-02-10"), "Open": 0, "High": 0, "Low": 0, "Close": 5798.00},
+                {"Date": pd.Timestamp("1999-02-22"), "Open": 0, "High": 0, "Low": 0, "Close": 6313.63},
+            ])
+
+        result = patch_missing_trading_days(
+            df,
+            start="1999-02-01",
+            end="1999-02-28",
+            fetch_month=fake_fetch_month,
+        )
+
+        assert result is df
 
 
 # ── find_bear_markets ─────────────────────────────────────────────────────

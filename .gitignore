@@ -32,3 +32,5 @@ wheels/
 .ripgreprc
 .zprofile
 .zshrc
+
+docs/data/*.json

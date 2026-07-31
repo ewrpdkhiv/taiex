@@ -30,6 +30,7 @@ import pandas as pd
 DEFAULT_THRESHOLD = 5.0
 TAIEX_TICKER = "^TWII"
 START_DATE = "1990-01-01"
+TWSE_INDEX_HIST_URL = "https://www.twse.com.tw/indicesReport/MI_5MINS_HIST"
 
 # 已知重大事件標籤（跌幅與漲幅共用）
 KNOWN_EVENTS: dict[str, str] = {
@@ -171,6 +172,102 @@ def load_vix_from_yfinance(start: str = START_DATE) -> dict[str, float]:
     except Exception as e:
         print(f"⚠ VIX 下載失敗：{e}")
         return {}
+
+
+def _parse_twse_month_payload(payload: dict) -> pd.DataFrame:
+    """解析 TWSE「發行量加權股價指數歷史資料」API 回傳的單月 JSON。
+
+    Args:
+        payload: TWSE API（MI_5MINS_HIST）回傳的 JSON（已解析成 dict）。
+
+    Returns:
+        含 Date、Open、High、Low、Close 欄位的 DataFrame；查無資料回傳空表。
+    """
+    columns = ["Date", "Open", "High", "Low", "Close"]
+    if payload.get("stat") != "OK" or not payload.get("data"):
+        return pd.DataFrame(columns=columns)
+
+    rows = []
+    for date_str, open_str, high_str, low_str, close_str, *_ in payload["data"]:
+        date = _parse_roc_or_ad_date(date_str.strip())
+        if date is None:
+            continue
+        try:
+            o, h, l, c = (
+                float(v.replace(",", ""))
+                for v in (open_str, high_str, low_str, close_str)
+            )
+        except ValueError:
+            continue
+        rows.append({"Date": date, "Open": o, "High": h, "Low": l, "Close": c})
+
+    return pd.DataFrame(rows, columns=columns)
+
+
+def _fetch_twse_month(year: int, month: int) -> pd.DataFrame:
+    """向 TWSE 官方 API 查詢指定年月的加權股價指數日 OHLC 資料。
+
+    網路或格式錯誤時回傳空表、不拋出例外，讓呼叫端可以逐月容錯地補資料。
+    """
+    import requests  # pylint: disable=import-outside-toplevel
+
+    date_str = f"{year:04d}{month:02d}01"
+    try:
+        resp = requests.get(
+            TWSE_INDEX_HIST_URL,
+            params={"response": "json", "date": date_str},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return _parse_twse_month_payload(resp.json())
+    except Exception as e:  # noqa: BLE001 - 任何查詢失敗都應該容錯繼續
+        print(f"⚠ TWSE {year}-{month:02d} 資料查詢失敗：{e}")
+        return pd.DataFrame(columns=["Date", "Open", "High", "Low", "Close"])
+
+
+def patch_missing_trading_days(
+    df: pd.DataFrame,
+    start: str = "1999-01-01",
+    end: str = "2000-12-31",
+    fetch_month=_fetch_twse_month,
+) -> pd.DataFrame:
+    """用 TWSE 官方歷史資料，補齊 yfinance 缺漏的交易日。
+
+    yfinance 的 ^TWII 歷史資料在 1999～2000 年左右，會漏掉部分「補行上班日」
+    星期六的交易資料（例如 1999-02-20）。這會讓橫跨缺漏日的漲跌幅被誤算成
+    單一交易日的跳空，實際上中間還有一個官方確實有開盤的交易日。這個函式
+    逐月向 TWSE 官方 API 查詢指定期間資料，把 df 裡沒有的交易日補進去。
+
+    Args:
+        df: 含 Date（可選 Open/High/Low/Close）欄位的 DataFrame。
+        start, end: 只在這個日期範圍內查詢 TWSE，避免對整段歷史做不必要的
+            網路請求（此問題目前已知只發生在 2001 年以前）。
+        fetch_month: 查詢單月資料的函式，預設為 _fetch_twse_month；測試時
+            可替換成假資料來源，避免真的發網路請求。
+
+    Returns:
+        補上缺漏交易日後、依日期排序的新 DataFrame。
+    """
+    existing_dates = set(pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d"))
+    months = pd.period_range(start=start, end=end, freq="M")
+
+    missing_rows = []
+    for period in months:
+        month_df = fetch_month(period.year, period.month)
+        if month_df.empty:
+            continue
+        for _, row in month_df.iterrows():
+            date_str = row["Date"].strftime("%Y-%m-%d")
+            if date_str not in existing_dates:
+                missing_rows.append(row)
+                existing_dates.add(date_str)
+
+    if not missing_rows:
+        return df
+
+    print(f"🩹 從 TWSE 補齊 {len(missing_rows)} 個 yfinance 缺漏的交易日")
+    patched = pd.concat([df, pd.DataFrame(missing_rows)], ignore_index=True)
+    return patched.sort_values("Date").reset_index(drop=True)
 
 
 def load_from_csv(path: str) -> pd.DataFrame:
