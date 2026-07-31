@@ -15,6 +15,10 @@ wheels/
 # 空白佔位，讓 git 追蹤 docs/data/ 目錄
 !docs/data/.gitkeep
 
+# 增量抓取用的原始價格快取，需要 commit 回 repo 才能跨 workflow 執行保留
+!cache/
+!cache/**/*.csv
+
 # IDE / Editor
 .idea
 .vscode
@@ -34,3 +38,4 @@ wheels/
 .zshrc
 
 docs/data/*.json
+/cache

@@ -34,7 +34,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/data/
+          git add docs/data/ cache/
           git diff --staged --quiet || git commit -m "chore: update static data [skip ci]"
           git push
 

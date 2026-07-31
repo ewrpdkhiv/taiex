@@ -95,77 +95,75 @@ KNOWN_EVENTS: dict[str, str] = {
 # ── 資料讀取 ──────────────────────────────────────────────────────────────────
 
 
+def _cached_yf_download(cache_path, ticker: str, start: str, cols: list[str]) -> pd.DataFrame:
+    """從快取讀取 + 增量抓取 yfinance 資料，回傳合併後、依 start 篩選的 DataFrame。"""
+    import yfinance as yf  # pylint: disable=import-outside-toplevel
+    from price_cache import OVERLAP_DAYS, _merge_frames, read_cache, write_cache
+
+    cached = read_cache(cache_path)
+    start_ts = pd.Timestamp(start)
+    if cached is None or start_ts < cached["Date"].min():
+        fetch_start = start
+    else:
+        fetch_start = max(
+            start_ts, cached["Date"].max() - pd.Timedelta(days=OVERLAP_DAYS)
+        ).strftime("%Y-%m-%d")
+
+    raw = yf.download(ticker, start=fetch_start, progress=False, auto_adjust=True)
+    if isinstance(raw.columns, pd.MultiIndex):
+        raw.columns = raw.columns.get_level_values(0)
+    available_cols = [c for c in cols if c in raw.columns]
+    fresh = raw[available_cols].copy()
+    fresh.index.name = "Date"
+    fresh = fresh.reset_index()
+    fresh["Date"] = pd.to_datetime(fresh["Date"])
+
+    combined = _merge_frames(cached, fresh)
+    write_cache(cache_path, combined)
+    return combined[combined["Date"] >= start_ts].reset_index(drop=True)
+
+
+def load_ohlc_from_yfinance(start: str = START_DATE) -> pd.DataFrame:
+    """從快取 + yfinance 增量抓取 TAIEX OHLC 資料（Date, Open, High, Low, Close）。"""
+    try:
+        import yfinance as yf  # noqa: F401  pylint: disable=import-outside-toplevel,unused-import
+    except ImportError as exc:
+        raise ImportError("請先安裝 yfinance：pip install yfinance") from exc
+
+    from price_cache import CACHE_DIR
+
+    df = _cached_yf_download(
+        CACHE_DIR / "index" / "TWII.csv", TAIEX_TICKER, start,
+        ["Open", "High", "Low", "Close"],
+    )
+    if df.empty:
+        raise RuntimeError("OHLC 資料下載失敗")
+    return df
+
+
 def load_from_yfinance(start: str = START_DATE) -> pd.DataFrame:
-    """從 yfinance 下載台股加權指數歷史資料。
-
-    Args:
-        start: 起始日期字串，格式 YYYY-MM-DD。
-
-    Returns:
-        包含 Date、Close 欄位的 DataFrame。
+    """取得台股加權指數歷史資料（Date, Close），底層與 load_ohlc_from_yfinance 共用快取。
 
     Raises:
         ImportError: yfinance 未安裝。
         RuntimeError: 下載失敗或資料為空。
     """
-    try:
-        import yfinance as yf  # pylint: disable=import-outside-toplevel
-    except ImportError as exc:
-        raise ImportError("請先安裝 yfinance：pip install yfinance") from exc
-
-    print(f"⬇  從 Yahoo Finance 下載 {TAIEX_TICKER} 資料（{start} 至今）...")
-    raw = yf.download(TAIEX_TICKER, start=start, progress=True, auto_adjust=True)
-
-    if raw.empty:
+    df = load_ohlc_from_yfinance(start)[["Date", "Close"]]
+    if df.empty:
         raise RuntimeError("下載失敗或資料為空。請確認網路連線，或改用 --csv 模式。")
-
-    # yfinance 回傳 MultiIndex columns，拍平後只取 Close
-    if isinstance(raw.columns, pd.MultiIndex):
-        raw.columns = raw.columns.get_level_values(0)
-
-    df = raw[["Close"]].copy()
-    df.index.name = "Date"
-    df = df.reset_index()
-    df["Date"] = pd.to_datetime(df["Date"])
-    print(f"✅ 下載完成，共 {len(df):,} 筆交易日資料")
-    return df
-
-
-def load_ohlc_from_yfinance(start: str = START_DATE) -> pd.DataFrame:
-    """從 yfinance 下載 TAIEX OHLC 資料（Date, Open, High, Low, Close）。"""
-    try:
-        import yfinance as yf  # pylint: disable=import-outside-toplevel
-    except ImportError as exc:
-        raise ImportError("請先安裝 yfinance：pip install yfinance") from exc
-
-    raw = yf.download(TAIEX_TICKER, start=start, progress=False, auto_adjust=True)
-    if raw.empty:
-        raise RuntimeError("OHLC 資料下載失敗")
-
-    if isinstance(raw.columns, pd.MultiIndex):
-        raw.columns = raw.columns.get_level_values(0)
-
-    cols = [c for c in ("Open", "High", "Low", "Close") if c in raw.columns]
-    df = raw[cols].copy()
-    df.index.name = "Date"
-    df = df.reset_index()
-    df["Date"] = pd.to_datetime(df["Date"])
     return df
 
 
 def load_vix_from_yfinance(start: str = START_DATE) -> dict[str, float]:
-    """下載 VIX 收盤價，回傳 {date_str: vix_close}。下載失敗回傳空 dict。"""
+    """取得 VIX 收盤價（快取 + 增量抓取），回傳 {date_str: vix_close}。失敗回傳空 dict。"""
     try:
-        import yfinance as yf  # pylint: disable=import-outside-toplevel
-        raw = yf.download("^VIX", start=start, progress=False, auto_adjust=True)
-        if raw.empty:
-            return {}
-        if isinstance(raw.columns, pd.MultiIndex):
-            raw.columns = raw.columns.get_level_values(0)
+        from price_cache import CACHE_DIR
+
+        df = _cached_yf_download(CACHE_DIR / "index" / "VIX.csv", "^VIX", start, ["Close"])
         result: dict[str, float] = {}
-        for ts, row in raw.iterrows():
+        for _, row in df.iterrows():
             try:
-                result[pd.Timestamp(ts).strftime("%Y-%m-%d")] = round(float(row["Close"]), 2)
+                result[pd.Timestamp(row["Date"]).strftime("%Y-%m-%d")] = round(float(row["Close"]), 2)
             except (KeyError, ValueError, TypeError):
                 pass
         return result

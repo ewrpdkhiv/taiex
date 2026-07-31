@@ -5,6 +5,7 @@
 
 import json
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -12,6 +13,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dca import load_all_histories as dca_load_all_histories
 from dca import run_all as dca_run_all
 from dca import run_dip_buy_comparison as dca_run_dip_buy_comparison
 from taiex_big_drops import (
@@ -113,13 +115,14 @@ def generate_data() -> None:
 
 def generate_dca() -> None:
     print("=== 產生 DCA 回測資料 ===")
+    ticker_data = dca_load_all_histories()
     payload = {
-        "results_10y":       dca_run_all(monthly_amount=3_000, years=10),
-        "results_5y":        dca_run_all(monthly_amount=3_000, years=5),
-        "results_crash_10y": dca_run_all(monthly_amount=3_000, years=10, force_end=_CRASH_DATE),
-        "results_crash_5y":  dca_run_all(monthly_amount=3_000, years=5,  force_end=_CRASH_DATE),
-        "results_covid":     dca_run_all(monthly_amount=3_000, years=10, force_start=_COVID_START),
-        "dip_buy_comparison": dca_run_dip_buy_comparison(monthly_amount=3_000, years=10),
+        "results_10y":       dca_run_all(ticker_data, monthly_amount=3_000, years=10),
+        "results_5y":        dca_run_all(ticker_data, monthly_amount=3_000, years=5),
+        "results_crash_10y": dca_run_all(ticker_data, monthly_amount=3_000, years=10, force_end=_CRASH_DATE),
+        "results_crash_5y":  dca_run_all(ticker_data, monthly_amount=3_000, years=5,  force_end=_CRASH_DATE),
+        "results_covid":     dca_run_all(ticker_data, monthly_amount=3_000, years=10, force_start=_COVID_START),
+        "dip_buy_comparison": dca_run_dip_buy_comparison(ticker_data, monthly_amount=3_000, years=10),
         "last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"),
         "error": None,
     }
@@ -179,12 +182,16 @@ def generate_bear() -> None:
 if __name__ == "__main__":
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     errors = []
+    total_start = time.perf_counter()
     for fn in (generate_data, generate_dca, generate_bear):
+        fn_start = time.perf_counter()
         try:
             fn()
         except Exception as exc:
             print(f"❌ {fn.__name__} 失敗：{exc}")
             errors.append(exc)
+        print(f"⏱  {fn.__name__} 耗時 {time.perf_counter() - fn_start:.1f} 秒")
+    print(f"⏱  總耗時 {time.perf_counter() - total_start:.1f} 秒")
     if errors:
         sys.exit(1)
     print("=== 全部完成 ===")

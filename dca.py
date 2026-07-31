@@ -192,35 +192,39 @@ def _merge_extra_buys(
     return merged
 
 
-def run_dca(
-    ticker: str,
-    monthly_amount: int = 1_000_000,
-    invest_day: int = 5,
-    years: int = 10,
-    force_start: pd.Timestamp | None = None,
-    force_end: pd.Timestamp | None = None,
-    extra_buys: dict[pd.Timestamp, float] | None = None,
-) -> dict | None:
-    end_date = force_end if force_end is not None else pd.Timestamp.now().normalize()
-    start_date = force_start if force_start is not None else end_date - pd.DateOffset(years=years)
+def _load_ticker_history(ticker: str) -> tuple[pd.DataFrame, float | None]:
+    """回傳 (完整歷史 DataFrame[Date, Close, Dividends], market_cap)。
+
+    歷史資料快取在 cache/dca/<ticker>.csv：無快取時抓全部可取得歷史，
+    有快取則只抓「快取最後日期 - OVERLAP_DAYS」之後的增量資料並合併回快取。
+    """
+    from price_cache import CACHE_DIR, OVERLAP_DAYS, _merge_frames, read_cache, write_cache
+
+    cache_path = CACHE_DIR / "dca" / f"{ticker}.csv"
+    cached = read_cache(cache_path)
+    stock = yf.Ticker(ticker)
 
     try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(
-            start=start_date.strftime("%Y-%m-%d"),
-            end=(end_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
-            auto_adjust=False,
-        )
+        if cached is None:
+            hist = stock.history(period="max", auto_adjust=False)
+        else:
+            fetch_start = (cached["Date"].max() - pd.Timedelta(days=OVERLAP_DAYS)).strftime("%Y-%m-%d")
+            hist = stock.history(start=fetch_start, auto_adjust=False)
     except Exception as exc:
         print(f"❌ 下載 {ticker} 失敗：{exc}")
-        return None
+        hist = pd.DataFrame()
 
-    if hist.empty or len(hist) < 12:
-        return None
-
-    hist.index = hist.index.tz_localize(None) if hist.index.tz else hist.index
-    trading_dates = hist.index
-    close = hist["Close"]
+    if not hist.empty:
+        hist.index = hist.index.tz_localize(None) if hist.index.tz else hist.index
+        if "Dividends" not in hist.columns:
+            hist["Dividends"] = 0.0
+        fresh = hist[["Close", "Dividends"]].copy()
+        fresh.index.name = "Date"
+        fresh = fresh.reset_index()
+        combined = _merge_frames(cached, fresh)
+        write_cache(cache_path, combined)
+    else:
+        combined = cached if cached is not None else pd.DataFrame(columns=["Date", "Close", "Dividends"])
 
     try:
         market_cap = stock.fast_info.market_cap
@@ -232,17 +236,41 @@ def run_dca(
         except Exception:
             market_cap = None
 
-    try:
-        divs = stock.dividends
-        if len(divs) > 0:
-            divs.index = (
-                divs.index.tz_localize(None) if divs.index.tz else divs.index
-            )
-            divs = divs[
-                (divs.index >= trading_dates[0]) & (divs.index <= trading_dates[-1])
-            ]
-    except Exception:
-        divs = pd.Series(dtype=float)
+    return combined, market_cap
+
+
+def load_all_histories() -> dict[str, tuple[pd.DataFrame, float | None]]:
+    """對 TICKERS 逐一抓取（快取 + 增量更新）完整歷史，供 run_all/run_dip_buy_comparison 共用。"""
+    data = {}
+    for ticker in TICKERS:
+        print(f"⬇  更新 {ticker} 快取...")
+        data[ticker] = _load_ticker_history(ticker)
+    return data
+
+
+def run_dca(
+    ticker: str,
+    hist: pd.DataFrame,
+    market_cap: float | None,
+    monthly_amount: int = 1_000_000,
+    invest_day: int = 5,
+    years: int = 10,
+    force_start: pd.Timestamp | None = None,
+    force_end: pd.Timestamp | None = None,
+    extra_buys: dict[pd.Timestamp, float] | None = None,
+) -> dict | None:
+    end_date = force_end if force_end is not None else pd.Timestamp.now().normalize()
+    start_date = force_start if force_start is not None else end_date - pd.DateOffset(years=years)
+
+    window = hist[(hist["Date"] >= start_date) & (hist["Date"] <= end_date)]
+    if window.empty or len(window) < 12:
+        return None
+
+    indexed = window.set_index("Date")
+    trading_dates = indexed.index
+    close = indexed["Close"]
+    divs = indexed["Dividends"]
+    divs = divs[divs > 0]
 
     buy_events: dict[pd.Timestamp, int] = {}
     last_date = trading_dates[-1]
@@ -363,6 +391,7 @@ def run_dca(
 
 
 def run_all(
+    ticker_data: dict[str, tuple[pd.DataFrame, float | None]],
     monthly_amount: int = 1_000_000,
     invest_day: int = 5,
     years: int = 10,
@@ -374,9 +403,8 @@ def run_all(
     print(f"📅 起始日：{common_start.date()}  結束日：{end.date()}")
 
     results = []
-    for ticker in TICKERS:
-        print(f"⬇  計算 {ticker}...")
-        r = run_dca(ticker, monthly_amount, invest_day, years,
+    for ticker, (hist, market_cap) in ticker_data.items():
+        r = run_dca(ticker, hist, market_cap, monthly_amount, invest_day, years,
                     force_start=common_start, force_end=force_end)
         if r:
             results.append(r)
@@ -384,6 +412,7 @@ def run_all(
 
 
 def run_dip_buy_comparison(
+    ticker_data: dict[str, tuple[pd.DataFrame, float | None]],
     monthly_amount: int = 1_000_000,
     invest_day: int = 5,
     years: int = 10,
@@ -419,10 +448,10 @@ def run_dip_buy_comparison(
     print(f"   偵測到 {len(extra_buys)} 次跌幅 >= {dip_threshold}% 的加碼觸發日")
 
     results = []
-    for ticker in TICKERS:
-        baseline = run_dca(ticker, monthly_amount, invest_day, years,
+    for ticker, (hist, market_cap) in ticker_data.items():
+        baseline = run_dca(ticker, hist, market_cap, monthly_amount, invest_day, years,
                             force_start=start, force_end=end)
-        dip_buy = run_dca(ticker, monthly_amount, invest_day, years,
+        dip_buy = run_dca(ticker, hist, market_cap, monthly_amount, invest_day, years,
                            force_start=start, force_end=end, extra_buys=extra_buys)
         if not baseline or not dip_buy:
             continue
