@@ -140,9 +140,9 @@ class TestPatchMissingTradingDays:
 # ── find_bear_markets ─────────────────────────────────────────────────────
 
 
-def _make_df(closes: list[float]) -> pd.DataFrame:
+def _make_df(closes: list[float], lows: list[float] | None = None) -> pd.DataFrame:
     dates = pd.date_range("2020-01-01", periods=len(closes), freq="D")
-    return pd.DataFrame({"Date": dates, "Close": closes})
+    return pd.DataFrame({"Date": dates, "Close": closes, "Low": lows or closes})
 
 
 class TestFindBearMarkets:
@@ -318,6 +318,24 @@ class TestAnalyzeMaTouchReturns:
         result = analyze_ma_touch_returns(df, ma_window=3, horizons=(1,))
         assert result["sample_size"] == 0
         assert result["horizons"][0] == {"days": 1, "sample_size": 0}
+
+    def test_touch_detected_via_intraday_low_even_if_close_stays_above_ma(self):
+        # 索引 6：收盤 12 仍高於 MA3(≈11.33)，但當天最低價 11 已跌破均線，
+        # 前一天（索引 5）最低價 10.8 仍在均線之上 → 應算作一次跌破事件。
+        closes = [10, 10, 10, 10, 10, 12, 12, 12, 10, 10]
+        lows = [10, 10, 10, 10, 10, 10.8, 11, 10, 10, 10]
+        df = _make_df(closes, lows)
+        result = analyze_ma_touch_returns(df, ma_window=3, horizons=(1,))
+
+        assert result["sample_size"] == 1
+        h1 = result["horizons"][0]
+        assert h1["events"] == [
+            {
+                "date": "2020-01-07",
+                "touch_pct": pytest.approx(-2.94, abs=0.01),
+                "return_pct": pytest.approx(0.0, abs=0.01),
+            }
+        ]
 
 
 # ── analyze_bear_market_distance ──────────────────────────────────────────

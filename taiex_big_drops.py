@@ -851,13 +851,15 @@ def analyze_ma_touch_returns(
     ma_window: int,
     horizons: tuple[int, ...] = (1, 5, 20, 60),
 ) -> dict:
-    """統計收盤價由上向下首次跌破 N 日均線之後 M 個交易日的報酬與勝率。
+    """統計價格由上向下首次跌破 N 日均線之後 M 個交易日的報酬與勝率。
 
-    「跌破」只在轉折當天算一次事件：前一天收盤價高於均線、當天收盤價
-    小於等於均線；同一段下跌若連續多天都在均線之下，只計入起跌的那天。
+    「跌破」以當天最低價（盤中）判定：只要當天最低價跌破均線就算跌破，
+    不論當天收盤是否還在均線之上。只在轉折當天算一次事件：前一天最低價
+    高於均線、當天最低價小於等於均線；同一段下跌若連續多天最低價都在
+    均線之下，只計入起跌的那天。
 
     Args:
-        df: 含 Date、Close 欄位的 DataFrame。
+        df: 含 Date、Close、Low 欄位的 DataFrame。
         ma_window: 均線天數（如 120 代表 120 日均線）。
         horizons: 要統計的交易日數列表。
 
@@ -872,6 +874,7 @@ def analyze_ma_touch_returns(
     """
     d = df.sort_values("Date").reset_index(drop=True)
     closes = d["Close"].to_numpy()
+    lows = d["Low"].to_numpy()
     dates = d["Date"].to_numpy()
     ma = d["Close"].rolling(ma_window).mean().to_numpy()
     n = len(d)
@@ -881,8 +884,8 @@ def analyze_ma_touch_returns(
         for i in range(1, n)
         if not pd.isna(ma[i])
         and not pd.isna(ma[i - 1])
-        and closes[i - 1] > ma[i - 1]
-        and closes[i] <= ma[i]
+        and lows[i - 1] > ma[i - 1]
+        and lows[i] <= ma[i]
     ]
 
     horizon_stats = []
@@ -890,7 +893,7 @@ def analyze_ma_touch_returns(
         events = [
             {
                 "date": pd.Timestamp(dates[i]).strftime("%Y-%m-%d"),
-                "touch_pct": round(float((closes[i] - ma[i]) / ma[i] * 100), 2),
+                "touch_pct": round(float((lows[i] - ma[i]) / ma[i] * 100), 2),
                 "return_pct": round(float((closes[i + h] - closes[i]) / closes[i] * 100), 2),
             }
             for i in touch_indices

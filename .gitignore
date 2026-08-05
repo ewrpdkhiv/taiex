@@ -37,5 +37,4 @@ wheels/
 .zprofile
 .zshrc
 
-docs/data/*.json
 /cache

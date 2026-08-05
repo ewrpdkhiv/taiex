@@ -29,7 +29,6 @@ from taiex_big_drops import (
     find_top_gains,
     find_top_point_drops,
     find_top_point_gains,
-    load_from_yfinance,
     load_ohlc_from_yfinance,
     load_vix_from_yfinance,
     patch_missing_trading_days,
@@ -75,7 +74,7 @@ def _df_to_records(df: pd.DataFrame, full_df: pd.DataFrame | None = None) -> lis
 
 def generate_data() -> None:
     print("=== 產生漲跌排行資料 ===")
-    df = load_from_yfinance()
+    df = load_ohlc_from_yfinance()
     df = patch_missing_trading_days(df)
     df = calculate_daily_returns(df)
 
@@ -104,8 +103,11 @@ def generate_data() -> None:
     payload["post_drop_stats"] = analyze_post_drop_returns(df)
     payload["post_gain_stats"] = analyze_post_gain_returns(df)
     payload["ma_touch_stats"] = {
+        "ma20": analyze_ma_touch_returns(df, ma_window=20),
         "ma120": analyze_ma_touch_returns(df, ma_window=120),
         "ma240": analyze_ma_touch_returns(df, ma_window=240),
+        "ma1200": analyze_ma_touch_returns(df, ma_window=1200),
+        "ma2400": analyze_ma_touch_returns(df, ma_window=2400),
     }
     payload["streaks"] = find_longest_streaks(df)
     payload["data_start"] = pd.Timestamp(df["Date"].min()).strftime("%Y-%m-%d")
