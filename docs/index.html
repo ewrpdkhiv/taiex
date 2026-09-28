@@ -901,6 +901,150 @@
       <div class="panel-inner" style="margin: 14px auto">
         <div class="card" data-color="stats">
           <div class="card-header">
+            <h2>中秋連假前買進表現統計</h2>
+            <span class="badge" id="mid-autumn-badge">中秋節</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">連假後第幾個交易日賣出</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-mid-autumn-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="mid-autumn-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="mid-autumn-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('mid-autumn')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="mid-autumn-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">中秋連假</th>
+                    <th>買進日（收盤）</th>
+                    <th>賣出日（收盤）</th>
+                    <th>報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-mid-autumn-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>過年封關前買進表現統計</h2>
+            <span class="badge" id="lunar-new-year-badge">農曆新年</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">開紅盤後第幾個交易日賣出</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-lunar-new-year-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="lunar-new-year-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="lunar-new-year-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('lunar-new-year')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="lunar-new-year-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">過年休市期間</th>
+                    <th>買進日（收盤）</th>
+                    <th>賣出日（收盤）</th>
+                    <th>報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-lunar-new-year-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>端午連假前買進表現統計</h2>
+            <span class="badge" id="dragon-boat-badge">端午節</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">連假後第幾個交易日賣出</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-dragon-boat-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="dragon-boat-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="dragon-boat-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('dragon-boat')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="dragon-boat-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">端午連假</th>
+                    <th>買進日（收盤）</th>
+                    <th>賣出日（收盤）</th>
+                    <th>報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-dragon-boat-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner" style="margin: 14px auto">
+        <div class="card" data-color="stats">
+          <div class="card-header">
             <h2>連續漲跌天數排行</h2>
             <span class="badge">TOP 10</span>
           </div>
@@ -1697,6 +1841,17 @@
         }
       }
 
+      // 節日連假（中秋、過年、端午）明細列：連假期間、買進日、賣出日、報酬
+      function holidayDetailRow(ev) {
+        const cls = ev.return_pct >= 0 ? "gain" : "drop";
+        return `<tr>
+          <td class="left date">${ev.holiday_start} ~ ${ev.holiday_end}（${ev.holiday_days} 天）</td>
+          <td class="date">${ev.buy_date}（${ev.buy_close.toFixed(2)}）</td>
+          <td class="date">${ev.sell_date}（${ev.sell_close.toFixed(2)}）</td>
+          <td class="${cls}">${ev.return_pct.toFixed(2)}%</td>
+        </tr>`;
+      }
+
       // ── 大跌後 / 跌破均線後表現統計：共用渲染邏輯 ──
       const STATS_PANELS = {
         "post-drop": {
@@ -1796,6 +1951,45 @@
           detailInfo: (days, count) =>
             `跌破 2400 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
         },
+        "mid-autumn": {
+          tbodyId: "t-mid-autumn-stats",
+          badgeId: "mid-autumn-badge",
+          detailId: "mid-autumn-detail",
+          detailInfoId: "mid-autumn-detail-info",
+          detailTbodyId: "t-mid-autumn-detail",
+          getStats: (data) => data && data.mid_autumn_stats,
+          badgeText: (s) =>
+            `連假前最後一個交易日收盤買進（${s.sample_size} 年）`,
+          detailInfo: (days, count) =>
+            `連假後第 ${days} 個交易日收盤賣出的個別報酬（共 ${count} 年）`,
+          detailRow: holidayDetailRow,
+        },
+        "lunar-new-year": {
+          tbodyId: "t-lunar-new-year-stats",
+          badgeId: "lunar-new-year-badge",
+          detailId: "lunar-new-year-detail",
+          detailInfoId: "lunar-new-year-detail-info",
+          detailTbodyId: "t-lunar-new-year-detail",
+          getStats: (data) => data && data.lunar_new_year_stats,
+          badgeText: (s) =>
+            `封關日收盤買進（${s.sample_size} 年）`,
+          detailInfo: (days, count) =>
+            `開紅盤後第 ${days} 個交易日收盤賣出的個別報酬（共 ${count} 年）`,
+          detailRow: holidayDetailRow,
+        },
+        "dragon-boat": {
+          tbodyId: "t-dragon-boat-stats",
+          badgeId: "dragon-boat-badge",
+          detailId: "dragon-boat-detail",
+          detailInfoId: "dragon-boat-detail-info",
+          detailTbodyId: "t-dragon-boat-detail",
+          getStats: (data) => data && data.dragon_boat_stats,
+          badgeText: (s) =>
+            `連假前最後一個交易日收盤買進（${s.sample_size} 年）`,
+          detailInfo: (days, count) =>
+            `連假後第 ${days} 個交易日收盤賣出的個別報酬（共 ${count} 年）`,
+          detailRow: holidayDetailRow,
+        },
       };
 
       function renderStatsPanel(panelKey, stats) {
@@ -1868,6 +2062,7 @@
         const extraCls = cfg.extraFieldCls || "drop";
         document.getElementById(cfg.detailTbodyId).innerHTML = rows
           .map((ev) => {
+            if (cfg.detailRow) return cfg.detailRow(ev);
             const cls = ev.return_pct >= 0 ? "gain" : "drop";
             return `<tr>
               <td class="left date">${ev.date}</td>

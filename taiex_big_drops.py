@@ -919,6 +919,138 @@ def analyze_ma_touch_returns(
     }
 
 
+# ── 節日連假前買進後報酬統計（中秋、農曆新年、端午） ──────────────────────────
+
+# 中秋節（農曆八月十五）、農曆新年（正月初一）與端午節（五月初五）的國曆日期，
+# 以 lunardate 套件換算後寫死，避免為此新增依賴
+MID_AUTUMN_DATES: tuple[str, ...] = (
+    "1990-10-03", "1991-09-22", "1992-09-11", "1993-09-30", "1994-09-20",
+    "1995-09-09", "1996-09-27", "1997-09-16", "1998-10-05", "1999-09-24",
+    "2000-09-12", "2001-10-01", "2002-09-21", "2003-09-11", "2004-09-28",
+    "2005-09-18", "2006-10-06", "2007-09-25", "2008-09-14", "2009-10-03",
+    "2010-09-22", "2011-09-12", "2012-09-30", "2013-09-19", "2014-09-08",
+    "2015-09-27", "2016-09-15", "2017-10-04", "2018-09-24", "2019-09-13",
+    "2020-10-01", "2021-09-21", "2022-09-10", "2023-09-29", "2024-09-17",
+    "2025-10-06", "2026-09-25", "2027-09-15", "2028-10-03", "2029-09-22",
+    "2030-09-12", "2031-10-01", "2032-09-19", "2033-09-08", "2034-09-27",
+    "2035-09-16",
+)
+
+LUNAR_NEW_YEAR_DATES: tuple[str, ...] = (
+    "1990-01-27", "1991-02-15", "1992-02-04", "1993-01-23", "1994-02-10",
+    "1995-01-31", "1996-02-19", "1997-02-07", "1998-01-28", "1999-02-16",
+    "2000-02-05", "2001-01-24", "2002-02-12", "2003-02-01", "2004-01-22",
+    "2005-02-09", "2006-01-29", "2007-02-18", "2008-02-07", "2009-01-26",
+    "2010-02-14", "2011-02-03", "2012-01-23", "2013-02-10", "2014-01-31",
+    "2015-02-19", "2016-02-08", "2017-01-28", "2018-02-16", "2019-02-05",
+    "2020-01-25", "2021-02-12", "2022-02-01", "2023-01-22", "2024-02-10",
+    "2025-01-29", "2026-02-17", "2027-02-06", "2028-01-26", "2029-02-13",
+    "2030-02-03", "2031-01-23", "2032-02-11", "2033-01-31", "2034-02-19",
+    "2035-02-08",
+)
+
+
+DRAGON_BOAT_DATES: tuple[str, ...] = (
+    "1990-05-28", "1991-06-16", "1992-06-05", "1993-06-24", "1994-06-13",
+    "1995-06-02", "1996-06-20", "1997-06-09", "1998-05-30", "1999-06-18",
+    "2000-06-06", "2001-06-25", "2002-06-15", "2003-06-04", "2004-06-22",
+    "2005-06-11", "2006-05-31", "2007-06-19", "2008-06-08", "2009-05-28",
+    "2010-06-16", "2011-06-06", "2012-06-23", "2013-06-12", "2014-06-02",
+    "2015-06-20", "2016-06-09", "2017-05-30", "2018-06-18", "2019-06-07",
+    "2020-06-25", "2021-06-14", "2022-06-03", "2023-06-22", "2024-06-10",
+    "2025-05-31", "2026-06-19", "2027-06-09", "2028-05-28", "2029-06-16",
+    "2030-06-05", "2031-06-24", "2032-06-12", "2033-06-01", "2034-06-20",
+    "2035-06-10",
+)
+
+def analyze_holiday_returns(
+    df: pd.DataFrame,
+    festival_dates: tuple[str, ...],
+    horizons: tuple[int, ...] = (1, 5, 20, 60),
+) -> dict:
+    """統計「節日連假前最後一個交易日收盤買進、連假後第 N 個交易日收盤賣出」的報酬與勝率。
+
+    連假範圍直接由交易資料推得：買進日 = 節日之前最後一個交易日（過年即封關日），
+    連假結束後第 1 個交易日 = 節日之後第一個交易日（過年即開紅盤日），兩者之間
+    沒有交易的日子即為連假（自動涵蓋週末、補假與過年提前封關）。賣出日為連假
+    結束後第 N 個交易日（N=1 即連假後第一天）。若節日當天在資料中有交易紀錄
+    （非休市），或資料未涵蓋該年節日前後，則略過該年。
+
+    Args:
+        df: 含 Date、Close 欄位的 DataFrame。
+        festival_dates: 節日國曆日期（YYYY-MM-DD），如 MID_AUTUMN_DATES、
+            LUNAR_NEW_YEAR_DATES、DRAGON_BOAT_DATES。
+        horizons: 連假結束後第幾個交易日賣出。
+
+    Returns:
+        {"sample_size": int, "horizons": [
+            {"days": int, "avg_return_pct": float, "median_return_pct": float,
+             "win_rate_pct": float, "sample_size": int,
+             "events": [{"festival_date": str, "holiday_start": str,
+                         "holiday_end": str, "holiday_days": int,
+                         "buy_date": str, "sell_date": str,
+                         "buy_close": float, "sell_close": float,
+                         "return_pct": float}, ...]}
+            | {"days": int, "sample_size": 0}
+            ...
+        ]}
+    """
+    d = df.dropna(subset=["Close"]).sort_values("Date").reset_index(drop=True)
+    dates = pd.to_datetime(d["Date"])
+    closes = d["Close"].to_numpy()
+    n = len(d)
+
+    # 每年節日：(節日, 買進索引, 連假後第一個交易日索引)
+    holidays: list[tuple[pd.Timestamp, int, int]] = []
+    for s in festival_dates:
+        festival = pd.Timestamp(s)
+        if (dates == festival).any():
+            continue
+        before = dates.index[dates < festival]
+        after = dates.index[dates > festival]
+        if before.empty or after.empty:
+            continue
+        holidays.append((festival, int(before[-1]), int(after[0])))
+
+    horizon_stats = []
+    for h in horizons:
+        events = []
+        for festival, buy_i, resume_i in holidays:
+            sell_i = resume_i + h - 1
+            if sell_i >= n:
+                continue
+            holiday_start = dates[buy_i] + pd.Timedelta(days=1)
+            holiday_end = dates[resume_i] - pd.Timedelta(days=1)
+            events.append({
+                "festival_date": festival.strftime("%Y-%m-%d"),
+                "holiday_start": holiday_start.strftime("%Y-%m-%d"),
+                "holiday_end": holiday_end.strftime("%Y-%m-%d"),
+                "holiday_days": int((holiday_end - holiday_start).days) + 1,
+                "buy_date": dates[buy_i].strftime("%Y-%m-%d"),
+                "sell_date": dates[sell_i].strftime("%Y-%m-%d"),
+                "buy_close": round(float(closes[buy_i]), 2),
+                "sell_close": round(float(closes[sell_i]), 2),
+                "return_pct": round(float((closes[sell_i] - closes[buy_i]) / closes[buy_i] * 100), 2),
+            })
+        if events:
+            s = pd.Series([e["return_pct"] for e in events])
+            horizon_stats.append({
+                "days": h,
+                "avg_return_pct": round(float(s.mean()), 2),
+                "median_return_pct": round(float(s.median()), 2),
+                "win_rate_pct": round(float((s > 0).mean() * 100), 2),
+                "sample_size": len(events),
+                "events": events,
+            })
+        else:
+            horizon_stats.append({"days": h, "sample_size": 0})
+
+    return {
+        "sample_size": len(holidays),
+        "horizons": horizon_stats,
+    }
+
+
 # ── 距離熊市 ──────────────────────────────────────────────────────────────────
 
 

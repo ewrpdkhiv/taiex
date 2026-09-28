@@ -5,6 +5,7 @@ from taiex_big_drops import (
     _parse_roc_or_ad_date,
     _parse_twse_month_payload,
     analyze_bear_market_distance,
+    analyze_holiday_returns,
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
     analyze_post_gain_returns,
@@ -285,6 +286,77 @@ class TestAnalyzePostGainReturns:
     def test_no_gains_above_threshold(self):
         df = calculate_daily_returns(_make_df([100, 99, 98, 97]))
         result = analyze_post_gain_returns(df, threshold=5.0, horizons=(1,))
+        assert result["sample_size"] == 0
+        assert result["horizons"][0] == {"days": 1, "sample_size": 0}
+
+
+# ── analyze_holiday_returns ─────────────────────────────────────────────
+
+
+class TestAnalyzeHolidayReturns:
+    def _make_df(self):
+        # 2025 中秋為 10/6（週一），10/3（五）收盤後休市到 10/7（二）
+        dates = pd.to_datetime([
+            "2025-10-01", "2025-10-02", "2025-10-03",
+            "2025-10-07", "2025-10-08", "2025-10-09",
+        ])
+        closes = [90, 95, 100, 102, 98, 110]
+        return pd.DataFrame({"Date": dates, "Close": closes})
+
+    def test_event_has_holiday_range_and_buy_sell_dates(self):
+        result = analyze_holiday_returns(
+            self._make_df(), ("2025-10-06",), horizons=(1,)
+        )
+        assert result["sample_size"] == 1
+        assert result["horizons"][0]["events"] == [{
+            "festival_date": "2025-10-06",
+            "holiday_start": "2025-10-04",
+            "holiday_end": "2025-10-06",
+            "holiday_days": 3,
+            "buy_date": "2025-10-03",
+            "sell_date": "2025-10-07",
+            "buy_close": 100.0,
+            "sell_close": 102.0,
+            "return_pct": pytest.approx(2.0, abs=0.01),
+        }]
+
+    def test_horizon_counts_from_first_day_after_holiday(self):
+        result = analyze_holiday_returns(
+            self._make_df(), ("2025-10-06",), horizons=(2, 3)
+        )
+        by_days = {h["days"]: h for h in result["horizons"]}
+        assert by_days[2]["events"][0]["sell_date"] == "2025-10-08"
+        assert by_days[2]["win_rate_pct"] == pytest.approx(0.0)
+        assert by_days[3]["events"][0]["sell_date"] == "2025-10-09"
+        assert by_days[3]["avg_return_pct"] == pytest.approx(10.0, abs=0.01)
+
+    def test_horizon_beyond_available_data_has_zero_sample(self):
+        result = analyze_holiday_returns(
+            self._make_df(), ("2025-10-06",), horizons=(4,)
+        )
+        assert result["horizons"][0] == {"days": 4, "sample_size": 0}
+
+    def test_lunar_new_year_uses_early_market_close(self):
+        # 2024 過年：2/5（一）封關，初一 2/10，2/15（四）開紅盤
+        df = pd.DataFrame({
+            "Date": pd.to_datetime(["2024-02-02", "2024-02-05", "2024-02-15", "2024-02-16"]),
+            "Close": [100, 100, 104, 106],
+        })
+        event = analyze_holiday_returns(df, ("2024-02-10",), horizons=(1,))["horizons"][0]["events"][0]
+        assert event["buy_date"] == "2024-02-05"
+        assert event["holiday_start"] == "2024-02-06"
+        assert event["holiday_end"] == "2024-02-14"
+        assert event["holiday_days"] == 9
+        assert event["sell_date"] == "2024-02-15"
+        assert event["return_pct"] == pytest.approx(4.0, abs=0.01)
+
+    def test_skips_festival_outside_data_or_on_trading_day(self):
+        result = analyze_holiday_returns(
+            self._make_df(),
+            # 2024 早於資料起點；10/2 在資料中有交易（非休市）
+            ("2024-09-17", "2025-10-02"),
+            horizons=(1,),
+        )
         assert result["sample_size"] == 0
         assert result["horizons"][0] == {"days": 1, "sample_size": 0}
 

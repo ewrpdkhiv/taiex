@@ -17,8 +17,12 @@ from dca import load_all_histories as dca_load_all_histories
 from dca import run_all as dca_run_all
 from dca import run_dip_buy_comparison as dca_run_dip_buy_comparison
 from taiex_big_drops import (
+    DRAGON_BOAT_DATES,
     KNOWN_EVENTS,
+    LUNAR_NEW_YEAR_DATES,
+    MID_AUTUMN_DATES,
     analyze_bear_market_distance,
+    analyze_holiday_returns,
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
     analyze_post_gain_returns,
@@ -109,6 +113,9 @@ def generate_data() -> None:
         "ma1200": analyze_ma_touch_returns(df, ma_window=1200),
         "ma2400": analyze_ma_touch_returns(df, ma_window=2400),
     }
+    payload["mid_autumn_stats"] = analyze_holiday_returns(df, MID_AUTUMN_DATES)
+    payload["lunar_new_year_stats"] = analyze_holiday_returns(df, LUNAR_NEW_YEAR_DATES)
+    payload["dragon_boat_stats"] = analyze_holiday_returns(df, DRAGON_BOAT_DATES)
     payload["streaks"] = find_longest_streaks(df)
     payload["data_start"] = pd.Timestamp(df["Date"].min()).strftime("%Y-%m-%d")
 
