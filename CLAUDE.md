@@ -58,7 +58,7 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 | 輸出檔案    | 內容                                                                                                                                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data.json` | 16 組排行（跌幅%、漲幅%、跌點、漲點 × 5y/10y/20y/all），各取前 10 名；另含 `post_drop_stats`／`post_gain_stats`（單日大跌／大漲 ≥5% 後 5/20/60 交易日的平均報酬、中位數、勝率）與 `streaks`（連續上漲／下跌天數排行 top 10） |
+| `data.json` | 16 組排行（跌幅%、漲幅%、跌點、漲點 × 5y/10y/20y/all），各取前 10 名；另含 `post_drop_stats`／`post_gain_stats`（單日大跌／大漲 ≥5% 後 5/20/60 交易日的平均報酬、中位數、勝率）與 `streaks`（連續上漲／下跌天數排行 top 10）；`foreign_sells_{5y,10y,20y,all}` 為外資單日賣超金額前 10 名（FinMind 資料，快取於 `cache/institutional/foreign_net.csv`，`foreign_net` 單位億元） |
 | `dca.json`  | 5 個情境：`results_10y`、`results_5y`、`results_crash_10y`（截至 2025-04-09）、`results_crash_5y`、`results_covid`（自 2020-02-01）；另含 `dip_buy_comparison`（固定扣款 vs 大跌 ≥5% 加碼 2 倍的績效比較）                   |
 | `bear.json` | 空頭週期列表                                                                                                                                                                                                                 |
 | `ohlc.json` | OHLC + VIX 時序資料（K 線圖用）；另含 `events`（= `KNOWN_EVENTS`，供圖表標注歷史事件用）                                                                                                                                     |

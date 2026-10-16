@@ -549,6 +549,9 @@
         <button class="type-btn" data-color="gain" data-type="gains-pt">
           📈 漲點
         </button>
+        <button class="type-btn" data-color="drop" data-type="foreign-sells">
+          🏦 外資賣超
+        </button>
         <button class="type-btn" data-color="stats" data-type="stats">
           📊 統計分析
         </button>
@@ -1607,7 +1610,135 @@
       </div>
     </div>
 
-    <!-- K 線圖面板（跌幅/跌點點擊後顯示） -->
+    <div id="panel-foreign-sells-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年外資賣超前 10 名</h2>
+            <span class="badge">20Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th>收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-sells-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年外資賣超前 10 名</h2>
+            <span class="badge">10Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th>收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-sells-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年外資賣超前 10 名</h2>
+            <span class="badge">5Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th>收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-sells-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時外資賣超前 10 名</h2>
+            <span class="badge">ALL 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th>收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- K 線圖面板（跌幅/跌點/外資賣超點擊後顯示） -->
     <div id="chart-outer">
       <div class="card">
         <div class="chart-panel-header">
@@ -1644,7 +1775,8 @@
           maximumFractionDigits: 2,
         });
 
-      const recStr = (days) => (days != null ? days + " 天" : "—");
+      const recStr = (days) =>
+        days === 0 ? "當日" : days != null ? days + " 天" : "—";
 
       function pctRow(r, cls) {
         return `<tr>
@@ -1689,6 +1821,21 @@
           <td class="col-prev">${fmt(r.prev_close)}</td>
           <td class="${cls}">${fmt(r.change_pt)}</td>
           <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
+          <td class="recovery">${recStr(r.recovery_days)}</td>
+          <td class="event col-event">${r.event}</td>
+        </tr>`;
+      }
+
+      function foreignSellRow(r) {
+        const pctCls = r.change_pct < 0 ? "drop" : "gain";
+        const sign = r.change_pct > 0 ? "+" : "";
+        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
+          <td>${r.rank}</td>
+          <td class="date">${r.date}</td>
+          <td class="drop">${fmt(r.foreign_net)}</td>
+          <td>${fmt(r.close)}</td>
+          <td class="col-prev">${fmt(r.prev_close)}</td>
+          <td class="${pctCls} col-pct">${sign}${r.change_pct.toFixed(2)}%</td>
           <td class="recovery">${recStr(r.recovery_days)}</td>
           <td class="event col-event">${r.event}</td>
         </tr>`;
@@ -1790,6 +1937,30 @@
           fn: ptRow,
           cls: "gain",
           cols: 7,
+        },
+        "t-foreign-sells-20y": {
+          key: "foreign_sells_20y",
+          fn: foreignSellRow,
+          cls: "drop",
+          cols: 8,
+        },
+        "t-foreign-sells-10y": {
+          key: "foreign_sells_10y",
+          fn: foreignSellRow,
+          cls: "drop",
+          cols: 8,
+        },
+        "t-foreign-sells-5y": {
+          key: "foreign_sells_5y",
+          fn: foreignSellRow,
+          cls: "drop",
+          cols: 8,
+        },
+        "t-foreign-sells-all": {
+          key: "foreign_sells_all",
+          fn: foreignSellRow,
+          cls: "drop",
+          cols: 8,
         },
       };
 
@@ -2096,6 +2267,12 @@
             );
             if (allBtn) allBtn.textContent = `全時（${data.data_start}～）`;
           }
+          if (data.foreign_data_start) {
+            document.querySelector(
+              "#panel-foreign-sells-all h2",
+            ).textContent =
+              `歷史全時（${data.foreign_data_start}～）外資賣超前 10 名`;
+          }
           Object.keys(STATS_PANELS).forEach((key) => {
             renderStatsPanel(key, STATS_PANELS[key].getStats(data));
           });
@@ -2337,7 +2514,8 @@
         const outer = document.getElementById("chart-outer");
         outer.style.display = "block";
         document.getElementById("chart-info").textContent =
-          `${r.date}  跌幅 ${r.change_pct.toFixed(2)}%  ` +
+          `${r.date}  ${r.change_pct < 0 ? "跌幅" : "漲幅"} ${r.change_pct.toFixed(2)}%  ` +
+          (r.foreign_net != null ? `外資 ${fmt(r.foreign_net)} 億  ` : "") +
           `前收 ${fmt(r.prev_close)} → 收 ${fmt(r.close)}` +
           (r.event ? `  ｜${r.event}` : "");
         const loading = document.getElementById("chart-loading");

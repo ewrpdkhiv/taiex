@@ -31,6 +31,9 @@ DEFAULT_THRESHOLD = 5.0
 TAIEX_TICKER = "^TWII"
 START_DATE = "1990-01-01"
 TWSE_INDEX_HIST_URL = "https://www.twse.com.tw/indicesReport/MI_5MINS_HIST"
+FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/data"
+FOREIGN_START_DATE = "2004-04-07"
+FOREIGN_INVESTOR_NAMES = ("Foreign_Investor", "Foreign_Dealer_Self")
 
 # 已知重大事件標籤（跌幅與漲幅共用）
 KNOWN_EVENTS: dict[str, str] = {
@@ -266,6 +269,99 @@ def patch_missing_trading_days(
     print(f"🩹 從 TWSE 補齊 {len(missing_rows)} 個 yfinance 缺漏的交易日")
     patched = pd.concat([df, pd.DataFrame(missing_rows)], ignore_index=True)
     return patched.sort_values("Date").reset_index(drop=True)
+
+
+def _parse_finmind_institutional(payload: dict) -> pd.DataFrame:
+    """解析 FinMind「TaiwanStockTotalInstitutionalInvestors」回傳的 JSON。
+
+    外資買賣超 = 外資及陸資（Foreign_Investor）+ 外資自營商（Foreign_Dealer_Self，
+    2018 年起才拆出）的買進金額 - 賣出金額，單位為新台幣元。
+
+    Returns:
+        含 Date、foreign_net 欄位的 DataFrame；查無資料回傳空表。
+    """
+    columns = ["Date", "foreign_net"]
+    rows = [
+        r for r in payload.get("data") or []
+        if r.get("name") in FOREIGN_INVESTOR_NAMES
+    ]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    raw = pd.DataFrame(rows)
+    raw["foreign_net"] = raw["buy"].astype(float) - raw["sell"].astype(float)
+    raw["Date"] = pd.to_datetime(raw["date"])
+    return (
+        raw.groupby("Date", as_index=False)["foreign_net"].sum()
+        .sort_values("Date")
+        .reset_index(drop=True)[columns]
+    )
+
+
+def _fetch_finmind_institutional(start: str) -> pd.DataFrame:
+    """向 FinMind 查詢 start 起的全市場三大法人買賣金額，回傳外資每日買賣超。"""
+    import requests  # pylint: disable=import-outside-toplevel
+
+    resp = requests.get(
+        FINMIND_API_URL,
+        params={"dataset": "TaiwanStockTotalInstitutionalInvestors", "start_date": start},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    if payload.get("status") != 200:
+        raise RuntimeError(f"FinMind 回傳錯誤：{payload.get('msg')}")
+    return _parse_finmind_institutional(payload)
+
+
+def load_foreign_net(start: str = FOREIGN_START_DATE, fetch=_fetch_finmind_institutional) -> pd.DataFrame:
+    """從快取 + FinMind 增量抓取外資每日買賣超（Date, foreign_net，單位：元）。
+
+    Args:
+        start: 起始日期；證交所三大法人統計自 2004-04-07 起才有資料。
+        fetch: 抓取函式（接受起始日期字串），測試時可替換成假資料來源。
+    """
+    from price_cache import CACHE_DIR, OVERLAP_DAYS, _merge_frames, read_cache, write_cache
+
+    cache_path = CACHE_DIR / "institutional" / "foreign_net.csv"
+    cached = read_cache(cache_path)
+    start_ts = pd.Timestamp(start)
+    if cached is None or start_ts < cached["Date"].min():
+        fetch_start = start
+    else:
+        fetch_start = max(
+            start_ts, cached["Date"].max() - pd.Timedelta(days=OVERLAP_DAYS)
+        ).strftime("%Y-%m-%d")
+
+    combined = _merge_frames(cached, fetch(fetch_start))
+    if combined.empty:
+        raise RuntimeError("外資買賣超資料下載失敗")
+    write_cache(cache_path, combined)
+    return combined[combined["Date"] >= start_ts].reset_index(drop=True)
+
+
+def find_top_foreign_net_sells(
+    df: pd.DataFrame,
+    foreign_df: pd.DataFrame,
+    top_n: int = 10,
+    years: int | None = None,
+) -> pd.DataFrame:
+    """找出外資單日賣超金額前 N 名的交易日，並附上當日指數漲跌。
+
+    Args:
+        df: 含 Date、Close、prev_close、change_pct、change_pt 欄位的 DataFrame。
+        foreign_df: 含 Date、foreign_net 欄位的外資買賣超 DataFrame。
+        top_n: 取前幾名，預設 10。
+        years: 限制近幾年，None 表示全時段。
+
+    Returns:
+        依賣超金額由大到小排序的交易日（foreign_net 為負值）。
+    """
+    d = df.dropna(subset=["change_pct"]).merge(foreign_df, on="Date", how="inner")
+    d = d[d["foreign_net"] < 0]
+    if years is not None:
+        cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
+        d = d[pd.to_datetime(d["Date"]) >= cutoff]
+    return d.nsmallest(top_n, "foreign_net")
 
 
 def load_from_csv(path: str) -> pd.DataFrame:
@@ -580,7 +676,8 @@ def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
 
     Returns:
         每個空頭的 dict：peak_date, peak_value, trough_date, trough_value,
-        drop_pct, recovery_date, recovery_days, event
+        drop_pct, bear_days（空頭期間：高點→低點日曆天數）, recovery_date,
+        recovery_days（回本天數：高點→重新站回高點的日曆天數）, event
     """
     close = df["Close"].reset_index(drop=True).astype(float)
     dates = pd.to_datetime(df["Date"]).reset_index(drop=True)
@@ -631,6 +728,7 @@ def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
                 "trough_date": trough_date.strftime("%Y-%m-%d"),
                 "trough_value": round(trough_p, 2),
                 "drop_pct": round(drop_pct, 2),
+                "bear_days": int((trough_date - peak_date).days),
                 "recovery_date": (
                     dates[recovery_i].strftime("%Y-%m-%d")
                     if recovery_i is not None
@@ -1057,12 +1155,13 @@ def analyze_holiday_returns(
 def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> dict:
     """計算最新收盤價距離「自歷史高點下跌 threshold」熊市門檻還差多少點與百分比。
 
-    以資料中最新一筆收盤價為基準，找出至今的歷史高點（以最高價 High 認定，含當天），
-    門檻價 = 高點 * (1 - threshold)。若目前已跌破門檻，points_to_bear／
+    以資料中最新一筆收盤價為基準，找出至今的歷史收盤高點（含當天），
+    門檻價 = 高點 * (1 - threshold)。與 find_bear_markets() 同樣以收盤價認定，
+    不看盤中最高價。若目前已跌破門檻，points_to_bear／
     pct_to_bear 會被限制在 0（不會是負值），改由 is_bear_market 標示已進入熊市。
 
     Args:
-        df: 含 Date、Close、High 欄位的 DataFrame。
+        df: 含 Date、Close 欄位的 DataFrame。
         threshold: 熊市跌幅門檻（正數，如 0.20 代表自高點下跌 20%）。
 
     Returns:
@@ -1073,13 +1172,12 @@ def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> d
     """
     d = df.sort_values("Date").reset_index(drop=True)
     close = d["Close"].astype(float)
-    high = d["High"].astype(float)
 
     latest_date = pd.Timestamp(d["Date"].iloc[-1])
     latest_close = float(close.iloc[-1])
 
-    peak_value = float(high.cummax().iloc[-1])
-    peak_idx = int(high[high == peak_value].index[-1])
+    peak_value = float(close.max())
+    peak_idx = int(close[close == peak_value].index[-1])
     peak_date = pd.Timestamp(d["Date"].iloc[peak_idx])
 
     threshold_value = peak_value * (1 - threshold)

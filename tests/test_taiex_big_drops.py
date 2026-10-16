@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from taiex_big_drops import (
+    _parse_finmind_institutional,
     _parse_roc_or_ad_date,
     _parse_twse_month_payload,
     analyze_bear_market_distance,
@@ -12,6 +13,7 @@ from taiex_big_drops import (
     calculate_daily_returns,
     find_bear_markets,
     find_longest_streaks,
+    find_top_foreign_net_sells,
     patch_missing_trading_days,
 )
 
@@ -163,6 +165,7 @@ class TestFindBearMarkets:
         assert bear["trough_date"] == "2020-01-06"
         assert bear["trough_value"] == 85
         assert bear["drop_pct"] == pytest.approx(-22.73, abs=0.01)
+        assert bear["bear_days"] == 3
         assert bear["recovery_date"] == "2020-01-07"
         assert bear["recovery_days"] == 4
 
@@ -437,14 +440,14 @@ class TestAnalyzeBearMarketDistance:
         assert result["points_to_bear"] == pytest.approx(14.0, abs=0.01)
         assert result["pct_to_bear"] == pytest.approx(14 / 110 * 100, abs=0.01)
 
-    def test_peak_uses_high_not_close(self):
-        # 收盤未創新高，但盤中最高價創新高 → 歷史高點應以 High 為準
+    def test_peak_uses_close_not_high(self):
+        # 盤中最高價創新高但收盤沒有 → 歷史高點仍以收盤價為準，與 find_bear_markets 一致
         df = _make_df([100, 95, 90])
         df["High"] = [100, 130, 90]
         result = analyze_bear_market_distance(df, threshold=0.20)
 
-        assert result["peak_value"] == 130
-        assert result["peak_date"] == "2020-01-02"
+        assert result["peak_value"] == 100
+        assert result["peak_date"] == "2020-01-01"
 
 
 # ── find_longest_streaks ──────────────────────────────────────────────────
@@ -490,3 +493,40 @@ class TestFindLongestStreaks:
         result = find_longest_streaks(df, top_n=1)
         assert len(result["down"]) == 1
         assert len(result["up"]) == 1
+
+
+# ── 外資買賣超 ────────────────────────────────────────────────────────────────
+
+
+class TestParseFinmindInstitutional:
+    def test_sums_foreign_investor_and_foreign_dealer(self):
+        payload = {"status": 200, "data": [
+            {"date": "2025-04-07", "name": "Foreign_Investor", "buy": 100.0, "sell": 400.0},
+            {"date": "2025-04-07", "name": "Foreign_Dealer_Self", "buy": 10.0, "sell": 30.0},
+            {"date": "2025-04-07", "name": "Investment_Trust", "buy": 999.0, "sell": 0.0},
+            {"date": "2025-04-08", "name": "Foreign_Investor", "buy": 50.0, "sell": 20.0},
+        ]}
+        df = _parse_finmind_institutional(payload)
+        assert df["Date"].tolist() == [pd.Timestamp("2025-04-07"), pd.Timestamp("2025-04-08")]
+        assert df["foreign_net"].tolist() == [-320.0, 30.0]
+
+    def test_empty_payload(self):
+        df = _parse_finmind_institutional({"status": 200, "data": []})
+        assert df.empty
+        assert list(df.columns) == ["Date", "foreign_net"]
+
+
+class TestFindTopForeignNetSells:
+    def test_ranks_by_net_sell_and_keeps_price_columns(self):
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        df = calculate_daily_returns(pd.DataFrame({
+            "Date": dates, "Close": [100.0, 98.0, 99.0, 95.0, 97.0],
+        }))
+        foreign = pd.DataFrame({
+            "Date": dates, "foreign_net": [-999.0, -10.0, 5.0, -50.0, -30.0],
+        })
+        result = find_top_foreign_net_sells(df, foreign, top_n=2)
+        # 首日沒有 change_pct 會被排除；買超日（正值）也不列入
+        assert result["Date"].tolist() == [dates[3], dates[4]]
+        assert result["foreign_net"].tolist() == [-50.0, -30.0]
+        assert result["Close"].tolist() == [95.0, 97.0]

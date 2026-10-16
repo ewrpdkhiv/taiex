@@ -30,9 +30,11 @@ from taiex_big_drops import (
     find_bear_markets,
     find_longest_streaks,
     find_top_drops,
+    find_top_foreign_net_sells,
     find_top_gains,
     find_top_point_drops,
     find_top_point_gains,
+    load_foreign_net,
     load_ohlc_from_yfinance,
     load_vix_from_yfinance,
     patch_missing_trading_days,
@@ -58,9 +60,16 @@ def _recovery_days(drop_date: pd.Timestamp, prev_close: float, full_df: pd.DataF
 def _df_to_records(df: pd.DataFrame, full_df: pd.DataFrame | None = None) -> list[dict]:
     records = []
     has_pt = "change_pt" in df.columns
+    has_foreign = "foreign_net" in df.columns
     for rank, (_, row) in enumerate(df.iterrows(), start=1):
         date_str = pd.Timestamp(row["Date"]).strftime("%Y-%m-%d")
-        records.append({
+        if full_df is None:
+            recovery = None
+        elif row["Close"] >= row["prev_close"]:
+            recovery = 0  # 當日收盤未低於前日收盤，無需回升
+        else:
+            recovery = _recovery_days(pd.Timestamp(row["Date"]), float(row["prev_close"]), full_df)
+        record = {
             "rank": rank,
             "date": date_str,
             "close": round(float(row["Close"]), 2),
@@ -68,11 +77,12 @@ def _df_to_records(df: pd.DataFrame, full_df: pd.DataFrame | None = None) -> lis
             "change_pct": round(float(row["change_pct"]), 2),
             "change_pt": round(float(row["change_pt"]), 2) if has_pt else None,
             "event": KNOWN_EVENTS.get(date_str, ""),
-            "recovery_days": (
-                _recovery_days(pd.Timestamp(row["Date"]), float(row["prev_close"]), full_df)
-                if full_df is not None else None
-            ),
-        })
+            "recovery_days": recovery,
+        }
+        if has_foreign:
+            # 外資買賣超，單位：億元（負值為賣超）
+            record["foreign_net"] = round(float(row["foreign_net"]) / 1e8, 2)
+        records.append(record)
     return records
 
 
@@ -104,6 +114,15 @@ def generate_data() -> None:
     payload: dict = {"last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"), "error": None}
     for key, result_df, include_recovery in batches:
         payload[key] = _df_to_records(result_df, df if include_recovery else None)
+    try:
+        foreign_df = load_foreign_net()
+        for period, years in (("20y", 20), ("10y", 10), ("5y", 5), ("all", None)):
+            payload[f"foreign_sells_{period}"] = _df_to_records(
+                find_top_foreign_net_sells(df, foreign_df, top_n=10, years=years), df,
+            )
+        payload["foreign_data_start"] = pd.Timestamp(foreign_df["Date"].min()).strftime("%Y-%m-%d")
+    except Exception as exc:  # noqa: BLE001 - 外資資料失敗不應拖垮整份 data.json
+        print(f"⚠ 外資買賣超資料產生失敗：{exc}")
     payload["post_drop_stats"] = analyze_post_drop_returns(df)
     payload["post_gain_stats"] = analyze_post_gain_returns(df)
     payload["ma_touch_stats"] = {
@@ -147,7 +166,7 @@ def generate_bear() -> None:
     ohlc_df = load_ohlc_from_yfinance()
     ohlc_df = patch_missing_trading_days(ohlc_df)
     bears = find_bear_markets(ohlc_df[["Date", "Close"]].copy())
-    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close", "High"]].copy())
+    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close"]].copy())
 
     clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
     dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()

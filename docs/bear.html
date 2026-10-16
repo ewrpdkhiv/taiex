@@ -233,6 +233,9 @@
       .hide-col-drop .col-drop {
         display: none;
       }
+      .hide-col-beardays .col-beardays {
+        display: none;
+      }
       .hide-col-recdays .col-recdays {
         display: none;
       }
@@ -489,8 +492,8 @@
 
     <div class="meta">
       <span>更新：<b id="last-updated">載入中…</b></span>
-      <span class="def-chip">定義：高點到低點跌幅 ≥ 20%</span>
-      <span>回高天數 = 從高點起算至回到高點水準的日曆天</span>
+      <span class="def-chip">定義：收盤價自前波收盤高點下跌 ≥ 20%</span>
+      <span>空頭期間 = 高點→低點；回本天數 = 高點→收盤重新站回高點（皆為日曆天）</span>
     </div>
 
     <div id="bear-toggle-bar">
@@ -544,7 +547,12 @@
                 </th>
                 <th class="col-trough-val" data-col="trough_value">低點</th>
                 <th class="col-drop" data-col="drop_pct">跌幅</th>
-                <th class="col-recdays" data-col="recovery_days">回高天數</th>
+                <th class="col-beardays" data-col="bear_days">
+                  空頭期間<br /><small>高點→低點</small>
+                </th>
+                <th class="col-recdays" data-col="recovery_days">
+                  回本天數<br /><small>高點→站回高點</small>
+                </th>
                 <th class="left col-event" data-col="event">事件</th>
               </tr>
             </thead>
@@ -599,14 +607,18 @@
           maximumFractionDigits: 2,
         });
       }
-      function recoveryStr(days, hasNested) {
-        if (days == null) return '<span class="no-recovery">尚未回高</span>';
+      // 日曆天數，滿一年時加註「約 X 年 Y 天」
+      function calendarDaysStr(days) {
         const years = Math.floor(days / 365),
           rem = days % 365;
         let s = days.toLocaleString() + " 天";
         if (years > 0)
           s += `（約 ${years} 年${rem > 0 ? " " + rem + " 天" : ""}）`;
-        return `<span class="recovery-days ${hasNested ? "long" : ""}">${s}</span>`;
+        return s;
+      }
+      function recoveryStr(days, hasNested) {
+        if (days == null) return '<span class="no-recovery">尚未回高</span>';
+        return `<span class="recovery-days ${hasNested ? "long" : ""}">${calendarDaysStr(days)}</span>`;
       }
 
       /* ── 統計摘要 ── */
@@ -695,7 +707,7 @@
               <div class="stat-value">${fmtNum(d.current_close)}</div>
             </div>
             <div class="stat-tile">
-              <div class="stat-label">歷史高點（${d.peak_date}）</div>
+              <div class="stat-label">歷史收盤高點（${d.peak_date}）</div>
               <div class="stat-value">${fmtNum(d.peak_value)}</div>
             </div>
             <div class="stat-tile">
@@ -757,7 +769,7 @@
               <div class="stat-value drop-pct">${s.maxDrop.toFixed(2)}%</div>
             </div>
             <div class="stat-tile">
-              <div class="stat-label">平均持續天數（高點→低點）</div>
+              <div class="stat-label">平均空頭期間（高點→低點）</div>
               <div class="stat-value">${Math.round(s.avgDuration)} 天</div>
             </div>
             <div class="stat-tile">
@@ -810,6 +822,7 @@
                 <div class="bar-bg"><div class="bar-fill" style="width:${barW}%"></div></div>
               </div>
             </td>
+            <td class="col-beardays">${calendarDaysStr(r.bear_days ?? daysBetween(r.peak_date, r.trough_date))}</td>
             <td class="col-recdays">${recoveryStr(
               r.recovery_days,
               _data.some(
@@ -1217,7 +1230,8 @@
           { cls: "col-trough-date", label: "低點日期", on: false },
           { cls: "col-trough-val", label: "低點", on: false },
           { cls: "col-drop", label: "跌幅", on: true },
-          { cls: "col-recdays", label: "回高天數", on: true },
+          { cls: "col-beardays", label: "空頭期間", on: true },
+          { cls: "col-recdays", label: "回本天數", on: true },
           { cls: "col-event", label: "事件", on: true },
         ];
         const bar = document.getElementById("bear-toggle-bar");
