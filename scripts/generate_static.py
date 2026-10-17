@@ -18,6 +18,7 @@ from dca import run_all as dca_run_all
 from dca import run_dip_buy_comparison as dca_run_dip_buy_comparison
 from taiex_big_drops import (
     DRAGON_BOAT_DATES,
+    EVENT_SHORT_NAMES,
     KNOWN_EVENTS,
     LUNAR_NEW_YEAR_DATES,
     MID_AUTUMN_DATES,
@@ -30,12 +31,14 @@ from taiex_big_drops import (
     find_bear_markets,
     find_longest_streaks,
     find_top_drops,
+    find_top_foreign_net_buys,
     find_top_foreign_net_sells,
     find_top_gains,
     find_top_point_drops,
     find_top_point_gains,
     load_foreign_net,
     load_ohlc_from_yfinance,
+    load_usdtwd_from_yfinance,
     load_vix_from_yfinance,
     patch_missing_trading_days,
 )
@@ -48,27 +51,48 @@ _CRASH_DATE = pd.Timestamp("2025-04-09")
 _COVID_START = pd.Timestamp("2020-02-01")
 
 
-def _recovery_days(drop_date: pd.Timestamp, prev_close: float, full_df: pd.DataFrame) -> int | None:
-    future = full_df[full_df["Date"] > drop_date]
-    recovered = future[future["Close"] >= prev_close]
-    if recovered.empty:
+def _days_until_cross(
+    event_date: pd.Timestamp, prev_close: float, full_df: pd.DataFrame, *, upward: bool,
+) -> int | None:
+    """event_date 之後第一個收盤「站回」（upward=True，>=）或「跌回」（upward=False，<=）
+    prev_close 的交易日，回傳經過的交易日數；尚未發生則回傳 None。"""
+    future = full_df[full_df["Date"] > event_date]
+    crossed = future[future["Close"] >= prev_close] if upward else future[future["Close"] <= prev_close]
+    if crossed.empty:
         return None
-    recovery_date = pd.Timestamp(recovered.iloc[0]["Date"])
-    return int(((full_df["Date"] > drop_date) & (full_df["Date"] <= recovery_date)).sum())
+    cross_date = pd.Timestamp(crossed.iloc[0]["Date"])
+    return int(((full_df["Date"] > event_date) & (full_df["Date"] <= cross_date)).sum())
 
 
-def _df_to_records(df: pd.DataFrame, full_df: pd.DataFrame | None = None) -> list[dict]:
+def _recovery_days(drop_date: pd.Timestamp, prev_close: float, full_df: pd.DataFrame) -> int | None:
+    return _days_until_cross(drop_date, prev_close, full_df, upward=True)
+
+
+def _fallback_days(gain_date: pd.Timestamp, prev_close: float, full_df: pd.DataFrame) -> int | None:
+    return _days_until_cross(gain_date, prev_close, full_df, upward=False)
+
+
+def _df_to_records(
+    df: pd.DataFrame, full_df: pd.DataFrame | None = None, kind: str = "drop",
+) -> list[dict]:
+    """kind="drop"：計算回升天數（recovery_days）；kind="gain"：計算回落天數（fallback_days）。"""
     records = []
     has_pt = "change_pt" in df.columns
     has_foreign = "foreign_net" in df.columns
     for rank, (_, row) in enumerate(df.iterrows(), start=1):
         date_str = pd.Timestamp(row["Date"]).strftime("%Y-%m-%d")
-        if full_df is None:
-            recovery = None
-        elif row["Close"] >= row["prev_close"]:
-            recovery = 0  # 當日收盤未低於前日收盤，無需回升
-        else:
-            recovery = _recovery_days(pd.Timestamp(row["Date"]), float(row["prev_close"]), full_df)
+        recovery = None
+        fallback = None
+        if full_df is not None and kind == "drop":
+            if row["Close"] >= row["prev_close"]:
+                recovery = 0  # 當日收盤未低於前日收盤，無需回升
+            else:
+                recovery = _recovery_days(pd.Timestamp(row["Date"]), float(row["prev_close"]), full_df)
+        elif full_df is not None and kind == "gain":
+            if row["Close"] <= row["prev_close"]:
+                fallback = 0  # 當日收盤未高於前日收盤，無所謂回落
+            else:
+                fallback = _fallback_days(pd.Timestamp(row["Date"]), float(row["prev_close"]), full_df)
         record = {
             "rank": rank,
             "date": date_str,
@@ -79,6 +103,8 @@ def _df_to_records(df: pd.DataFrame, full_df: pd.DataFrame | None = None) -> lis
             "event": KNOWN_EVENTS.get(date_str, ""),
             "recovery_days": recovery,
         }
+        if kind == "gain":
+            record["fallback_days"] = fallback
         if has_foreign:
             # 外資買賣超，單位：億元（負值為賣超）
             record["foreign_net"] = round(float(row["foreign_net"]) / 1e8, 2)
@@ -93,32 +119,35 @@ def generate_data() -> None:
     df = calculate_daily_returns(df)
 
     batches = [
-        ("drops_20y",    find_top_drops(df,       top_n=10, years=20), True),
-        ("drops_10y",    find_top_drops(df,       top_n=10, years=10), True),
-        ("drops_5y",     find_top_drops(df,       top_n=10, years=5),  True),
-        ("drops_all",    find_top_drops(df,       top_n=10),           True),
-        ("gains_20y",    find_top_gains(df,       top_n=10, years=20), False),
-        ("gains_10y",    find_top_gains(df,       top_n=10, years=10), False),
-        ("gains_5y",     find_top_gains(df,       top_n=10, years=5),  False),
-        ("gains_all",    find_top_gains(df,       top_n=10),           False),
-        ("drops_pt_20y", find_top_point_drops(df, top_n=10, years=20), True),
-        ("drops_pt_10y", find_top_point_drops(df, top_n=10, years=10), True),
-        ("drops_pt_5y",  find_top_point_drops(df, top_n=10, years=5),  True),
-        ("drops_pt_all", find_top_point_drops(df, top_n=10),           True),
-        ("gains_pt_20y", find_top_point_gains(df, top_n=10, years=20), False),
-        ("gains_pt_10y", find_top_point_gains(df, top_n=10, years=10), False),
-        ("gains_pt_5y",  find_top_point_gains(df, top_n=10, years=5),  False),
-        ("gains_pt_all", find_top_point_gains(df, top_n=10),           False),
+        ("drops_20y",    find_top_drops(df,       top_n=10, years=20), "drop"),
+        ("drops_10y",    find_top_drops(df,       top_n=10, years=10), "drop"),
+        ("drops_5y",     find_top_drops(df,       top_n=10, years=5), "drop"),
+        ("drops_all",    find_top_drops(df,       top_n=10), "drop"),
+        ("gains_20y",    find_top_gains(df,       top_n=10, years=20), "gain"),
+        ("gains_10y",    find_top_gains(df,       top_n=10, years=10), "gain"),
+        ("gains_5y",     find_top_gains(df,       top_n=10, years=5), "gain"),
+        ("gains_all",    find_top_gains(df,       top_n=10), "gain"),
+        ("drops_pt_20y", find_top_point_drops(df, top_n=10, years=20), "drop"),
+        ("drops_pt_10y", find_top_point_drops(df, top_n=10, years=10), "drop"),
+        ("drops_pt_5y",  find_top_point_drops(df, top_n=10, years=5), "drop"),
+        ("drops_pt_all", find_top_point_drops(df, top_n=10), "drop"),
+        ("gains_pt_20y", find_top_point_gains(df, top_n=10, years=20), "gain"),
+        ("gains_pt_10y", find_top_point_gains(df, top_n=10, years=10), "gain"),
+        ("gains_pt_5y",  find_top_point_gains(df, top_n=10, years=5), "gain"),
+        ("gains_pt_all", find_top_point_gains(df, top_n=10), "gain"),
     ]
 
     payload: dict = {"last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"), "error": None}
-    for key, result_df, include_recovery in batches:
-        payload[key] = _df_to_records(result_df, df if include_recovery else None)
+    for key, result_df, kind in batches:
+        payload[key] = _df_to_records(result_df, df, kind)
     try:
         foreign_df = load_foreign_net()
         for period, years in (("20y", 20), ("10y", 10), ("5y", 5), ("all", None)):
             payload[f"foreign_sells_{period}"] = _df_to_records(
                 find_top_foreign_net_sells(df, foreign_df, top_n=10, years=years), df,
+            )
+            payload[f"foreign_buys_{period}"] = _df_to_records(
+                find_top_foreign_net_buys(df, foreign_df, top_n=10, years=years), df, "gain",
             )
         payload["foreign_data_start"] = pd.Timestamp(foreign_df["Date"].min()).strftime("%Y-%m-%d")
     except Exception as exc:  # noqa: BLE001 - 外資資料失敗不應拖垮整份 data.json
@@ -127,6 +156,7 @@ def generate_data() -> None:
     payload["post_gain_stats"] = analyze_post_gain_returns(df)
     payload["ma_touch_stats"] = {
         "ma20": analyze_ma_touch_returns(df, ma_window=20),
+        "ma60": analyze_ma_touch_returns(df, ma_window=60),
         "ma120": analyze_ma_touch_returns(df, ma_window=120),
         "ma240": analyze_ma_touch_returns(df, ma_window=240),
         "ma1200": analyze_ma_touch_returns(df, ma_window=1200),
@@ -171,6 +201,7 @@ def generate_bear() -> None:
     clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
     dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()
     vix_dict = load_vix_from_yfinance()
+    twd_dict = load_usdtwd_from_yfinance()
 
     now = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -201,7 +232,13 @@ def generate_bear() -> None:
                 round(v, 1) if (v := vix_dict.get(d)) is not None else None
                 for d in dates
             ],
+            # 美元兌新台幣（數字越大＝台幣越弱），取 2 位小數
+            "usdtwd": [
+                round(v, 2) if (v := twd_dict.get(d)) is not None else None
+                for d in dates
+            ],
             "events": KNOWN_EVENTS,
+            "event_short": EVENT_SHORT_NAMES,
             "last_updated": now,
             "error": None,
         }, ensure_ascii=False, separators=(",", ":"))

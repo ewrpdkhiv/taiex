@@ -58,10 +58,10 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 | 輸出檔案    | 內容                                                                                                                                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data.json` | 16 組排行（跌幅%、漲幅%、跌點、漲點 × 5y/10y/20y/all），各取前 10 名；另含 `post_drop_stats`／`post_gain_stats`（單日大跌／大漲 ≥5% 後 5/20/60 交易日的平均報酬、中位數、勝率）與 `streaks`（連續上漲／下跌天數排行 top 10）；`foreign_sells_{5y,10y,20y,all}` 為外資單日賣超金額前 10 名（FinMind 資料，快取於 `cache/institutional/foreign_net.csv`，`foreign_net` 單位億元） |
+| `data.json` | 16 組排行（跌幅%、漲幅%、跌點、漲點 × 5y/10y/20y/all），各取前 10 名，跌幅類附 `recovery_days`（回升天數）、漲幅類附 `fallback_days`（回落天數：之後第一次收盤跌回大漲前收盤所需交易日數）；另含 `post_drop_stats`／`post_gain_stats`（單日大跌／大漲 ≥5% 後 5/20/60 交易日的平均報酬、中位數、勝率）與 `streaks`（連續上漲／下跌天數排行 top 10）；`foreign_sells_{5y,10y,20y,all}` / `foreign_buys_{5y,10y,20y,all}` 為外資單日賣超／買超金額前 10 名（買超附 `fallback_days`）（FinMind 資料，快取於 `cache/institutional/foreign_net.csv`，`foreign_net` 單位億元） |
 | `dca.json`  | 5 個情境：`results_10y`、`results_5y`、`results_crash_10y`（截至 2025-04-09）、`results_crash_5y`、`results_covid`（自 2020-02-01）；另含 `dip_buy_comparison`（固定扣款 vs 大跌 ≥5% 加碼 2 倍的績效比較）                   |
 | `bear.json` | 空頭週期列表                                                                                                                                                                                                                 |
-| `ohlc.json` | OHLC + VIX 時序資料（K 線圖用）；另含 `events`（= `KNOWN_EVENTS`，供圖表標注歷史事件用）                                                                                                                                     |
+| `ohlc.json` | OHLC + VIX + 美元兌新台幣（`usdtwd`，yfinance `TWD=X`，快取於 `cache/fx/USDTWD.csv`）時序資料（K 線圖用，匯率畫在 VIX 格的右側 y 軸）；另含 `events`（= `KNOWN_EVENTS`，完整說明，顯示於 tooltip）與 `event_short`（= `EVENT_SHORT_NAMES`，K 線事件帶上的短名稱；新增事件時兩個 dict 都要加，測試會檢查鍵一致）                                                                                                                                     |
 
 每個函式（`generate_data` / `generate_dca` / `generate_bear`）獨立執行，其中一個失敗不影響其他；最終 `sys.exit(1)` 讓 GitHub Actions 能偵測到錯誤。
 
@@ -76,7 +76,7 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 3. `find_top_drops/gains()` / `find_top_point_drops/gains()` → 篩選極端交易日
 4. `find_bear_markets()` → 掃描 peak-to-trough ≥ 20% 的空頭週期
 
-另有 `load_ohlc_from_yfinance()` 與 `load_vix_from_yfinance()` 供 K 線圖用。
+另有 `load_ohlc_from_yfinance()`、`load_vix_from_yfinance()` 與 `load_usdtwd_from_yfinance()` 供 K 線圖用。
 
 ### DCA 模組：[dca.py](dca.py)
 
@@ -104,6 +104,8 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 K 線圖使用 ECharts 5，PNG 匯出使用 html2canvas；兩者皆 vendored 至 `docs/vendor/`（非 CDN），供離線開啟。
 
+三頁共用 `docs/theme.css`（色彩 token、導覽列、卡片、表格等共用元件，淺色／深色兩套）與 `docs/theme.js`（主題切換、存 localStorage；`chartTheme()` 從 CSS 變數讀出 ECharts 配色，切換主題時發出 `themechange` 事件讓圖表重繪）。新增顏色請加在 `theme.css` 的變數，不要在頁面或圖表 option 裡寫死；顏色只用 hex／rgba（html2canvas 不支援 `color-mix()`／`oklch()`）。
+
 ### 自動更新：[.github/workflows/update-data.yml](.github/workflows/update-data.yml)
 
 每個工作日 UTC 07:00（台灣時間 15:00）觸發，執行 `generate_static.py` 後 auto-commit `docs/data/*.json`。可手動從 Actions 頁面觸發（`workflow_dispatch`）。任何步驟失敗時，最後的 `Notify on failure` 步驟會自動建立（或在既有開放中的）GitHub Issue 留言通知，避免失敗被靜靜忽略。
@@ -112,6 +114,7 @@ K 線圖使用 ECharts 5，PNG 匯出使用 html2canvas；兩者皆 vendored 至
 
 - **民國年解析**：CSV 日期年份 < 200 時自動加 1911（`_parse_roc_or_ad_date()`）
 - **KNOWN_EVENTS**：`dict[str, str]` 儲存歷史重大事件說明（鍵為 `YYYY-MM-DD`），`generate_static.py` 的 `_df_to_records()` 自動標注
+- **K 線事件帶**：`docs/kline-events.js`（兩頁共用）的 `addEventBand()` 在 K 線區與 VIX 區之間加一條事件帶（會改寫 option 的 grid 版面），短名稱色塊最多 3 排，依「點開的那天 > 當日漲跌幅」排位，放不下的只畫小圓點；K 線區只留淡虛線對位；縮放／拖動時由 `layoutEventLabels()` 重新排版
 - **空頭演算法**：從 `search_from` 向前滾動高點，跌幅 ≥ threshold 確認空頭後找低點與恢復日；每輪從低點之後繼續以捕捉次級空頭
 - **VIX 對齊**：K 線日期與 VIX 交易日不一定相同，以 `None` 填充（ECharts `connectNulls: false` 顯示斷點）
 - **ohlc.json 壓縮格式**：為靜態資料檔中最大者，`dates` 存成相對 `date_epoch`（`1990-01-01`）的整數天數偏移，OHLC 四值取整數、VIX 取 1 位小數，較未壓縮格式縮小約 4 成；前端 `loadOhlc()` 載入後以 `offsetsToISODates()` 還原成 `YYYY-MM-DD` 字串再使用

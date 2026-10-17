@@ -2,6 +2,8 @@ import pandas as pd
 import pytest
 
 from taiex_big_drops import (
+    EVENT_SHORT_NAMES,
+    KNOWN_EVENTS,
     _parse_finmind_institutional,
     _parse_roc_or_ad_date,
     _parse_twse_month_payload,
@@ -13,6 +15,7 @@ from taiex_big_drops import (
     calculate_daily_returns,
     find_bear_markets,
     find_longest_streaks,
+    find_top_foreign_net_buys,
     find_top_foreign_net_sells,
     patch_missing_trading_days,
 )
@@ -576,3 +579,26 @@ class TestFindTopForeignNetSells:
         assert result["Date"].tolist() == [dates[3], dates[4]]
         assert result["foreign_net"].tolist() == [-50.0, -30.0]
         assert result["Close"].tolist() == [95.0, 97.0]
+
+
+class TestFindTopForeignNetBuys:
+    def test_ranks_by_net_buy_and_excludes_sells(self):
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        df = calculate_daily_returns(pd.DataFrame({
+            "Date": dates, "Close": [100.0, 98.0, 99.0, 95.0, 97.0],
+        }))
+        foreign = pd.DataFrame({
+            "Date": dates, "foreign_net": [999.0, 10.0, -5.0, 50.0, 30.0],
+        })
+        result = find_top_foreign_net_buys(df, foreign, top_n=2)
+        # 首日沒有 change_pct 會被排除；賣超日（負值）也不列入
+        assert result["Date"].tolist() == [dates[3], dates[4]]
+        assert result["foreign_net"].tolist() == [50.0, 30.0]
+
+
+class TestEventShortNames:
+    def test_every_event_has_short_name(self):
+        assert set(EVENT_SHORT_NAMES) == set(KNOWN_EVENTS)
+
+    def test_short_names_are_short(self):
+        assert all(len(s) <= 10 for s in EVENT_SHORT_NAMES.values())

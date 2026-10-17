@@ -7,126 +7,105 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="site-tabs.css" />
+    <link rel="stylesheet" href="theme.css" />
+    <script src="theme.js"></script>
+    <script src="kline-events.js"></script>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        font-family:
-          "Noto Sans TC",
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
-        background: #111827;
-        color: #cbd5e1;
-      }
-
-      header {
-        background: #111827;
-        border-bottom: 1px solid #2d3f55;
-        padding: 13px 20px;
+      /* ── 類型／期間切換 ── */
+      nav.controls {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 24px;
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-      header h1 {
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: #e2e8f0;
-        letter-spacing: 0.02em;
-      }
-      .meta {
-        font-size: 0.74rem;
-        color: #334155;
-        display: flex;
+        flex-direction: column;
         gap: 12px;
-        align-items: center;
-      }
-      .meta b {
-        color: #64748b;
-        font-weight: 500;
-      }
-
-      nav {
-        background: #162234;
-        border-bottom: 1px solid #2d3f55;
       }
       .type-row {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        border-bottom: 1px solid #2d3f55;
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--rule);
+        overflow-x: auto;
+        scrollbar-width: none;
       }
       .type-btn {
-        padding: 10px 4px;
-        font-size: 0.77rem;
-        font-weight: 600;
-        color: #334155;
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--ink-3);
         background: none;
         border: none;
         border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
         cursor: pointer;
-        text-align: center;
+        white-space: nowrap;
         transition:
           color 0.15s,
           border-color 0.15s;
       }
       .type-btn:hover {
-        color: #64748b;
+        color: var(--ink);
+      }
+      .type-btn.active {
+        color: var(--ink);
+        font-weight: 600;
       }
       .type-btn[data-color="drop"].active {
-        color: #f43f5e;
-        border-bottom-color: #f43f5e;
+        border-bottom-color: var(--down);
       }
       .type-btn[data-color="gain"].active {
-        color: #10b981;
-        border-bottom-color: #10b981;
+        border-bottom-color: var(--up);
       }
       .type-btn[data-color="stats"].active {
-        color: #8b5cf6;
-        border-bottom-color: #8b5cf6;
+        border-bottom-color: var(--accent);
       }
 
       .period-row {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        display: inline-flex;
+        align-self: flex-start;
+        padding: 3px;
+        gap: 2px;
+        background: var(--surface-2);
+        border: 1px solid var(--rule);
+        border-radius: 999px;
       }
       .period-btn {
-        padding: 7px;
-        font-size: 0.74rem;
+        padding: 5px 14px;
+        font-size: 0.8rem;
         font-weight: 500;
-        color: #334155;
+        color: var(--ink-3);
         background: none;
         border: none;
-        border-bottom: 2px solid transparent;
+        border-radius: 999px;
         cursor: pointer;
-        text-align: center;
+        white-space: nowrap;
         transition:
           color 0.15s,
-          border-color 0.15s;
+          background 0.15s;
       }
       .period-btn:hover {
-        color: #64748b;
+        color: var(--ink);
       }
       .period-btn.active {
-        color: #e2e8f0;
-        border-bottom-color: #475569;
+        background: var(--surface);
+        color: var(--ink);
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
       }
 
+      #col-toggle-bar {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 12px 24px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
       #error-banner {
-        display: none;
-        background: rgba(244, 63, 94, 0.1);
-        color: #f43f5e;
-        padding: 10px 20px;
-        font-size: 0.84rem;
-        border-bottom: 1px solid rgba(244, 63, 94, 0.2);
+        margin-top: 12px;
       }
 
       .tab-panel {
@@ -136,163 +115,137 @@
         display: block;
       }
       .panel-inner {
-        max-width: 820px;
+        max-width: 860px;
         margin: 20px auto;
-        padding: 0 14px;
+        padding: 0 16px;
+      }
+      #panel-stats {
+        padding: 4px 0 12px;
+      }
+      #panel-stats .panel-inner {
+        margin: 16px auto;
       }
 
-      .card {
-        background: #1f2937;
-        border-radius: 6px;
-        border: 1px solid #2d3f55;
-        overflow: hidden;
+      /* 卡片標題左側色條 */
+      .card-header h2::before {
+        content: "";
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: 2px;
+        background: var(--ink-3);
       }
-      .table-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+      .card[data-color="drop"] .card-header h2::before {
+        background: var(--down);
       }
-      .card-header {
-        padding: 11px 16px;
-        background: #162234;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        border-bottom: 1px solid #2d3f55;
+      .card[data-color="gain"] .card-header h2::before {
+        background: var(--up);
       }
-      .card[data-color="drop"] .card-header {
-        border-left: 3px solid #f43f5e;
-      }
-      .card[data-color="gain"] .card-header {
-        border-left: 3px solid #10b981;
-      }
-      .card[data-color="stats"] .card-header {
-        border-left: 3px solid #8b5cf6;
-      }
-      .card-header h2 {
-        font-size: 0.86rem;
-        font-weight: 600;
-        color: #94a3b8;
-      }
-      .badge {
-        font-size: 0.65rem;
-        font-weight: 700;
-        padding: 2px 7px;
-        border-radius: 3px;
-        font-family: "JetBrains Mono", monospace;
+      .card[data-color="stats"] .card-header h2::before {
+        background: var(--accent);
       }
       .card[data-color="drop"] .badge {
-        background: rgba(244, 63, 94, 0.15);
-        color: #f43f5e;
+        background: var(--down-soft);
+        color: var(--down);
       }
       .card[data-color="gain"] .badge {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10b981;
-      }
-      .card[data-color="stats"] .badge {
-        background: rgba(139, 92, 246, 0.15);
-        color: #8b5cf6;
+        background: var(--up-soft);
+        color: var(--up);
       }
 
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.82rem;
-      }
-      th {
-        background: #162234;
-        color: #334155;
-        padding: 7px 12px;
-        text-align: right;
-        font-weight: 500;
-        font-size: 0.7rem;
-        white-space: nowrap;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        border-bottom: 1px solid #2d3f55;
-      }
       th:first-child,
-      th.left {
+      th.left,
+      td.left {
         text-align: left;
       }
-      th.date-header {
+      th.date-header,
+      th.recovery {
         text-align: center;
-      }
-      td {
-        padding: 9px 12px;
-        border-bottom: 1px solid #1b2b3f;
-        text-align: right;
-        white-space: nowrap;
-        color: #94a3b8;
       }
       td:first-child {
         text-align: center;
-        color: #2d3f55;
-        font-size: 0.74rem;
-        width: 32px;
-        font-family: "JetBrains Mono", monospace;
+        color: var(--ink-3);
+        font-size: 0.75rem;
+        width: 36px;
+        font-family: var(--font-mono);
       }
       td.date {
         text-align: center;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.79rem;
-        color: #64748b;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        color: var(--ink-2);
+      }
+      td.left.date {
+        text-align: left;
+      }
+      td.drop,
+      td.gain {
+        font-weight: 700;
+        font-family: var(--font-mono);
       }
       td.drop {
-        color: #f43f5e;
-        font-weight: 700;
-        font-family: "JetBrains Mono", monospace;
+        color: var(--down);
       }
       td.gain {
-        color: #10b981;
-        font-weight: 700;
-        font-family: "JetBrains Mono", monospace;
+        color: var(--up);
       }
-      td.pct {
-        color: #475569;
-        font-size: 0.78rem;
-        font-family: "JetBrains Mono", monospace;
+      td.pct,
+      td.recovery {
+        color: var(--ink-3);
+        font-size: 0.8rem;
+        font-family: var(--font-mono);
       }
       td.recovery {
         text-align: center;
-        color: #475569;
-        font-size: 0.78rem;
-        font-family: "JetBrains Mono", monospace;
+      }
+      td.col-close,
+      td.col-prev {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
       }
       td.event {
         text-align: left;
-        color: #334155;
-        font-size: 0.73rem;
+        color: var(--ink-3);
+        font-size: 0.76rem;
         white-space: normal;
-      }
-      tr:last-child td {
-        border-bottom: none;
-      }
-      .card[data-color="drop"] tr:hover td {
-        background: rgba(244, 63, 94, 0.04);
-      }
-      .card[data-color="gain"] tr:hover td {
-        background: rgba(16, 185, 129, 0.04);
-      }
-      .card[data-color="stats"] tr:hover td {
-        background: rgba(139, 92, 246, 0.04);
+        min-width: 160px;
       }
 
-      .loading {
-        padding: 36px;
-        text-align: center;
-        color: #2d3f55;
-        font-size: 0.9rem;
+      /* 連續漲跌天數：並排兩表 */
+      .streak-wrap {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .streak-col {
+        flex: 1;
+        min-width: 260px;
+      }
+      .streak-col + .streak-col {
+        border-left: 1px solid var(--rule);
+      }
+      .streak-title {
+        padding: 10px 12px 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+      }
+      .streak-title.up {
+        color: var(--up);
+      }
+      .streak-title.down {
+        color: var(--down);
       }
 
       .sort-btn,
       .export-btn {
         padding: 3px 10px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        background: #1f2937;
-        color: #334155;
-        border: 1px solid #2d3f55;
-        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 500;
+        background: transparent;
+        color: var(--ink-2);
+        border: 1px solid var(--rule-strong);
+        border-radius: 6px;
         cursor: pointer;
         white-space: nowrap;
         transition:
@@ -308,11 +261,14 @@
       }
       .sort-btn:hover,
       .export-btn:hover {
-        background: #243448;
-        color: #64748b;
-        border-color: #334155;
+        background: var(--hover);
+        color: var(--ink);
+        border-color: var(--ink-3);
       }
 
+      .exporting {
+        box-shadow: none;
+      }
       .exporting .export-btn {
         display: none;
       }
@@ -327,233 +283,134 @@
         white-space: nowrap !important;
       }
 
-      .hide-col-close .col-close {
-        display: none;
-      }
-      .hide-col-prev .col-prev {
-        display: none;
-      }
-      .hide-col-pct .col-pct {
-        display: none;
-      }
-      .hide-recovery .recovery {
-        display: none;
-      }
+      .hide-col-close .col-close,
+      .hide-col-prev .col-prev,
+      .hide-col-pct .col-pct,
+      .hide-recovery .recovery,
       .hide-col-event .col-event {
         display: none;
       }
 
-      #col-toggle-bar {
-        background: #162234;
-        border-bottom: 1px solid #2d3f55;
-        padding: 6px 16px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-      #col-toggle-bar .toggle-label {
-        font-size: 0.7rem;
-        color: #2d3f55;
-        white-space: nowrap;
-        margin-right: 2px;
-      }
-      .col-chip {
-        padding: 2px 9px;
-        font-size: 0.7rem;
-        border-radius: 3px;
-        border: 1px solid #2d3f55;
-        background: transparent;
-        color: #334155;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .col-chip:hover {
-        border-color: #334155;
-        color: #64748b;
-      }
-      .col-chip.on {
-        background: #243448;
-        border-color: #334155;
-        color: #e2e8f0;
-      }
-
-      .refresh-btn {
-        background: none;
-        border: 1px solid #2d3f55;
-        color: #334155;
-        border-radius: 4px;
-        padding: 2px 8px;
-        font-size: 0.71rem;
-        cursor: pointer;
-        transition:
-          background 0.15s,
-          color 0.15s;
-      }
-      .refresh-btn:hover:not(:disabled) {
-        background: #243448;
-        color: #64748b;
-        border-color: #334155;
-      }
-      .refresh-btn:disabled {
-        opacity: 0.4;
-        cursor: default;
-      }
-
-      /* K 線圖面板 */
-      .clickable-drop {
-        cursor: pointer;
-      }
-      .clickable-drop.active td {
-        background: rgba(244, 63, 94, 0.08) !important;
-      }
-
-      /* 大跌後表現統計：明細面板 */
+      /* 可點擊列 */
+      .clickable-drop,
       .clickable-horizon {
         cursor: pointer;
       }
+      .clickable-drop.active td {
+        background: var(--down-soft) !important;
+      }
+      .card[data-color="gain"] .clickable-drop.active td {
+        background: var(--up-soft) !important;
+      }
       .clickable-horizon.active td {
-        background: rgba(139, 92, 246, 0.08) !important;
+        background: var(--accent-soft) !important;
       }
-      #post-drop-detail {
+
+      /* 統計明細面板（點擊列後由 JS 顯示） */
+      .card > div[id$="-detail"] {
         display: none;
-        border-top: 1px solid #2d3f55;
+        border-top: 1px solid var(--rule);
       }
-      #post-drop-detail .chart-panel-header {
-        padding: 9px 16px;
-      }
+
+      /* K 線圖面板 */
       #chart-outer {
         display: none;
-        max-width: 1100px;
+        max-width: 1120px;
         margin: 0 auto;
-        padding: 0 14px 24px;
-      }
-      #chart-outer .card {
-        border-left: 3px solid #f43f5e;
-      }
-      .chart-panel-header {
-        background: #162234;
-        border-bottom: 1px solid #2d3f55;
-        color: #e2e8f0;
-        padding: 11px 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-      .chart-info {
-        flex: 1;
-        font-size: 0.8rem;
-        color: #64748b;
-      }
-      .chart-legend {
-        display: flex;
-        gap: 14px;
-        align-items: center;
-        font-size: 0.73rem;
-      }
-      .legend-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 2px;
-        flex-shrink: 0;
-      }
-      .close-btn {
-        background: none;
-        border: 1px solid #2d3f55;
-        color: #475569;
-        border-radius: 4px;
-        padding: 3px 10px;
-        cursor: pointer;
-        font-size: 0.76rem;
-      }
-      .close-btn:hover {
-        color: #94a3b8;
-        border-color: #334155;
-      }
-      #chart-loading {
-        text-align: center;
-        padding: 36px;
-        color: #334155;
+        padding: 0 16px 32px;
       }
       #chart-container {
-        height: 520px;
+        height: 580px;
       }
 
       @media (max-width: 600px) {
-        header {
-          padding: 10px 14px;
-          gap: 8px;
+        nav.controls {
+          padding: 0 12px;
         }
-        header h1 {
-          font-size: 0.86rem;
+        .type-btn {
+          padding: 9px 10px;
+          font-size: 0.82rem;
         }
-        .meta {
-          font-size: 0.7rem;
+        .period-row {
+          align-self: stretch;
+        }
+        .period-btn {
+          flex: 1;
+          padding: 5px 6px;
+        }
+        #col-toggle-bar {
+          padding: 10px 12px 0;
         }
         .panel-inner {
           margin: 14px auto;
           padding: 0 8px;
         }
-        table {
-          font-size: 0.77rem;
-        }
-        th {
-          padding: 6px 8px;
-          font-size: 0.64rem;
-        }
-        td {
-          padding: 8px;
+        .streak-col + .streak-col {
+          border-left: none;
+          border-top: 1px solid var(--rule);
         }
         th:first-child,
         td:first-child {
           position: sticky;
           left: 0;
-          background: inherit;
+          background: var(--surface);
           z-index: 1;
         }
         th:first-child {
-          background: #162234;
+          background: var(--surface-2);
         }
         #chart-container {
-          height: 380px;
+          height: 460px;
         }
       }
     </style>
   </head>
   <body>
     <div class="site-tabs">
-      <a href="index.html" class="site-tab active">📊 漲跌排行</a>
-      <a href="dca.html" class="site-tab">💰 定期定額</a>
-      <a href="bear.html" class="site-tab">🐻 空頭市場</a>
+      <a class="brand" href="index.html"
+        ><span class="brand-mark">TAIEX</span
+        ><span class="brand-sub">台股觀測</span></a
+      >
+      <nav class="site-links">
+        <a href="index.html" class="site-tab active">漲跌排行</a>
+        <a href="dca.html" class="site-tab">定期定額</a>
+        <a href="bear.html" class="site-tab">空頭市場</a>
+      </nav>
+      <button class="theme-toggle" id="theme-toggle" aria-label="切換深色／淺色主題"></button>
     </div>
 
     <header>
-      <h1>台股加權指數 (TAIEX) 漲跌日排行</h1>
+      <div>
+        <div class="kicker">Daily Movers</div>
+        <h1>台股加權指數漲跌日排行</h1>
+      </div>
       <div class="meta">
-        <span>更新：<b id="last-updated">載入中…</b></span>
+        <span>資料更新 <b id="last-updated">載入中…</b></span>
       </div>
     </header>
 
-    <nav>
+    <nav class="controls">
       <div class="type-row">
         <button class="type-btn active" data-color="drop" data-type="drops-pct">
-          📉 跌幅%
+          跌幅%
         </button>
         <button class="type-btn" data-color="gain" data-type="gains-pct">
-          📈 漲幅%
+          漲幅%
         </button>
         <button class="type-btn" data-color="drop" data-type="drops-pt">
-          📉 跌點
+          跌點
         </button>
         <button class="type-btn" data-color="gain" data-type="gains-pt">
-          📈 漲點
+          漲點
         </button>
         <button class="type-btn" data-color="drop" data-type="foreign-sells">
-          🏦 外資賣超
+          外資賣超
+        </button>
+        <button class="type-btn" data-color="gain" data-type="foreign-buys">
+          外資買超
         </button>
         <button class="type-btn" data-color="stats" data-type="stats">
-          📊 統計分析
+          統計分析
         </button>
       </div>
       <div class="period-row" id="period-row">
@@ -572,7 +429,7 @@
 
     <!-- 統計分析面板：大跌後表現統計、連續漲跌天數排行 -->
     <div id="panel-stats" class="tab-panel">
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>大跌後表現統計</h2>
@@ -619,7 +476,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>大漲後表現統計</h2>
@@ -666,7 +523,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>跌破 20 日均線後表現統計</h2>
@@ -713,7 +570,54 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 60 日均線後表現統計</h2>
+            <span class="badge" id="ma60-badge">60MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma60-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma60-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma60-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma60')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma60-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma60-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>跌破 120 日均線後表現統計</h2>
@@ -760,7 +664,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>跌破 240 日均線後表現統計</h2>
@@ -807,7 +711,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>跌破 1200 日均線後表現統計</h2>
@@ -854,7 +758,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>跌破 2400 日均線後表現統計</h2>
@@ -901,7 +805,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>中秋連假前買進表現統計</h2>
@@ -949,7 +853,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>過年封關前買進表現統計</h2>
@@ -997,7 +901,7 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>端午連假前買進表現統計</h2>
@@ -1045,23 +949,15 @@
         </div>
       </div>
 
-      <div class="panel-inner" style="margin: 14px auto">
+      <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
             <h2>連續漲跌天數排行</h2>
             <span class="badge">TOP 10</span>
           </div>
-          <div style="display: flex; flex-wrap: wrap">
-            <div style="flex: 1; min-width: 260px">
-              <div
-                style="
-                  padding: 8px 12px 8px;
-                  font-size: 0.72rem;
-                  color: #10b981;
-                  font-weight: 600;
-                "
-              >
-                📈 連續上漲
+          <div class="streak-wrap">
+            <div class="streak-col">
+              <div class="streak-title up">連續上漲
               </div>
               <div class="table-wrap">
                 <table>
@@ -1080,16 +976,8 @@
                 </table>
               </div>
             </div>
-            <div style="flex: 1; min-width: 260px">
-              <div
-                style="
-                  padding: 8px 12px 8px;
-                  font-size: 0.72rem;
-                  color: #f43f5e;
-                  font-weight: 600;
-                "
-              >
-                📉 連續下跌
+            <div class="streak-col">
+              <div class="streak-title down">連續下跌
               </div>
               <div class="table-wrap">
                 <table>
@@ -1254,12 +1142,13 @@
                   <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pct-20y">
                 <tr>
-                  <td colspan="6" class="loading">載入中…</td>
+                  <td colspan="7" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1284,12 +1173,13 @@
                   <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pct-10y">
                 <tr>
-                  <td colspan="6" class="loading">載入中…</td>
+                  <td colspan="7" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1314,12 +1204,13 @@
                   <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pct-5y">
                 <tr>
-                  <td colspan="6" class="loading">載入中…</td>
+                  <td colspan="7" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1344,12 +1235,13 @@
                   <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pct-all">
                 <tr>
-                  <td colspan="6" class="loading">載入中…</td>
+                  <td colspan="7" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1503,12 +1395,13 @@
                   <th class="col-prev">前日收盤</th>
                   <th>漲點</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pt-20y">
                 <tr>
-                  <td colspan="7" class="loading">載入中…</td>
+                  <td colspan="8" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1534,12 +1427,13 @@
                   <th class="col-prev">前日收盤</th>
                   <th>漲點</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pt-10y">
                 <tr>
-                  <td colspan="7" class="loading">載入中…</td>
+                  <td colspan="8" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1565,12 +1459,13 @@
                   <th class="col-prev">前日收盤</th>
                   <th>漲點</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pt-5y">
                 <tr>
-                  <td colspan="7" class="loading">載入中…</td>
+                  <td colspan="8" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1596,12 +1491,13 @@
                   <th class="col-prev">前日收盤</th>
                   <th>漲點</th>
                   <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
                   <th class="left col-event">事件</th>
                 </tr>
               </thead>
               <tbody id="t-gains-pt-all">
                 <tr>
-                  <td colspan="7" class="loading">載入中…</td>
+                  <td colspan="8" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
@@ -1624,7 +1520,7 @@
                   <th>#</th>
                   <th class="date-header">日期</th>
                   <th>外資賣超 (億)</th>
-                  <th>收盤指數</th>
+                  <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲跌幅 (%)</th>
                   <th class="recovery">回升天數</th>
@@ -1656,7 +1552,7 @@
                   <th>#</th>
                   <th class="date-header">日期</th>
                   <th>外資賣超 (億)</th>
-                  <th>收盤指數</th>
+                  <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲跌幅 (%)</th>
                   <th class="recovery">回升天數</th>
@@ -1688,7 +1584,7 @@
                   <th>#</th>
                   <th class="date-header">日期</th>
                   <th>外資賣超 (億)</th>
-                  <th>收盤指數</th>
+                  <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲跌幅 (%)</th>
                   <th class="recovery">回升天數</th>
@@ -1720,7 +1616,7 @@
                   <th>#</th>
                   <th class="date-header">日期</th>
                   <th>外資賣超 (億)</th>
-                  <th>收盤指數</th>
+                  <th class="col-close">收盤指數</th>
                   <th class="col-prev">前日收盤</th>
                   <th class="col-pct">漲跌幅 (%)</th>
                   <th class="recovery">回升天數</th>
@@ -1738,22 +1634,144 @@
       </div>
     </div>
 
-    <!-- K 線圖面板（跌幅/跌點/外資賣超點擊後顯示） -->
+    <div id="panel-foreign-buys-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年外資買超前 10 名</h2>
+            <span class="badge">20Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-buys-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年外資買超前 10 名</h2>
+            <span class="badge">10Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-buys-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年外資買超前 10 名</h2>
+            <span class="badge">5Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-buys-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時外資買超前 10 名</h2>
+            <span class="badge">ALL 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- K 線圖面板（跌幅/跌點/漲幅/漲點/外資賣超點擊後顯示） -->
     <div id="chart-outer">
       <div class="card">
         <div class="chart-panel-header">
           <span class="chart-info" id="chart-info">—</span>
           <div class="chart-legend">
-            <div
-              class="legend-dot"
-              style="background: rgba(220, 38, 38, 0.45)"
-            ></div>
-            <span style="color: #fca5a5">跌幅當日</span>
-            <div
-              class="legend-dot"
-              style="background: rgba(34, 197, 94, 0.35)"
-            ></div>
-            <span style="color: #86efac">回升期間</span>
+            <div class="legend-dot down" id="legend-day-dot"></div>
+            <span id="legend-day">跌幅當日</span>
+            <div class="legend-dot up" id="legend-after-dot"></div>
+            <span id="legend-after">回升期間</span>
           </div>
           <button class="close-btn" onclick="closeDropChart()">✕ 關閉</button>
         </div>
@@ -1775,16 +1793,17 @@
           maximumFractionDigits: 2,
         });
 
-      const recStr = (days) =>
-        days === 0 ? "當日" : days != null ? days + " 天" : "—";
+      const recStr = (days, none = "—") =>
+        days === 0 ? "當日" : days != null ? days + " 天" : none;
 
       function pctRow(r, cls) {
-        return `<tr>
+        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
           <td>${r.rank}</td>
           <td class="date">${r.date}</td>
           <td class="col-close">${fmt(r.close)}</td>
           <td class="col-prev">${fmt(r.prev_close)}</td>
           <td class="${cls} col-pct">${r.change_pct.toFixed(2)}%</td>
+          <td class="recovery">${recStr(r.fallback_days, "未回落")}</td>
           <td class="event col-event">${r.event}</td>
         </tr>`;
       }
@@ -1802,13 +1821,14 @@
       }
 
       function ptRow(r, cls) {
-        return `<tr>
+        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
           <td>${r.rank}</td>
           <td class="date">${r.date}</td>
           <td class="col-close">${fmt(r.close)}</td>
           <td class="col-prev">${fmt(r.prev_close)}</td>
           <td class="${cls}">${fmt(r.change_pt)}</td>
           <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
+          <td class="recovery">${recStr(r.fallback_days, "未回落")}</td>
           <td class="event col-event">${r.event}</td>
         </tr>`;
       }
@@ -1826,6 +1846,21 @@
         </tr>`;
       }
 
+      function foreignBuyRow(r) {
+        const pctCls = r.change_pct < 0 ? "drop" : "gain";
+        const sign = r.change_pct > 0 ? "+" : "";
+        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
+          <td>${r.rank}</td>
+          <td class="date">${r.date}</td>
+          <td class="gain">+${fmt(r.foreign_net)}</td>
+          <td class="col-close">${fmt(r.close)}</td>
+          <td class="col-prev">${fmt(r.prev_close)}</td>
+          <td class="${pctCls} col-pct">${sign}${r.change_pct.toFixed(2)}%</td>
+          <td class="recovery">${recStr(r.fallback_days, "未回落")}</td>
+          <td class="event col-event">${r.event}</td>
+        </tr>`;
+      }
+
       function foreignSellRow(r) {
         const pctCls = r.change_pct < 0 ? "drop" : "gain";
         const sign = r.change_pct > 0 ? "+" : "";
@@ -1833,7 +1868,7 @@
           <td>${r.rank}</td>
           <td class="date">${r.date}</td>
           <td class="drop">${fmt(r.foreign_net)}</td>
-          <td>${fmt(r.close)}</td>
+          <td class="col-close">${fmt(r.close)}</td>
           <td class="col-prev">${fmt(r.prev_close)}</td>
           <td class="${pctCls} col-pct">${sign}${r.change_pct.toFixed(2)}%</td>
           <td class="recovery">${recStr(r.recovery_days)}</td>
@@ -1870,25 +1905,25 @@
           key: "gains_20y",
           fn: pctRow,
           cls: "gain",
-          cols: 6,
+          cols: 7,
         },
         "t-gains-pct-10y": {
           key: "gains_10y",
           fn: pctRow,
           cls: "gain",
-          cols: 6,
+          cols: 7,
         },
         "t-gains-pct-5y": {
           key: "gains_5y",
           fn: pctRow,
           cls: "gain",
-          cols: 6,
+          cols: 7,
         },
         "t-gains-pct-all": {
           key: "gains_all",
           fn: pctRow,
           cls: "gain",
-          cols: 6,
+          cols: 7,
         },
         "t-drops-pt-20y": {
           key: "drops_pt_20y",
@@ -1918,25 +1953,25 @@
           key: "gains_pt_20y",
           fn: ptRow,
           cls: "gain",
-          cols: 7,
+          cols: 8,
         },
         "t-gains-pt-10y": {
           key: "gains_pt_10y",
           fn: ptRow,
           cls: "gain",
-          cols: 7,
+          cols: 8,
         },
         "t-gains-pt-5y": {
           key: "gains_pt_5y",
           fn: ptRow,
           cls: "gain",
-          cols: 7,
+          cols: 8,
         },
         "t-gains-pt-all": {
           key: "gains_pt_all",
           fn: ptRow,
           cls: "gain",
-          cols: 7,
+          cols: 8,
         },
         "t-foreign-sells-20y": {
           key: "foreign_sells_20y",
@@ -1960,6 +1995,30 @@
           key: "foreign_sells_all",
           fn: foreignSellRow,
           cls: "drop",
+          cols: 8,
+        },
+        "t-foreign-buys-20y": {
+          key: "foreign_buys_20y",
+          fn: foreignBuyRow,
+          cls: "gain",
+          cols: 8,
+        },
+        "t-foreign-buys-10y": {
+          key: "foreign_buys_10y",
+          fn: foreignBuyRow,
+          cls: "gain",
+          cols: 8,
+        },
+        "t-foreign-buys-5y": {
+          key: "foreign_buys_5y",
+          fn: foreignBuyRow,
+          cls: "gain",
+          cols: 8,
+        },
+        "t-foreign-buys-all": {
+          key: "foreign_buys_all",
+          fn: foreignBuyRow,
+          cls: "gain",
           cols: 8,
         },
       };
@@ -1987,7 +2046,7 @@
 
       function streakRow(s, cls) {
         return `<tr>
-          <td class="left date" style="text-align: left">${s.start_date} ~ ${s.end_date}</td>
+          <td class="left date">${s.start_date} ~ ${s.end_date}</td>
           <td class="pct">${s.days} 天</td>
           <td class="${cls}">${s.cumulative_pct.toFixed(2)}%</td>
         </tr>`;
@@ -2065,6 +2124,20 @@
             `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
           detailInfo: (days, count) =>
             `跌破 20 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
+        },
+        ma60: {
+          tbodyId: "t-ma60-stats",
+          badgeId: "ma60-badge",
+          detailId: "ma60-detail",
+          detailInfoId: "ma60-detail-info",
+          detailTbodyId: "t-ma60-detail",
+          extraField: "touch_pct",
+          getStats: (data) =>
+            data && data.ma_touch_stats && data.ma_touch_stats.ma60,
+          badgeText: (s) =>
+            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
+          detailInfo: (days, count) =>
+            `跌破 60 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
         },
         ma120: {
           tbodyId: "t-ma120-stats",
@@ -2272,6 +2345,10 @@
               "#panel-foreign-sells-all h2",
             ).textContent =
               `歷史全時（${data.foreign_data_start}～）外資賣超前 10 名`;
+            document.querySelector(
+              "#panel-foreign-buys-all h2",
+            ).textContent =
+              `歷史全時（${data.foreign_data_start}～）外資買超前 10 名`;
           }
           Object.keys(STATS_PANELS).forEach((key) => {
             renderStatsPanel(key, STATS_PANELS[key].getStats(data));
@@ -2344,8 +2421,8 @@
         { cls: "col-close", label: "收盤指數", on: false },
         { cls: "col-prev", label: "前日收盤", on: false },
         { cls: "col-pct", label: "漲跌幅%", on: true },
-        { cls: "recovery", label: "回升天數", on: true },
-        { cls: "col-event", label: "事件", on: true },
+        { cls: "recovery", label: "回升／回落天數", on: true },
+        { cls: "col-event", label: "事件", on: false },
       ];
       (function initColToggles() {
         const bar = document.getElementById("col-toggle-bar");
@@ -2435,7 +2512,7 @@
 
           html2canvas(clone, {
             scale: 2,
-            backgroundColor: "#ffffff",
+            backgroundColor: chartTheme().bg,
             width: fullW,
             height: fullH,
             windowWidth: 1280,
@@ -2455,7 +2532,7 @@
         header.appendChild(btn);
       });
 
-      // ── K 線圖（跌幅/跌點點擊） ──
+      // ── K 線圖（跌幅/跌點/漲幅/漲點/外資賣超點擊） ──
       let _ohlc = null;
       let _dropChart = null;
       let _activeDropRow = null;
@@ -2513,6 +2590,17 @@
       function openDropChart(r) {
         const outer = document.getElementById("chart-outer");
         outer.style.display = "block";
+        const isGain = "fallback_days" in r;
+        document.getElementById("legend-day-dot").className =
+          "legend-dot " + (isGain ? "up" : "down");
+        document.getElementById("legend-day").textContent = isGain
+          ? "大漲當日"
+          : "跌幅當日";
+        document.getElementById("legend-after-dot").className =
+          "legend-dot " + (isGain ? "down" : "up");
+        document.getElementById("legend-after").textContent = isGain
+          ? "回落期間"
+          : "回升期間";
         document.getElementById("chart-info").textContent =
           `${r.date}  ${r.change_pct < 0 ? "跌幅" : "漲幅"} ${r.change_pct.toFixed(2)}%  ` +
           (r.foreign_net != null ? `外資 ${fmt(r.foreign_net)} 億  ` : "") +
@@ -2533,7 +2621,14 @@
           });
       }
 
+      let _lastDropChartArgs = null;
+      window.addEventListener("themechange", () => {
+        if (_dropChart && _lastDropChartArgs) renderDropChart(..._lastDropChartArgs);
+      });
+
       function renderDropChart(r, ohlc, bears) {
+        _lastDropChartArgs = [r, ohlc, bears];
+        const T = chartTheme();
         const dates = ohlc.dates;
         const O = ohlc.open,
           H = ohlc.high,
@@ -2542,14 +2637,19 @@
         const vixRaw = ohlc.vix || [];
         const candleData = dates.map((_, i) => [O[i], C[i], L[i], H[i]]);
         const vixData = dates.map((_, i) => vixRaw[i] ?? null);
+        // 美元兌新台幣（數字越大＝台幣越弱），與 VIX 同一格、用右側 y 軸
+        const twdRaw = ohlc.usdtwd || [];
+        const twdData = dates.map((_, i) => twdRaw[i] ?? null);
+        const hasTwd = twdData.some((v) => v != null);
 
         const dropIdx = dates.indexOf(r.date);
         if (dropIdx < 0) return;
 
-        // 找回升日（第一個 close >= prev_close）
+        // 大跌日找回升日（第一個 close >= prev_close）；大漲日找回落日（第一個 close <= prev_close）
+        const isGain = "fallback_days" in r;
         let recoveryDate = null;
         for (let i = dropIdx + 1; i < dates.length; i++) {
-          if (C[i] >= r.prev_close) {
+          if (isGain ? C[i] <= r.prev_close : C[i] >= r.prev_close) {
             recoveryDate = dates[i];
             break;
           }
@@ -2558,24 +2658,20 @@
 
         // markArea：空頭區間底色（先畫，讓當日跌幅／回升標記疊在上層）
         const markData = (bears || []).map((b) => [
-          { xAxis: b.peak_date, itemStyle: { color: "rgba(139,92,246,0.07)" } },
+          { xAxis: b.peak_date, itemStyle: { color: T.accentSoft } },
           { xAxis: b.recovery_date || b.trough_date },
         ]);
         markData.push([
-          { xAxis: r.date, itemStyle: { color: "rgba(220,38,38,0.22)" } },
+          { xAxis: r.date, itemStyle: { color: isGain ? T.upLine : T.downLine } },
           { xAxis: nextDate || r.date },
         ]);
         if (recoveryDate && nextDate) {
           markData.push([
-            { xAxis: nextDate, itemStyle: { color: "rgba(34,197,94,0.12)" } },
+            { xAxis: nextDate, itemStyle: { color: isGain ? T.downSoft : T.upSoft } },
             { xAxis: recoveryDate },
           ]);
         }
 
-        // markLine：KNOWN_EVENTS 歷史事件標注
-        const eventMarkData = Object.entries(ohlc.events || {})
-          .filter(([d]) => dates.includes(d))
-          .map(([d, desc]) => ({ xAxis: d, name: desc }));
 
         // 縮放範圍
         const bufPre = 60,
@@ -2591,11 +2687,11 @@
 
         const option = {
           animation: false,
-          backgroundColor: "#1f2937",
+          backgroundColor: T.bg,
           axisPointer: { link: [{ xAxisIndex: "all" }] },
           grid: [
-            { left: "7%", right: "3%", top: "6%", bottom: "42%" },
-            { left: "7%", right: "3%", top: "66%", bottom: "12%" },
+            { left: "7%", right: "5%", top: "6%", bottom: "42%" },
+            { left: "7%", right: "5%", top: "66%", bottom: "12%" },
           ],
           xAxis: [
             {
@@ -2604,7 +2700,7 @@
               boundaryGap: true,
               gridIndex: 0,
               axisLabel: { show: false },
-              axisLine: { lineStyle: { color: "#2d3f55" } },
+              axisLine: { lineStyle: { color: T.rule } },
               axisTick: { show: false },
             },
             {
@@ -2616,10 +2712,10 @@
                 formatter: (v) => v.slice(0, 7),
                 fontSize: 10,
                 rotate: 30,
-                color: "#475569",
+                color: T.ink3,
               },
-              axisLine: { lineStyle: { color: "#2d3f55" } },
-              axisTick: { lineStyle: { color: "#2d3f55" } },
+              axisLine: { lineStyle: { color: T.rule } },
+              axisTick: { lineStyle: { color: T.rule } },
             },
           ],
           yAxis: [
@@ -2627,22 +2723,40 @@
               type: "value",
               scale: true,
               gridIndex: 0,
-              splitLine: { lineStyle: { color: "#2d3f55" } },
+              splitLine: { lineStyle: { color: T.rule } },
               axisLabel: {
                 formatter: (v) => v.toLocaleString(),
                 fontSize: 11,
-                color: "#64748b",
+                color: T.ink3,
               },
             },
             {
               type: "value",
               scale: true,
               gridIndex: 1,
-              splitLine: { lineStyle: { color: "#1e3048" } },
-              axisLabel: { fontSize: 10, color: "#64748b" },
+              splitLine: { lineStyle: { color: T.grid } },
+              axisLabel: { fontSize: 10, color: T.ink3 },
               name: "VIX",
-              nameTextStyle: { color: "#f59e0b", fontSize: 10 },
+              nameTextStyle: { color: T.warn, fontSize: 10 },
             },
+            ...(hasTwd
+              ? [
+                  {
+                    type: "value",
+                    scale: true,
+                    gridIndex: 1,
+                    position: "right",
+                    splitLine: { show: false },
+                    axisLabel: {
+                      fontSize: 10,
+                      color: T.accent,
+                      formatter: (v) => v.toFixed(1),
+                    },
+                    name: "美元/台幣",
+                    nameTextStyle: { color: T.accent, fontSize: 10 },
+                  },
+                ]
+              : []),
           ],
           series: [
             {
@@ -2651,46 +2765,14 @@
               xAxisIndex: 0,
               yAxisIndex: 0,
               itemStyle: {
-                color: "#ef4444",
-                color0: "#22c55e",
-                borderColor: "#ef4444",
-                borderColor0: "#22c55e",
+                color: T.candleUp,
+                color0: T.candleDown,
+                borderColor: T.candleUp,
+                borderColor0: T.candleDown,
                 borderWidth: 1,
               },
               markArea: { silent: true, data: markData },
             },
-            ...(eventMarkData.length > 0
-              ? [
-                  {
-                    type: "line",
-                    data: [],
-                    xAxisIndex: 0,
-                    yAxisIndex: 0,
-                    markLine: {
-                      silent: true,
-                      symbol: ["none", "none"],
-                      lineStyle: {
-                        color: "#38bdf8",
-                        width: 1,
-                        type: "dashed",
-                        opacity: 0.5,
-                      },
-                      label: {
-                        show: true,
-                        position: "insideEndTop",
-                        formatter: (p) => p.name,
-                        color: "#0c4a6e",
-                        fontSize: 9,
-                        fontWeight: 600,
-                        backgroundColor: "rgba(224,242,254,0.9)",
-                        padding: [2, 5],
-                        borderRadius: 3,
-                      },
-                      data: eventMarkData,
-                    },
-                  },
-                ]
-              : []),
             {
               type: "line",
               name: "VIX",
@@ -2698,32 +2780,46 @@
               xAxisIndex: 1,
               yAxisIndex: 1,
               symbol: "none",
-              lineStyle: { color: "#f59e0b", width: 1.5 },
-              areaStyle: { color: "rgba(245,158,11,0.06)" },
+              lineStyle: { color: T.warn, width: 1.5 },
+              areaStyle: { color: T.warnSoft },
               connectNulls: false,
               markLine: {
                 silent: true,
                 symbol: "none",
                 lineStyle: {
-                  color: "#f59e0b",
+                  color: T.warn,
                   type: "dashed",
                   width: 1,
                   opacity: 0.4,
                 },
-                label: { fontSize: 9, color: "#f59e0b", position: "end" },
+                label: { fontSize: 11, color: T.warn, position: "end" },
                 data: [
                   { yAxis: 30, name: "30" },
                   { yAxis: 40, name: "40" },
                 ],
               },
             },
+            ...(hasTwd
+              ? [
+                  {
+                    type: "line",
+                    name: "USD/TWD",
+                    data: twdData,
+                    xAxisIndex: 1,
+                    yAxisIndex: 2,
+                    symbol: "none",
+                    lineStyle: { color: T.accent, width: 1.2 },
+                    connectNulls: true,
+                  },
+                ]
+              : []),
           ],
           tooltip: {
             trigger: "axis",
-            axisPointer: { type: "cross", crossStyle: { color: "#94a3b8" } },
-            backgroundColor: "#162234",
-            borderColor: "#2d3f55",
-            textStyle: { color: "#e2e8f0", fontSize: 12 },
+            axisPointer: { type: "cross", crossStyle: { color: T.ink3 } },
+            backgroundColor: T.bg,
+            borderColor: T.rule,
+            textStyle: { color: T.ink, fontSize: 13 },
             position(point, params, dom, rect, size) {
               const [px] = point;
               const [cw, ch] = size.viewSize;
@@ -2734,14 +2830,23 @@
             formatter(params) {
               const p = params.find((x) => x.seriesType === "candlestick");
               const v = params.find((x) => x.seriesName === "VIX");
+              const tw = params.find((x) => x.seriesName === "USD/TWD");
               if (!p) return "";
               const [o, c] = p.value;
-              const cc = c >= o ? "#fca5a5" : "#86efac";
+              const cc = c >= o ? T.candleUp : T.candleDown;
               const vStr =
                 v?.value != null
-                  ? `<br/><span style="color:#f59e0b">VIX ${v.value.toFixed(1)}</span>`
+                  ? `<br/><span style="color:${T.warn}">VIX ${v.value.toFixed(1)}</span>`
                   : "";
-              return `<span style="color:#94a3b8;font-size:11px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}`;
+              const twStr =
+                tw?.value != null
+                  ? `<br/><span style="color:${T.accent}">美元/台幣 ${tw.value.toFixed(2)}</span>`
+                  : "";
+              const ev = (ohlc.events || {})[p.name];
+              const evStr = ev
+                ? `<br/><span style="color:${T.event};font-weight:600">${ev}</span>`
+                : "";
+              return `<span style="color:${T.ink3};font-size:12px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}${twStr}${evStr}`;
             },
           },
           dataZoom: [
@@ -2753,13 +2858,23 @@
               height: 20,
               start: zoomS,
               end: zoomE,
-              borderColor: "#2d3f55",
-              fillerColor: "rgba(244,63,94,0.12)",
-              handleStyle: { color: "#f43f5e" },
-              textStyle: { fontSize: 10, color: "#475569" },
+              borderColor: T.rule,
+              fillerColor: isGain ? T.upSoft : T.downSoft,
+              handleStyle: { color: isGain ? T.up : T.down },
+              textStyle: { fontSize: 10, color: T.ink3 },
             },
           ],
         };
+
+        // 事件帶（K 線與 VIX 之間，見 kline-events.js）；會調整 grid 版面
+        const eventItems = addEventBand(
+          option,
+          T,
+          ohlc,
+          C,
+          r.date,
+          document.getElementById("chart-container").clientHeight,
+        );
 
         if (!_dropChart) {
           _dropChart = echarts.init(document.getElementById("chart-container"));
@@ -2767,6 +2882,7 @@
         }
         _dropChart.setOption(option, true);
         _dropChart.resize();
+        layoutEventLabels(_dropChart, eventItems);
       }
     </script>
     <script src="vendor/html2canvas.min.js"></script>

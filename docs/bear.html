@@ -7,402 +7,224 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap"
       rel="stylesheet"
     />
     <script src="vendor/echarts.min.js"></script>
-    <link rel="stylesheet" href="site-tabs.css" />
+    <link rel="stylesheet" href="theme.css" />
+    <script src="theme.js"></script>
+    <script src="kline-events.js"></script>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        font-family:
-          "Noto Sans TC",
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
-        background: #111827;
-        color: #cbd5e1;
-      }
-
-      header {
-        background: #111827;
-        border-bottom: 1px solid #2d3f55;
-        padding: 13px 20px;
-      }
-      header h1 {
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: #e2e8f0;
-        letter-spacing: 0.02em;
-      }
-
-      .meta {
-        padding: 9px 20px;
-        font-size: 0.75rem;
-        color: #334155;
-        background: #162234;
-        border-bottom: 1px solid #2d3f55;
+      .page-notes {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 24px;
+        font-size: 0.8rem;
+        color: var(--ink-3);
         display: flex;
-        gap: 16px;
+        gap: 8px 16px;
         flex-wrap: wrap;
         align-items: center;
       }
-      .meta b {
-        color: #64748b;
-      }
       .def-chip {
         display: inline-block;
-        background: rgba(245, 158, 11, 0.1);
-        color: #f59e0b;
-        border: 1px solid rgba(245, 158, 11, 0.25);
-        border-radius: 4px;
-        padding: 2px 8px;
-        font-size: 0.72rem;
+        background: var(--warn-soft);
+        color: var(--warn);
+        border: 1px solid var(--warn-line);
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 0.74rem;
+        font-weight: 500;
+      }
+
+      #bear-toggle-bar {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 14px 24px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
       }
 
       .container {
-        max-width: 1200px;
-        margin: 20px auto;
-        padding: 0 16px;
+        max-width: 1120px;
+        margin: 16px auto 40px;
+        padding: 0 24px;
         display: flex;
         flex-direction: column;
-        gap: 16px;
-      }
-
-      .card {
-        background: #1f2937;
-        border-radius: 6px;
-        border: 1px solid #2d3f55;
-        overflow: hidden;
-      }
-      .card-header {
-        background: #162234;
-        border-bottom: 1px solid #2d3f55;
-        border-left: 3px solid #8b5cf6;
-        color: #e2e8f0;
-        padding: 12px 20px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
+        gap: 18px;
       }
       .card-header h2 {
-        font-size: 0.9rem;
-        font-weight: 600;
         flex: 1;
-        color: #94a3b8;
       }
-      .badge {
-        background: rgba(139, 92, 246, 0.15);
-        color: #8b5cf6;
-        border: 1px solid rgba(139, 92, 246, 0.3);
-        border-radius: 3px;
-        padding: 2px 8px;
-        font-size: 0.72rem;
-        font-family: "JetBrains Mono", monospace;
+      .placeholder {
+        padding: 36px;
+        text-align: center;
+        color: var(--ink-3);
       }
 
-      .table-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.82rem;
-      }
       th {
-        background: #162234;
-        padding: 9px 12px;
-        text-align: right;
-        font-weight: 500;
-        color: #334155;
-        border-bottom: 1px solid #2d3f55;
-        white-space: nowrap;
         cursor: pointer;
         user-select: none;
-        font-size: 0.7rem;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
       }
       th:first-child,
-      th.left {
-        text-align: left;
-      }
-      th:hover {
-        color: #475569;
-      }
-      th.sorted-desc::after {
-        content: " ▼";
-        font-size: 0.65rem;
-        color: #8b5cf6;
-      }
-
-      tbody tr {
-        cursor: pointer;
-      }
-      td {
-        padding: 10px 12px;
-        border-bottom: 1px solid #1b2b3f;
-        text-align: right;
-        vertical-align: middle;
-        color: #64748b;
-      }
+      th.left,
       td:first-child,
       td.left {
         text-align: left;
       }
-      tr:last-child td {
-        border-bottom: none;
+      th:hover {
+        color: var(--ink);
       }
-      tbody tr:hover td {
-        background: rgba(139, 92, 246, 0.04);
+      th.sorted-desc {
+        color: var(--ink);
+      }
+      th.sorted-desc::after {
+        content: " ▼";
+        font-size: 0.62rem;
+        color: var(--accent);
+      }
+      tbody tr {
+        cursor: pointer;
+      }
+      td {
+        vertical-align: middle;
       }
       tbody tr.active td {
-        background: rgba(139, 92, 246, 0.1);
+        background: var(--accent-soft);
       }
 
       .date-cell {
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.79rem;
-        color: #64748b;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        color: var(--ink-2);
         white-space: nowrap;
       }
       .val-cell {
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.79rem;
-        color: #475569;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        color: var(--ink-2);
       }
       .drop-pct {
         font-weight: 700;
-        color: #f43f5e;
-        font-family: "JetBrains Mono", monospace;
+        color: var(--down);
+        font-family: var(--font-mono);
       }
 
       .bar-wrap {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         justify-content: flex-end;
       }
       .bar-bg {
-        width: 70px;
-        height: 4px;
-        background: rgba(244, 63, 94, 0.12);
-        border-radius: 2px;
+        width: 72px;
+        height: 5px;
+        background: var(--down-soft);
+        border-radius: 999px;
         overflow: hidden;
         flex-shrink: 0;
       }
       .bar-fill {
         height: 100%;
-        background: #f43f5e;
-        border-radius: 2px;
+        background: var(--down);
+        border-radius: 999px;
       }
 
       .recovery-days {
-        color: #475569;
-        font-size: 0.79rem;
-        font-family: "JetBrains Mono", monospace;
+        color: var(--ink-2);
+        font-size: 0.8rem;
+        font-family: var(--font-mono);
       }
       .recovery-days.long {
-        color: #f59e0b;
+        color: var(--warn);
+        font-weight: 600;
       }
       .no-recovery {
-        color: #2d3f55;
+        color: var(--ink-3);
         font-style: italic;
-        font-size: 0.77rem;
+        font-size: 0.78rem;
       }
       .event-cell {
-        color: #334155;
-        font-size: 0.77rem;
+        color: var(--ink-3);
+        font-size: 0.78rem;
         max-width: 240px;
+        white-space: normal;
       }
 
-      .hide-col-peak-val .col-peak-val {
-        display: none;
-      }
-      .hide-col-trough-date .col-trough-date {
-        display: none;
-      }
-      .hide-col-trough-val .col-trough-val {
-        display: none;
-      }
-      .hide-col-drop .col-drop {
-        display: none;
-      }
-      .hide-col-beardays .col-beardays {
-        display: none;
-      }
-      .hide-col-recdays .col-recdays {
-        display: none;
-      }
+      .hide-col-peak-val .col-peak-val,
+      .hide-col-trough-date .col-trough-date,
+      .hide-col-trough-val .col-trough-val,
+      .hide-col-drop .col-drop,
+      .hide-col-beardays .col-beardays,
+      .hide-col-recdays .col-recdays,
       .hide-col-event .col-event {
         display: none;
-      }
-
-      #bear-toggle-bar {
-        background: #162234;
-        border-bottom: 1px solid #2d3f55;
-        padding: 6px 16px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-      #bear-toggle-bar .toggle-label {
-        font-size: 0.7rem;
-        color: #2d3f55;
-        white-space: nowrap;
-        margin-right: 2px;
-      }
-      .col-chip {
-        padding: 2px 9px;
-        font-size: 0.7rem;
-        border-radius: 3px;
-        border: 1px solid #2d3f55;
-        background: transparent;
-        color: #334155;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .col-chip:hover {
-        border-color: #334155;
-        color: #64748b;
-      }
-      .col-chip.on {
-        background: #243448;
-        border-color: #334155;
-        color: #e2e8f0;
       }
 
       #loading {
         text-align: center;
         padding: 60px 20px;
-        color: #2d3f55;
+        color: var(--ink-3);
       }
       #error-msg {
         display: none;
         text-align: center;
         padding: 40px;
-        color: #f43f5e;
+        color: var(--danger);
       }
 
       #chart-panel {
         display: none;
       }
-      .chart-panel-header {
-        background: #162234;
-        border-bottom: 1px solid #2d3f55;
-        color: #e2e8f0;
-        padding: 11px 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .chart-panel-header .chart-info {
-        flex: 1;
-        font-size: 0.8rem;
-        color: #64748b;
-      }
-      .chart-legend {
-        display: flex;
-        gap: 14px;
-        align-items: center;
-        font-size: 0.73rem;
-      }
-      .legend-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 2px;
-        flex-shrink: 0;
-      }
-      .close-btn {
-        background: none;
-        border: 1px solid #2d3f55;
-        color: #475569;
-        border-radius: 4px;
-        padding: 3px 10px;
-        cursor: pointer;
-        font-size: 0.76rem;
-      }
-      .close-btn:hover {
-        color: #94a3b8;
-        border-color: #334155;
-      }
-      #chart-loading {
-        text-align: center;
-        padding: 40px;
-        color: #334155;
-      }
       #chart-container {
-        height: 560px;
+        height: 620px;
       }
 
-      .refresh-btn {
-        background: none;
-        border: 1px solid #2d3f55;
-        color: #334155;
-        border-radius: 4px;
-        padding: 2px 8px;
-        font-size: 0.71rem;
-        cursor: pointer;
-        transition:
-          background 0.15s,
-          color 0.15s;
-      }
-      .refresh-btn:hover:not(:disabled) {
-        background: #243448;
-        color: #64748b;
-        border-color: #334155;
-      }
-      .refresh-btn:disabled {
-        opacity: 0.4;
-        cursor: default;
-      }
-
+      /* 統計數字磚 */
       .stat-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 1px;
-        background: #2d3f55;
+        background: var(--rule);
       }
       .stat-tile {
-        background: #1f2937;
-        padding: 14px 16px;
+        background: var(--surface);
+        padding: 16px 18px;
       }
       .stat-label {
-        font-size: 0.7rem;
-        color: #475569;
+        font-size: 0.74rem;
+        color: var(--ink-3);
         margin-bottom: 6px;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.02em;
       }
       .stat-value {
-        font-size: 1.3rem;
+        font-size: 1.5rem;
         font-weight: 700;
-        font-family: "JetBrains Mono", monospace;
-        color: #e2e8f0;
+        font-family: var(--font-mono);
+        color: var(--ink);
+        line-height: 1.2;
       }
       .stat-value.drop-pct {
-        color: #f43f5e;
+        color: var(--down);
       }
       .hist-wrap {
         padding: 16px 20px;
-        border-top: 1px solid #2d3f55;
+        border-top: 1px solid var(--rule);
       }
       .hist-title {
-        font-size: 0.76rem;
-        color: #64748b;
-        margin-bottom: 10px;
+        font-size: 0.8rem;
+        color: var(--ink-2);
+        font-weight: 600;
+        margin-bottom: 12px;
       }
       .hist-row {
         display: flex;
         align-items: center;
         gap: 10px;
         margin-bottom: 8px;
-        font-size: 0.78rem;
+        font-size: 0.8rem;
       }
       .hist-row:last-child {
         margin-bottom: 0;
@@ -410,88 +232,88 @@
       .hist-label {
         width: 90px;
         flex-shrink: 0;
-        color: #475569;
+        color: var(--ink-2);
       }
       .hist-bar-bg {
-        width: 140px;
+        width: 160px;
         height: 8px;
-        background: rgba(139, 92, 246, 0.12);
-        border-radius: 2px;
+        background: var(--accent-soft);
+        border-radius: 999px;
         overflow: hidden;
         flex-shrink: 0;
       }
       .hist-bar-fill {
         height: 100%;
-        background: #8b5cf6;
-        border-radius: 2px;
+        background: var(--accent);
+        border-radius: 999px;
       }
       .hist-count {
-        color: #334155;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.74rem;
+        color: var(--ink-3);
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
       }
 
       @media (max-width: 600px) {
-        header {
-          padding: 10px 14px;
-          gap: 10px;
+        .page-notes {
+          padding: 0 16px;
         }
-        header h1 {
-          font-size: 0.86rem;
-        }
-        .meta {
-          padding: 8px 14px;
-          font-size: 0.7rem;
+        #bear-toggle-bar {
+          padding: 12px 16px 0;
         }
         .container {
-          margin: 10px auto;
+          margin: 12px auto 28px;
           padding: 0 8px;
-        }
-        table {
-          font-size: 0.77rem;
-        }
-        th {
-          padding: 7px 8px;
-          font-size: 0.64rem;
-        }
-        td {
-          padding: 8px;
         }
         th:first-child,
         td:first-child {
           position: sticky;
           left: 0;
-          background: inherit;
+          background: var(--surface);
           z-index: 1;
         }
         th:first-child {
-          background: #162234;
+          background: var(--surface-2);
         }
         .stat-grid {
           grid-template-columns: repeat(2, 1fr);
         }
         .stat-value {
-          font-size: 1.1rem;
+          font-size: 1.2rem;
+        }
+        .hist-bar-bg {
+          width: 100px;
         }
         #chart-container {
-          height: 400px;
+          height: 460px;
         }
       }
     </style>
   </head>
   <body>
     <div class="site-tabs">
-      <a href="index.html" class="site-tab">📊 漲跌排行</a>
-      <a href="dca.html" class="site-tab">💰 定期定額</a>
-      <a href="bear.html" class="site-tab active">🐻 空頭市場</a>
+      <a class="brand" href="index.html"
+        ><span class="brand-mark">TAIEX</span
+        ><span class="brand-sub">台股觀測</span></a
+      >
+      <nav class="site-links">
+        <a href="index.html" class="site-tab">漲跌排行</a>
+        <a href="dca.html" class="site-tab">定期定額</a>
+        <a href="bear.html" class="site-tab active">空頭市場</a>
+      </nav>
+      <button class="theme-toggle" id="theme-toggle" aria-label="切換深色／淺色主題"></button>
     </div>
 
     <header>
-      <h1>🐻 TAIEX 空頭市場記錄</h1>
+      <div>
+        <div class="kicker">Bear Markets</div>
+        <h1>台股加權指數空頭市場記錄</h1>
+      </div>
+      <div class="meta">
+        <span>資料更新 <b id="last-updated">載入中…</b></span>
+      </div>
     </header>
 
-    <div class="meta">
-      <span>更新：<b id="last-updated">載入中…</b></span>
+    <div class="page-notes">
       <span class="def-chip">定義：盤中最低價自前波盤中最高價下跌 ≥ 20%</span>
       <span>空頭期間 = 高點→低點；回本天數 = 高點→盤中重新觸及高點（皆為日曆天）</span>
     </div>
@@ -508,7 +330,7 @@
           <span class="badge" id="distance-badge">—</span>
         </div>
         <div id="distance-body">
-          <div style="padding: 36px; text-align: center; color: #2d3f55">
+          <div class="placeholder">
             載入中…
           </div>
         </div>
@@ -521,7 +343,7 @@
           <span class="badge" id="summary-badge">—</span>
         </div>
         <div id="summary-body">
-          <div style="padding: 36px; text-align: center; color: #2d3f55">
+          <div class="placeholder">
             載入中…
           </div>
         </div>
@@ -566,21 +388,12 @@
         <div class="chart-panel-header">
           <span class="chart-info" id="chart-info">—</span>
           <div class="chart-legend">
-            <div
-              class="legend-dot"
-              style="background: rgba(220, 38, 38, 0.4)"
-            ></div>
-            <span style="color: #fca5a5">空頭期間</span>
-            <div
-              class="legend-dot"
-              style="background: rgba(34, 197, 94, 0.4)"
-            ></div>
-            <span style="color: #86efac">回升期間</span>
-            <div
-              class="legend-dot"
-              style="background: rgba(251, 146, 60, 0.5)"
-            ></div>
-            <span style="color: #fdba74">回升中再空頭</span>
+            <div class="legend-dot down"></div>
+            <span>空頭期間</span>
+            <div class="legend-dot up"></div>
+            <span>回升期間</span>
+            <div class="legend-dot nested"></div>
+            <span>回升中再空頭</span>
           </div>
           <button class="close-btn" onclick="closeChart()">✕ 關閉</button>
         </div>
@@ -692,7 +505,7 @@
         if (!d) {
           badge.textContent = "—";
           body.innerHTML =
-            '<div style="padding:36px;text-align:center;color:#2d3f55">暫無資料</div>';
+            '<div class="placeholder">暫無資料</div>';
           return;
         }
 
@@ -738,7 +551,7 @@
           : "—";
         if (!s) {
           body.innerHTML =
-            '<div style="padding:36px;text-align:center;color:#2d3f55">暫無資料</div>';
+            '<div class="placeholder">暫無資料</div>';
           return;
         }
 
@@ -922,7 +735,14 @@
       }
 
       /* ── K 線：渲染 ECharts ── */
+      let _lastChartArgs = null;
+      window.addEventListener("themechange", () => {
+        if (_chart && _lastChartArgs) renderChart(..._lastChartArgs);
+      });
+
       function renderChart(bear, ohlc) {
+        _lastChartArgs = [bear, ohlc];
+        const T = chartTheme();
         const dates = ohlc.dates;
         const O = ohlc.open,
           H = ohlc.high,
@@ -934,6 +754,10 @@
         const candleData = dates.map((_, i) => [O[i], C[i], L[i], H[i]]);
         /* VIX：null 留空（ECharts 顯示斷點） */
         const vixData = dates.map((_, i) => vixRaw[i] ?? null);
+        // 美元兌新台幣（數字越大＝台幣越弱），與 VIX 同一格、用右側 y 軸
+        const twdRaw = ohlc.usdtwd || [];
+        const twdData = dates.map((_, i) => twdRaw[i] ?? null);
+        const hasTwd = twdData.some((v) => v != null);
 
         /* 計算初始縮放範圍（高點前 3 月 ~ 回高後 3 月） */
         const peakIdx = dates.indexOf(bear.peak_date);
@@ -956,7 +780,7 @@
           [
             {
               xAxis: bear.peak_date,
-              itemStyle: { color: "rgba(220,38,38,0.13)" },
+              itemStyle: { color: T.downSoft },
             },
             { xAxis: bear.trough_date },
           ],
@@ -965,7 +789,7 @@
           markData.push([
             {
               xAxis: bear.trough_date,
-              itemStyle: { color: "rgba(34,197,94,0.10)" },
+              itemStyle: { color: T.upSoft },
             },
             { xAxis: bear.recovery_date },
           ]);
@@ -983,7 +807,7 @@
               markData.push([
                 {
                   xAxis: other.peak_date,
-                  itemStyle: { color: "rgba(251,146,60,0.22)" },
+                  itemStyle: { color: T.nestedSoft },
                 },
                 { xAxis: other.trough_date },
               ]);
@@ -1000,22 +824,14 @@
           }
         }
 
-        /* KNOWN_EVENTS：單日重大事件標注（僅取當前縮放範圍內，避免過於雜亂） */
-        const events = ohlc.events || {};
-        const eventMarkData = Object.entries(events)
-          .filter(([d]) => {
-            const idx = dates.indexOf(d);
-            return idx >= startI && idx <= endI;
-          })
-          .map(([d, desc]) => ({ xAxis: d, name: desc }));
 
         const option = {
           animation: false,
-          backgroundColor: "#1f2937",
+          backgroundColor: T.bg,
           axisPointer: { link: [{ xAxisIndex: "all" }] },
           grid: [
-            { left: "7%", right: "3%", top: "6%", bottom: "42%" },
-            { left: "7%", right: "3%", top: "66%", bottom: "12%" },
+            { left: "7%", right: "5%", top: "6%", bottom: "42%" },
+            { left: "7%", right: "5%", top: "66%", bottom: "12%" },
           ],
           xAxis: [
             {
@@ -1024,7 +840,7 @@
               boundaryGap: true,
               gridIndex: 0,
               axisLabel: { show: false },
-              axisLine: { lineStyle: { color: "#2d3f55" } },
+              axisLine: { lineStyle: { color: T.rule } },
               axisTick: { show: false },
             },
             {
@@ -1036,10 +852,10 @@
                 formatter: (v) => v.slice(0, 7),
                 fontSize: 10,
                 rotate: 30,
-                color: "#475569",
+                color: T.ink3,
               },
-              axisLine: { lineStyle: { color: "#2d3f55" } },
-              axisTick: { lineStyle: { color: "#2d3f55" } },
+              axisLine: { lineStyle: { color: T.rule } },
+              axisTick: { lineStyle: { color: T.rule } },
             },
           ],
           yAxis: [
@@ -1047,22 +863,40 @@
               type: "value",
               scale: true,
               gridIndex: 0,
-              splitLine: { lineStyle: { color: "#2d3f55" } },
+              splitLine: { lineStyle: { color: T.rule } },
               axisLabel: {
                 formatter: (v) => v.toLocaleString(),
                 fontSize: 11,
-                color: "#64748b",
+                color: T.ink3,
               },
             },
             {
               type: "value",
               scale: true,
               gridIndex: 1,
-              splitLine: { lineStyle: { color: "#1e3048" } },
-              axisLabel: { fontSize: 10, color: "#64748b" },
+              splitLine: { lineStyle: { color: T.grid } },
+              axisLabel: { fontSize: 10, color: T.ink3 },
               name: "VIX",
-              nameTextStyle: { color: "#f59e0b", fontSize: 10 },
+              nameTextStyle: { color: T.warn, fontSize: 10 },
             },
+            ...(hasTwd
+              ? [
+                  {
+                    type: "value",
+                    scale: true,
+                    gridIndex: 1,
+                    position: "right",
+                    splitLine: { show: false },
+                    axisLabel: {
+                      fontSize: 10,
+                      color: T.accent,
+                      formatter: (v) => v.toFixed(1),
+                    },
+                    name: "美元/台幣",
+                    nameTextStyle: { color: T.accent, fontSize: 10 },
+                  },
+                ]
+              : []),
           ],
           series: [
             {
@@ -1071,10 +905,10 @@
               xAxisIndex: 0,
               yAxisIndex: 0,
               itemStyle: {
-                color: "#ef4444",
-                color0: "#22c55e",
-                borderColor: "#ef4444",
-                borderColor0: "#22c55e",
+                color: T.candleUp,
+                color0: T.candleDown,
+                borderColor: T.candleUp,
+                borderColor0: T.candleDown,
                 borderWidth: 1,
               },
               markArea: { silent: true, data: markData },
@@ -1091,7 +925,7 @@
                       symbol: ["none", "arrow"],
                       symbolSize: 8,
                       lineStyle: {
-                        color: "#f97316",
+                        color: T.nested,
                         width: 1.5,
                         type: "dashed",
                       },
@@ -1099,48 +933,16 @@
                         show: true,
                         position: "start",
                         formatter: (p) => p.name,
-                        color: "#7c2d12",
-                        fontSize: 10,
+                        color: T.nestedLabel,
+                        fontSize: 12,
                         fontWeight: 600,
-                        backgroundColor: "rgba(255,237,213,0.95)",
+                        backgroundColor: T.nestedLabelBg,
                         padding: [3, 8],
                         borderRadius: 4,
-                        borderColor: "#f97316",
+                        borderColor: T.nested,
                         borderWidth: 1,
                       },
                       data: nestedMarkLineData,
-                    },
-                  },
-                ]
-              : []),
-            ...(eventMarkData.length > 0
-              ? [
-                  {
-                    type: "line",
-                    data: [],
-                    xAxisIndex: 0,
-                    yAxisIndex: 0,
-                    markLine: {
-                      silent: true,
-                      symbol: ["none", "none"],
-                      lineStyle: {
-                        color: "#38bdf8",
-                        width: 1,
-                        type: "dashed",
-                        opacity: 0.5,
-                      },
-                      label: {
-                        show: true,
-                        position: "insideEndTop",
-                        formatter: (p) => p.name,
-                        color: "#0c4a6e",
-                        fontSize: 9,
-                        fontWeight: 600,
-                        backgroundColor: "rgba(224,242,254,0.9)",
-                        padding: [2, 5],
-                        borderRadius: 3,
-                      },
-                      data: eventMarkData,
                     },
                   },
                 ]
@@ -1152,32 +954,46 @@
               xAxisIndex: 1,
               yAxisIndex: 1,
               symbol: "none",
-              lineStyle: { color: "#f59e0b", width: 1.5 },
-              areaStyle: { color: "rgba(245,158,11,0.06)" },
+              lineStyle: { color: T.warn, width: 1.5 },
+              areaStyle: { color: T.warnSoft },
               connectNulls: false,
               markLine: {
                 silent: true,
                 symbol: "none",
                 lineStyle: {
-                  color: "#f59e0b",
+                  color: T.warn,
                   type: "dashed",
                   width: 1,
                   opacity: 0.4,
                 },
-                label: { fontSize: 9, color: "#f59e0b", position: "end" },
+                label: { fontSize: 11, color: T.warn, position: "end" },
                 data: [
                   { yAxis: 30, name: "30" },
                   { yAxis: 40, name: "40" },
                 ],
               },
             },
+            ...(hasTwd
+              ? [
+                  {
+                    type: "line",
+                    name: "USD/TWD",
+                    data: twdData,
+                    xAxisIndex: 1,
+                    yAxisIndex: 2,
+                    symbol: "none",
+                    lineStyle: { color: T.accent, width: 1.2 },
+                    connectNulls: true,
+                  },
+                ]
+              : []),
           ],
           tooltip: {
             trigger: "axis",
-            axisPointer: { type: "cross", crossStyle: { color: "#94a3b8" } },
-            backgroundColor: "#162234",
-            borderColor: "#2d3f55",
-            textStyle: { color: "#e2e8f0", fontSize: 12 },
+            axisPointer: { type: "cross", crossStyle: { color: T.ink3 } },
+            backgroundColor: T.bg,
+            borderColor: T.rule,
+            textStyle: { color: T.ink, fontSize: 13 },
             position(point, params, dom, rect, size) {
               const [px] = point;
               const [cw, ch] = size.viewSize;
@@ -1188,14 +1004,23 @@
             formatter(params) {
               const p = params.find((x) => x.seriesType === "candlestick");
               const v = params.find((x) => x.seriesName === "VIX");
+              const tw = params.find((x) => x.seriesName === "USD/TWD");
               if (!p) return "";
               const [o, c] = p.value;
-              const cc = c >= o ? "#fca5a5" : "#86efac";
+              const cc = c >= o ? T.candleUp : T.candleDown;
               const vStr =
                 v?.value != null
-                  ? `<br/><span style="color:#f59e0b">VIX ${v.value.toFixed(1)}</span>`
+                  ? `<br/><span style="color:${T.warn}">VIX ${v.value.toFixed(1)}</span>`
                   : "";
-              return `<span style="color:#94a3b8;font-size:11px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}`;
+              const twStr =
+                tw?.value != null
+                  ? `<br/><span style="color:${T.accent}">美元/台幣 ${tw.value.toFixed(2)}</span>`
+                  : "";
+              const ev = (ohlc.events || {})[p.name];
+              const evStr = ev
+                ? `<br/><span style="color:${T.event};font-weight:600">${ev}</span>`
+                : "";
+              return `<span style="color:${T.ink3};font-size:12px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}${twStr}${evStr}`;
             },
           },
           dataZoom: [
@@ -1207,13 +1032,23 @@
               height: 20,
               start: zoomS,
               end: zoomE,
-              borderColor: "#2d3f55",
-              fillerColor: "rgba(139,92,246,0.12)",
-              handleStyle: { color: "#8b5cf6" },
-              textStyle: { fontSize: 10, color: "#475569" },
+              borderColor: T.rule,
+              fillerColor: T.accentSoft,
+              handleStyle: { color: T.accent },
+              textStyle: { fontSize: 10, color: T.ink3 },
             },
           ],
         };
+
+        // 事件帶（K 線與 VIX 之間，見 kline-events.js）；會調整 grid 版面
+        const eventItems = addEventBand(
+          option,
+          T,
+          ohlc,
+          C,
+          null,
+          document.getElementById("chart-container").clientHeight,
+        );
 
         if (!_chart) {
           _chart = echarts.init(document.getElementById("chart-container"));
@@ -1221,6 +1056,7 @@
         }
         _chart.setOption(option, true);
         _chart.resize();
+        layoutEventLabels(_chart, eventItems);
       }
 
       /* ── 欄位 toggle ── */
@@ -1232,7 +1068,7 @@
           { cls: "col-drop", label: "跌幅", on: true },
           { cls: "col-beardays", label: "空頭期間", on: true },
           { cls: "col-recdays", label: "回本天數", on: true },
-          { cls: "col-event", label: "事件", on: true },
+          { cls: "col-event", label: "事件", on: false },
         ];
         const bar = document.getElementById("bear-toggle-bar");
         COLS.forEach((t) => {
