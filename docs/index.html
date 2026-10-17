@@ -272,12 +272,6 @@
       .exporting .export-btn {
         display: none;
       }
-      .exporting .col-close,
-      .exporting .col-prev,
-      .exporting .col-pct,
-      .exporting .recovery {
-        display: table-cell !important;
-      }
       .exporting td,
       .exporting th {
         white-space: nowrap !important;
@@ -2444,7 +2438,7 @@
         });
       })();
 
-      // 匯出 PNG 用：把卡片撐到表格完整寬度（所有欄位顯示後）
+      // 匯出 PNG 用：把卡片撐到表格完整寬度（依目前勾選的欄位）
       function fitExportWidth(el) {
         const tables = el.querySelectorAll("table");
         let fullW;
