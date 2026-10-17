@@ -282,6 +282,11 @@
       .exporting th {
         white-space: nowrap !important;
       }
+      /* 手機版第一欄是 sticky，html2canvas 處理 sticky 會錯位，匯出時改回一般排版 */
+      .exporting th:first-child,
+      .exporting td:first-child {
+        position: static !important;
+      }
 
       .hide-col-close .col-close,
       .hide-col-prev .col-prev,
@@ -2439,6 +2444,30 @@
         });
       })();
 
+      // 匯出 PNG 用：把卡片撐到表格完整寬度（所有欄位顯示後）
+      function fitExportWidth(el) {
+        const tables = el.querySelectorAll("table");
+        let fullW;
+        if (tables.length > 1) {
+          // 並排多表格（如連續漲跌卡片）：讓每個表格依自身內容寬度顯示，
+          // 否則 flex:1 會平分寬度，寬的表格會被裁掉右側欄位
+          let sum = 0;
+          tables.forEach((t) => {
+            const w = t.scrollWidth;
+            const flexItem = t.closest(".table-wrap")?.parentElement;
+            if (flexItem) {
+              flexItem.style.flex = "none";
+              flexItem.style.width = w + "px";
+            }
+            sum += w;
+          });
+          fullW = sum + 60;
+        } else {
+          fullW = (tables[0] ? tables[0].scrollWidth : el.scrollWidth) + 40;
+        }
+        el.style.width = fullW + "px";
+      }
+
       // ── 排序按鈕（僅套用在有對應 TABLE_CONFIG 的排行表格）與匯出 PNG 按鈕 ──
       document.querySelectorAll(".card-header").forEach((header) => {
         const tbody = header.closest(".card").querySelector("tbody");
@@ -2486,36 +2515,19 @@
           clone.style.overflow = "visible";
           document.body.appendChild(clone);
 
-          // 量表格完整寬度（所有欄位顯示後）
-          const tables = clone.querySelectorAll("table");
-          let fullW;
-          if (tables.length > 1) {
-            // 並排多表格（如連續漲跌卡片）：讓每個表格依自身內容寬度顯示，
-            // 否則 flex:1 會平分寬度，寬的表格會被裁掉右側欄位
-            let sum = 0;
-            tables.forEach((t) => {
-              const w = t.scrollWidth;
-              const flexItem = t.closest(".table-wrap")?.parentElement;
-              if (flexItem) {
-                flexItem.style.flex = "none";
-                flexItem.style.width = w + "px";
-              }
-              sum += w;
-            });
-            fullW = sum + 60;
-          } else {
-            fullW =
-              (tables[0] ? tables[0].scrollWidth : clone.scrollWidth) + 40;
-          }
-          clone.style.width = fullW + "px";
-          const fullH = clone.scrollHeight;
-
           html2canvas(clone, {
             scale: 2,
             backgroundColor: chartTheme().bg,
-            width: fullW,
-            height: fullH,
+            // html2canvas 會在這個寬度的 iframe 裡重排版，固定 1280 讓手機也套用桌面版 CSS
             windowWidth: 1280,
+            // clone 是 position:fixed，與捲動位置無關；固定 scroll 為 0，避免 iOS
+            // 在 iframe 內 scrollTo 失敗造成截圖範圍位移
+            scrollX: 0,
+            scrollY: 0,
+            // 寬度要在 iframe（桌面版 CSS）裡量，不能在原頁面量：手機原頁面套的是
+            // 手機版 CSS，量出的尺寸與實際截圖時的排版不同，會截不完整。
+            // 不傳 width/height，html2canvas 會在 onclone 之後依 clone 的實際範圍截圖
+            onclone: (_doc, el) => fitExportWidth(el),
           })
             .then((canvas) => {
               document.body.removeChild(clone);
