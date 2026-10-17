@@ -492,8 +492,8 @@
 
     <div class="meta">
       <span>更新：<b id="last-updated">載入中…</b></span>
-      <span class="def-chip">定義：收盤價自前波收盤高點下跌 ≥ 20%</span>
-      <span>空頭期間 = 高點→低點；回本天數 = 高點→收盤重新站回高點（皆為日曆天）</span>
+      <span class="def-chip">定義：盤中最低價自前波盤中最高價下跌 ≥ 20%</span>
+      <span>空頭期間 = 高點→低點；回本天數 = 高點→盤中重新觸及高點（皆為日曆天）</span>
     </div>
 
     <div id="bear-toggle-bar">
@@ -703,11 +703,11 @@
         body.innerHTML = `
           <div class="stat-grid">
             <div class="stat-tile">
-              <div class="stat-label">最新收盤（${d.as_of_date}）</div>
-              <div class="stat-value">${fmtNum(d.current_close)}</div>
+              <div class="stat-label">最新盤中最低（${d.as_of_date}）</div>
+              <div class="stat-value">${fmtNum(d.current_low ?? d.current_close)}</div>
             </div>
             <div class="stat-tile">
-              <div class="stat-label">歷史收盤高點（${d.peak_date}）</div>
+              <div class="stat-label">歷史盤中高點（${d.peak_date}）</div>
               <div class="stat-value">${fmtNum(d.peak_value)}</div>
             </div>
             <div class="stat-tile">

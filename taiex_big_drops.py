@@ -669,6 +669,10 @@ BEAR_MARKET_EVENTS: dict[str, str] = {
 def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
     """找出所有高點到低點跌幅 >= threshold 的空頭市場。
 
+    以盤中價格認定：高點取當日最高價（High）、低點取當日最低價（Low），
+    回本以當日最高價重新觸及高點為準。df 若缺 High／Low 欄位（或該日為 NaN），
+    改用收盤價代替。
+
     演算法：
       1. 從 search_from 掃描，更新高點直到出現 >= threshold 跌幅 → 確認空頭
       2. 繼續掃描找低點（直到恢復至高點水準或資料結束）
@@ -680,6 +684,14 @@ def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
         recovery_days（回本天數：高點→重新站回高點的日曆天數）, event
     """
     close = df["Close"].reset_index(drop=True).astype(float)
+    high = (
+        df["High"].reset_index(drop=True).astype(float).fillna(close)
+        if "High" in df else close
+    )
+    low = (
+        df["Low"].reset_index(drop=True).astype(float).fillna(close)
+        if "Low" in df else close
+    )
     dates = pd.to_datetime(df["Date"]).reset_index(drop=True)
     n = len(close)
     bears: list[dict] = []
@@ -687,17 +699,17 @@ def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
 
     while search_from < n - 1:
         peak_i = search_from
-        peak_p = float(close[search_from])
+        peak_p = float(high[search_from])
         found_bear = False
 
         for j in range(search_from + 1, n):
-            pj = float(close[j])
-            if pj > peak_p:
-                peak_i = j
-                peak_p = pj
-            if (pj - peak_p) / peak_p <= -threshold:
+            # 先以「之前的高點」檢查當日最低價，再用當日最高價更新高點
+            if (float(low[j]) - peak_p) / peak_p <= -threshold:
                 found_bear = True
                 break
+            if float(high[j]) > peak_p:
+                peak_i = j
+                peak_p = float(high[j])
 
         if not found_bear:
             break
@@ -708,11 +720,10 @@ def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
         recovery_i: int | None = None
 
         for k in range(peak_i + 1, n):
-            pk = float(close[k])
-            if pk < trough_p:
-                trough_p = pk
+            if float(low[k]) < trough_p:
+                trough_p = float(low[k])
                 trough_i = k
-            if pk >= peak_p:
+            if float(high[k]) >= peak_p:
                 recovery_i = k
                 break
 
@@ -1153,43 +1164,48 @@ def analyze_holiday_returns(
 
 
 def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> dict:
-    """計算最新收盤價距離「自歷史高點下跌 threshold」熊市門檻還差多少點與百分比。
+    """計算最新盤中最低價距離「自歷史高點下跌 threshold」熊市門檻還差多少點與百分比。
 
-    以資料中最新一筆收盤價為基準，找出至今的歷史收盤高點（含當天），
-    門檻價 = 高點 * (1 - threshold)。與 find_bear_markets() 同樣以收盤價認定，
-    不看盤中最高價。若目前已跌破門檻，points_to_bear／
-    pct_to_bear 會被限制在 0（不會是負值），改由 is_bear_market 標示已進入熊市。
+    以資料中最新一筆的盤中最低價為基準，找出至今的歷史盤中最高價（含當天），
+    門檻價 = 高點 * (1 - threshold)。與 find_bear_markets() 同樣以盤中最高／最低價
+    認定；df 缺 High／Low 欄位（或該日為 NaN）時改用收盤價。若目前已跌破門檻，
+    points_to_bear／pct_to_bear 會被限制在 0（不會是負值），改由 is_bear_market
+    標示已進入熊市。
 
     Args:
-        df: 含 Date、Close 欄位的 DataFrame。
+        df: 含 Date、Close（可選 High、Low）欄位的 DataFrame。
         threshold: 熊市跌幅門檻（正數，如 0.20 代表自高點下跌 20%）。
 
     Returns:
-        {"as_of_date": str, "current_close": float, "peak_date": str,
-         "peak_value": float, "current_drawdown_pct": float,
+        {"as_of_date": str, "current_close": float, "current_low": float,
+         "peak_date": str, "peak_value": float, "current_drawdown_pct": float,
          "bear_threshold_pct": float, "bear_threshold_value": float,
          "points_to_bear": float, "pct_to_bear": float, "is_bear_market": bool}
     """
     d = df.sort_values("Date").reset_index(drop=True)
     close = d["Close"].astype(float)
+    high = d["High"].astype(float).fillna(close) if "High" in d else close
+    low = d["Low"].astype(float).fillna(close) if "Low" in d else close
 
     latest_date = pd.Timestamp(d["Date"].iloc[-1])
     latest_close = float(close.iloc[-1])
+    latest_low = float(low.iloc[-1])
 
-    peak_value = float(close.max())
-    peak_idx = int(close[close == peak_value].index[-1])
+    peak_value = float(high.max())
+    peak_idx = int(high[high == peak_value].index[-1])
     peak_date = pd.Timestamp(d["Date"].iloc[peak_idx])
 
     threshold_value = peak_value * (1 - threshold)
-    current_drawdown_pct = (latest_close - peak_value) / peak_value * 100
+    current_drawdown_pct = (latest_low - peak_value) / peak_value * 100
     is_bear_market = current_drawdown_pct <= -threshold * 100
 
-    points_to_bear = max(0.0, latest_close - threshold_value)
-    pct_to_bear = max(0.0, (latest_close - threshold_value) / latest_close * 100)
+    points_to_bear = max(0.0, latest_low - threshold_value)
+    pct_to_bear = max(0.0, (latest_low - threshold_value) / latest_low * 100)
 
     return {
         "as_of_date": latest_date.strftime("%Y-%m-%d"),
         "current_close": round(latest_close, 2),
+        "current_low": round(latest_low, 2),
         "peak_date": peak_date.strftime("%Y-%m-%d"),
         "peak_value": round(peak_value, 2),
         "current_drawdown_pct": round(current_drawdown_pct, 2),

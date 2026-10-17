@@ -187,6 +187,38 @@ class TestFindBearMarkets:
         assert bears[0]["trough_value"] == 70
         assert bears[1]["trough_value"] == 60
 
+    def test_uses_intraday_high_and_low(self):
+        # 收盤最多只跌 ~18%（110→90），但盤中最高 120、最低 85 → 跌幅 29%
+        df = pd.DataFrame({
+            "Date": pd.date_range("2020-01-01", periods=5, freq="D"),
+            "Close": [100, 110, 90, 95, 112],
+            "High": [101, 120, 92, 96, 121],
+            "Low": [99, 108, 85, 93, 110],
+        })
+        bears = find_bear_markets(df, threshold=0.20)
+
+        assert len(bears) == 1
+        bear = bears[0]
+        assert bear["peak_date"] == "2020-01-02"
+        assert bear["peak_value"] == 120
+        assert bear["trough_date"] == "2020-01-03"
+        assert bear["trough_value"] == 85
+        assert bear["drop_pct"] == pytest.approx(-29.17, abs=0.01)
+        # 收盤 112 未站回 120，但盤中最高 121 已觸及高點
+        assert bear["recovery_date"] == "2020-01-05"
+
+    def test_missing_high_low_falls_back_to_close(self):
+        df = pd.DataFrame({
+            "Date": pd.date_range("2020-01-01", periods=3, freq="D"),
+            "Close": [100, 110, 80],
+            "High": [100, float("nan"), 80],
+            "Low": [100, 110, float("nan")],
+        })
+        bears = find_bear_markets(df, threshold=0.20)
+
+        assert bears[0]["peak_value"] == 110
+        assert bears[0]["trough_value"] == 80
+
 
 # ── analyze_post_drop_returns ────────────────────────────────────────────
 
@@ -440,14 +472,28 @@ class TestAnalyzeBearMarketDistance:
         assert result["points_to_bear"] == pytest.approx(14.0, abs=0.01)
         assert result["pct_to_bear"] == pytest.approx(14 / 110 * 100, abs=0.01)
 
-    def test_peak_uses_close_not_high(self):
-        # 盤中最高價創新高但收盤沒有 → 歷史高點仍以收盤價為準，與 find_bear_markets 一致
+    def test_peak_uses_intraday_high(self):
+        # 盤中最高價創新高但收盤沒有 → 歷史高點以盤中最高價為準，與 find_bear_markets 一致
         df = _make_df([100, 95, 90])
         df["High"] = [100, 130, 90]
         result = analyze_bear_market_distance(df, threshold=0.20)
 
-        assert result["peak_value"] == 100
-        assert result["peak_date"] == "2020-01-01"
+        assert result["peak_value"] == 130
+        assert result["peak_date"] == "2020-01-02"
+        assert result["bear_threshold_value"] == pytest.approx(104.0)
+        assert result["is_bear_market"] is True
+
+    def test_current_uses_intraday_low(self):
+        # 收盤 100 只拉回 16.7%，但當天盤中最低 95 已跌破門檻 96 → 算進入熊市
+        df = _make_df([100, 120, 100], lows=[100, 120, 95])
+        df["High"] = df["Close"]
+        result = analyze_bear_market_distance(df, threshold=0.20)
+
+        assert result["current_close"] == 100
+        assert result["current_low"] == 95
+        assert result["current_drawdown_pct"] == pytest.approx(-20.83, abs=0.01)
+        assert result["is_bear_market"] is True
+        assert result["points_to_bear"] == 0
 
 
 # ── find_longest_streaks ──────────────────────────────────────────────────

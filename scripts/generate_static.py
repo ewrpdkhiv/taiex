@@ -165,8 +165,8 @@ def generate_bear() -> None:
     print("=== 產生空頭市場 + OHLC 資料 ===")
     ohlc_df = load_ohlc_from_yfinance()
     ohlc_df = patch_missing_trading_days(ohlc_df)
-    bears = find_bear_markets(ohlc_df[["Date", "Close"]].copy())
-    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close"]].copy())
+    bears = find_bear_markets(ohlc_df[["Date", "High", "Low", "Close"]].copy())
+    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "High", "Low", "Close"]].copy())
 
     clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
     dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()
