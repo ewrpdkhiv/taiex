@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dca import load_all_histories as dca_load_all_histories
 from dca import run_all as dca_run_all
 from dca import run_dip_buy_comparison as dca_run_dip_buy_comparison
+from dca import run_yearly as dca_run_yearly
 from taiex_big_drops import (
     DRAGON_BOAT_DATES,
     EVENT_SHORT_NAMES,
@@ -182,6 +183,7 @@ def generate_dca() -> None:
         "results_crash_5y":  dca_run_all(ticker_data, monthly_amount=3_000, years=5,  force_end=_CRASH_DATE),
         "results_covid":     dca_run_all(ticker_data, monthly_amount=3_000, years=10, force_start=_COVID_START),
         "dip_buy_comparison": dca_run_dip_buy_comparison(ticker_data, monthly_amount=3_000, years=10),
+        "yearly":            dca_run_yearly(ticker_data, monthly_amount=3_000, years=10),
         "last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"),
         "error": None,
     }

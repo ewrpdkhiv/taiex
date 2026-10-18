@@ -226,6 +226,15 @@
         background: var(--down);
       }
 
+      /* 逐年 XIRR */
+      .yearly-table td.partial span {
+        opacity: 0.5;
+      }
+      .yearly-table th.avg-col,
+      .yearly-table td.avg-col {
+        border-left: 1px solid var(--rule-strong);
+      }
+
       /* 區段標題 */
       .section-head {
         margin: 36px 0 12px;
@@ -373,6 +382,11 @@
         .bar {
           display: none;
         }
+        .yearly-table td,
+        .yearly-table th {
+          padding-left: 6px;
+          padding-right: 6px;
+        }
         .bar-wrap {
           gap: 0;
         }
@@ -473,6 +487,21 @@
           <div class="loading-msg">資料載入中…</div>
         </div>
       </div>
+
+      <div class="section-head">
+        <h2>逐年定期定額 XIRR</h2>
+        <p>
+          每個日曆年獨立計算：1 月起每月 <b>5 日</b>投入
+          <b>3,000 元</b>（一年 12 次），以該年最後一個交易日收盤計算
+          XIRR，規則同上（小數股、股息隔天再投入）。今年為年初至今（YTD），不計入平均；淡色格表示當年投入不足
+          12 次（年中才上市）。點欄位標題排序，會套用上方篩選。
+        </p>
+      </div>
+      <div class="table-wrap">
+        <div id="yearly-container">
+          <div class="loading-msg">資料載入中…</div>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -488,6 +517,8 @@
       let _cache = {};
       let _results = [];
       let _dipCompare = [];
+      let _yearly = { years: [], ytd_year: null, results: [] };
+      let _yearlySortKey = "avg";
       let _sortKey = "irr";
       let _portfolio = new Set();
       let _visibleCols = new Set([
@@ -559,6 +590,8 @@
         document.getElementById("table-container").innerHTML = renderTable();
         document.getElementById("dip-compare-container").innerHTML =
           renderDipCompareTable();
+        document.getElementById("yearly-container").innerHTML =
+          renderYearlyTable();
       }
 
       function renderFilterBar() {
@@ -801,6 +834,85 @@
         </table>`;
       }
 
+      // 完整年度（不含 YTD）的 XIRR 平均與正報酬年數
+      function yearlySummary(d) {
+        const irrs = _yearly.years
+          .filter((y) => y !== _yearly.ytd_year)
+          .map((y) => d.by_year[y]?.irr)
+          .filter((v) => v != null);
+        if (!irrs.length) return { avg: null, posYears: null, n: 0 };
+        return {
+          avg: irrs.reduce((s, v) => s + v, 0) / irrs.length,
+          posYears: irrs.filter((v) => v > 0).length,
+          n: irrs.length,
+        };
+      }
+
+      function yearlySortValue(d, key) {
+        if (key === "avg") return yearlySummary(d).avg ?? -Infinity;
+        if (key === "pos") return yearlySummary(d).posYears ?? -Infinity;
+        return d.by_year[key]?.irr ?? -Infinity;
+      }
+
+      function setYearlySort(key) {
+        _yearlySortKey = key;
+        document.getElementById("yearly-container").innerHTML =
+          renderYearlyTable();
+      }
+
+      function renderYearlyTable() {
+        const rows = applyFilters(_yearly.results);
+        if (!rows.length) {
+          return _yearly.results.length
+            ? '<div class="loading-msg">無符合篩選條件的資料</div>'
+            : '<div class="loading-msg">資料尚未就緒，請稍後重新整理</div>';
+        }
+        const years = _yearly.years.map(String);
+        const ytd = String(_yearly.ytd_year);
+        const sorted = [...rows].sort(
+          (a, b) =>
+            yearlySortValue(b, _yearlySortKey) -
+            yearlySortValue(a, _yearlySortKey),
+        );
+
+        const body = sorted
+          .map((d, i) => {
+            const cells = years
+              .map((y) => {
+                const v = d.by_year[y];
+                if (!v) return "<td>—</td>";
+                const partial = v.months < 12 && y !== ytd;
+                return `<td class="${partial ? "partial" : ""}" title="${y}：投入 ${v.months} 次・總報酬 ${rateStr(v.return_rate)}"><span class="${rateClass(v.irr)}">${rateStr(v.irr)}</span></td>`;
+              })
+              .join("");
+            const sum = yearlySummary(d);
+            return `<tr>
+              <td>${i + 1}</td>
+              <td><div class="ticker">${d.ticker}</div><div class="name">${d.name}</div></td>
+              ${cells}
+              <td class="avg-col"><span class="${rateClass(sum.avg)}">${rateStr(sum.avg)}</span></td>
+              <td>${sum.posYears != null ? `${sum.posYears} / ${sum.n}` : "—"}</td>
+            </tr>`;
+          })
+          .join("");
+
+        const th = (key, label, cls = "") =>
+          `<th class="${cls} ${_yearlySortKey === key ? "th-active" : "th-sort"}" onclick="setYearlySort('${key}')">${label} <span class="sort-arrow">${_yearlySortKey === key ? "▼" : "↕"}</span></th>`;
+
+        return `<table class="yearly-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>標的</th>
+              ${years.map((y) => th(y, y === ytd ? `${y} YTD` : y)).join("")}
+              ${th("avg", "平均", "avg-col")}
+              ${th("pos", "正報酬年")}
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>`;
+      }
+
       function setSort(key) {
         _sortKey = key;
         document.getElementById("table-container").innerHTML = renderTable();
@@ -925,6 +1037,9 @@
           _dipCompare = data.dip_buy_comparison || [];
           document.getElementById("dip-compare-container").innerHTML =
             renderDipCompareTable();
+          _yearly = data.yearly || _yearly;
+          document.getElementById("yearly-container").innerHTML =
+            renderYearlyTable();
         } catch (e) {
           console.error(e);
         }

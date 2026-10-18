@@ -411,6 +411,49 @@ def run_all(
     return results
 
 
+def run_yearly(
+    ticker_data: dict[str, tuple[pd.DataFrame, float | None]],
+    monthly_amount: int = 1_000_000,
+    invest_day: int = 5,
+    years: int = 10,
+    today: pd.Timestamp | None = None,
+) -> dict:
+    """逐年獨立回測：每個日曆年 1/1 起每月 invest_day 日扣款（共 12 次），
+    以該年最後一個交易日收盤計算市值與 XIRR，規則與 run_dca() 相同（含股息再投入）。
+
+    涵蓋近 years 個完整年度 + 今年（年初至今，YTD）。
+
+    Returns:
+        {"years": [年份...], "ytd_year": 今年, "results": [每檔 {"ticker", "name", "tags",
+        "by_year": {"YYYY": {"irr", "return_rate", "months"}}}]}
+    """
+    today = today if today is not None else pd.Timestamp.now().normalize()
+    year_list = list(range(today.year - years, today.year + 1))
+    print(f"📅 逐年回測：{year_list[0]} ~ {year_list[-1]}（{year_list[-1]} 為 YTD）")
+
+    results = []
+    for ticker, (hist, market_cap) in ticker_data.items():
+        by_year = {}
+        for y in year_list:
+            end = min(pd.Timestamp(y, 12, 31), today)
+            r = run_dca(ticker, hist, market_cap, monthly_amount, invest_day,
+                        force_start=pd.Timestamp(y, 1, 1), force_end=end)
+            if r:
+                by_year[str(y)] = {
+                    "irr": r["reinvest"]["irr"],
+                    "return_rate": r["reinvest"]["return_rate"],
+                    "months": r["months"],
+                }
+        if by_year:
+            results.append({
+                "ticker": ticker,
+                "name": TICKERS.get(ticker, ticker),
+                "tags": TICKER_TAGS.get(ticker, []),
+                "by_year": by_year,
+            })
+    return {"years": year_list, "ytd_year": today.year, "results": results}
+
+
 def run_dip_buy_comparison(
     ticker_data: dict[str, tuple[pd.DataFrame, float | None]],
     monthly_amount: int = 1_000_000,

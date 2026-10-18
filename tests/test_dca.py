@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from dca import _max_drawdown, _merge_extra_buys, _xirr
+from dca import _max_drawdown, _merge_extra_buys, _xirr, run_yearly
 
 
 # ── _xirr ─────────────────────────────────────────────────────────────────
@@ -123,3 +123,39 @@ class TestMergeExtraBuys:
         buy_events = {dates[0]: 1000.0}
         _merge_extra_buys(buy_events, {dates[3]: 500.0}, dates)
         assert dates[3] not in buy_events
+
+
+# ── run_yearly ───────────────────────────────────────────────────────────
+
+
+class TestRunYearly:
+    def _hist(self, start, end, price_fn):
+        dates = pd.bdate_range(start, end)
+        return pd.DataFrame({
+            "Date": dates,
+            "Close": [price_fn(d) for d in dates],
+            "Dividends": 0.0,
+        })
+
+    def test_each_year_buys_twelve_times_and_flat_price_has_zero_irr(self):
+        hist = self._hist("2020-01-01", "2023-06-30", lambda d: 100.0)
+        out = run_yearly({"X": (hist, None)}, monthly_amount=1000, years=2,
+                         today=pd.Timestamp("2023-06-30"))
+        assert out["years"] == [2021, 2022, 2023]
+        assert out["ytd_year"] == 2023
+        by_year = out["results"][0]["by_year"]
+        assert by_year["2021"]["months"] == 12
+        assert by_year["2022"]["months"] == 12
+        assert by_year["2023"]["months"] == 6  # YTD 只到 6 月
+        assert by_year["2021"]["irr"] == pytest.approx(0.0, abs=0.01)
+
+    def test_years_are_independent(self):
+        # 2021 年價格上漲、2022 年價格下跌，各年 XIRR 應各自反映當年走勢
+        def price(d):
+            return 100.0 + d.dayofyear if d.year == 2021 else 400.0 - d.dayofyear
+        hist = self._hist("2021-01-01", "2022-12-31", price)
+        out = run_yearly({"X": (hist, None)}, monthly_amount=1000, years=1,
+                         today=pd.Timestamp("2022-12-31"))
+        by_year = out["results"][0]["by_year"]
+        assert by_year["2021"]["irr"] > 0
+        assert by_year["2022"]["irr"] < 0
