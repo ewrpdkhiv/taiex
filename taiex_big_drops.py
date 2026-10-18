@@ -289,11 +289,6 @@ def load_vix_from_yfinance(start: str = START_DATE) -> dict[str, float]:
     return _load_close_from_yfinance("index/VIX", "^VIX", "VIX", start)
 
 
-def load_usdtwd_from_yfinance(start: str = START_DATE) -> dict[str, float]:
-    """取得美元兌新台幣匯率收盤價（數字越大＝台幣越弱），回傳 {date_str: rate}。失敗回傳空 dict。"""
-    return _load_close_from_yfinance("fx/USDTWD", "TWD=X", "美元兌新台幣匯率", start)
-
-
 def _parse_twse_month_payload(payload: dict) -> pd.DataFrame:
     """解析 TWSE「發行量加權股價指數歷史資料」API 回傳的單月 JSON。
 

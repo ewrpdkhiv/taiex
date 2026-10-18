@@ -2376,6 +2376,8 @@
           .querySelectorAll(".tab-panel")
           .forEach((p) => p.classList.remove("active"));
         document.getElementById(target).classList.add("active");
+        // K 線面板是各分頁共用的，切換分頁時關掉，避免留著上一個分頁點開的圖
+        closeDropChart();
       }
 
       document.querySelectorAll(".type-btn").forEach((btn) => {
@@ -2617,6 +2619,8 @@
         document.getElementById("chart-container").style.display = "none";
         Promise.all([loadOhlc(), loadBears()])
           .then(([ohlc, bears]) => {
+            // 載入期間已切換分頁（面板被關掉）就不畫
+            if (outer.style.display === "none") return;
             loading.style.display = "none";
             document.getElementById("chart-container").style.display = "block";
             renderDropChart(r, ohlc, bears);
@@ -2643,10 +2647,6 @@
         const vixRaw = ohlc.vix || [];
         const candleData = dates.map((_, i) => [O[i], C[i], L[i], H[i]]);
         const vixData = dates.map((_, i) => vixRaw[i] ?? null);
-        // 美元兌新台幣（數字越大＝台幣越弱），與 VIX 同一格、用右側 y 軸
-        const twdRaw = ohlc.usdtwd || [];
-        const twdData = dates.map((_, i) => twdRaw[i] ?? null);
-        const hasTwd = twdData.some((v) => v != null);
 
         const dropIdx = dates.indexOf(r.date);
         if (dropIdx < 0) return;
@@ -2696,8 +2696,8 @@
           backgroundColor: T.bg,
           axisPointer: { link: [{ xAxisIndex: "all" }] },
           grid: [
-            { left: "7%", right: "5%", top: "6%", bottom: "42%" },
-            { left: "7%", right: "5%", top: "66%", bottom: "12%" },
+            { left: "7%", right: "3%", top: "6%", bottom: "42%" },
+            { left: "7%", right: "3%", top: "66%", bottom: "12%" },
           ],
           xAxis: [
             {
@@ -2745,24 +2745,6 @@
               name: "VIX",
               nameTextStyle: { color: T.warn, fontSize: 10 },
             },
-            ...(hasTwd
-              ? [
-                  {
-                    type: "value",
-                    scale: true,
-                    gridIndex: 1,
-                    position: "right",
-                    splitLine: { show: false },
-                    axisLabel: {
-                      fontSize: 10,
-                      color: T.accent,
-                      formatter: (v) => v.toFixed(1),
-                    },
-                    name: "美元/台幣",
-                    nameTextStyle: { color: T.accent, fontSize: 10 },
-                  },
-                ]
-              : []),
           ],
           series: [
             {
@@ -2805,20 +2787,6 @@
                 ],
               },
             },
-            ...(hasTwd
-              ? [
-                  {
-                    type: "line",
-                    name: "USD/TWD",
-                    data: twdData,
-                    xAxisIndex: 1,
-                    yAxisIndex: 2,
-                    symbol: "none",
-                    lineStyle: { color: T.accent, width: 1.2 },
-                    connectNulls: true,
-                  },
-                ]
-              : []),
           ],
           tooltip: {
             trigger: "axis",
@@ -2836,7 +2804,6 @@
             formatter(params) {
               const p = params.find((x) => x.seriesType === "candlestick");
               const v = params.find((x) => x.seriesName === "VIX");
-              const tw = params.find((x) => x.seriesName === "USD/TWD");
               if (!p) return "";
               const [o, c] = p.value;
               const cc = c >= o ? T.candleUp : T.candleDown;
@@ -2844,15 +2811,11 @@
                 v?.value != null
                   ? `<br/><span style="color:${T.warn}">VIX ${v.value.toFixed(1)}</span>`
                   : "";
-              const twStr =
-                tw?.value != null
-                  ? `<br/><span style="color:${T.accent}">美元/台幣 ${tw.value.toFixed(2)}</span>`
-                  : "";
               const ev = (ohlc.events || {})[p.name];
               const evStr = ev
                 ? `<br/><span style="color:${T.event};font-weight:600">${ev}</span>`
                 : "";
-              return `<span style="color:${T.ink3};font-size:12px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}${twStr}${evStr}`;
+              return `<span style="color:${T.ink3};font-size:12px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}${evStr}`;
             },
           },
           dataZoom: [

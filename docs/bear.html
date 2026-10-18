@@ -38,9 +38,8 @@
       }
 
       #bear-toggle-bar {
-        max-width: 1120px;
-        margin: 0 auto;
-        padding: 14px 24px 0;
+        padding: 10px 18px;
+        border-bottom: 1px solid var(--rule);
         display: flex;
         align-items: center;
         gap: 6px;
@@ -258,7 +257,7 @@
           padding: 0 16px;
         }
         #bear-toggle-bar {
-          padding: 12px 16px 0;
+          padding: 10px 12px;
         }
         .container {
           margin: 12px auto 28px;
@@ -318,10 +317,6 @@
       <span>空頭期間 = 高點→低點；回本天數 = 高點→盤中重新觸及高點（皆為日曆天）</span>
     </div>
 
-    <div id="bear-toggle-bar">
-      <span class="toggle-label">欄位：</span>
-    </div>
-
     <div class="container">
       <!-- 距離熊市 -->
       <div class="card">
@@ -354,6 +349,9 @@
         <div class="card-header">
           <h2>台股加權指數 歷史空頭市場</h2>
           <span class="badge" id="count-badge">—</span>
+        </div>
+        <div id="bear-toggle-bar">
+          <span class="toggle-label">欄位：</span>
         </div>
         <div id="loading">資料載入中…</div>
         <div id="error-msg"></div>
@@ -754,10 +752,6 @@
         const candleData = dates.map((_, i) => [O[i], C[i], L[i], H[i]]);
         /* VIX：null 留空（ECharts 顯示斷點） */
         const vixData = dates.map((_, i) => vixRaw[i] ?? null);
-        // 美元兌新台幣（數字越大＝台幣越弱），與 VIX 同一格、用右側 y 軸
-        const twdRaw = ohlc.usdtwd || [];
-        const twdData = dates.map((_, i) => twdRaw[i] ?? null);
-        const hasTwd = twdData.some((v) => v != null);
 
         /* 計算初始縮放範圍（高點前 3 月 ~ 回高後 3 月） */
         const peakIdx = dates.indexOf(bear.peak_date);
@@ -830,8 +824,8 @@
           backgroundColor: T.bg,
           axisPointer: { link: [{ xAxisIndex: "all" }] },
           grid: [
-            { left: "7%", right: "5%", top: "6%", bottom: "42%" },
-            { left: "7%", right: "5%", top: "66%", bottom: "12%" },
+            { left: "7%", right: "3%", top: "6%", bottom: "42%" },
+            { left: "7%", right: "3%", top: "66%", bottom: "12%" },
           ],
           xAxis: [
             {
@@ -879,24 +873,6 @@
               name: "VIX",
               nameTextStyle: { color: T.warn, fontSize: 10 },
             },
-            ...(hasTwd
-              ? [
-                  {
-                    type: "value",
-                    scale: true,
-                    gridIndex: 1,
-                    position: "right",
-                    splitLine: { show: false },
-                    axisLabel: {
-                      fontSize: 10,
-                      color: T.accent,
-                      formatter: (v) => v.toFixed(1),
-                    },
-                    name: "美元/台幣",
-                    nameTextStyle: { color: T.accent, fontSize: 10 },
-                  },
-                ]
-              : []),
           ],
           series: [
             {
@@ -973,20 +949,6 @@
                 ],
               },
             },
-            ...(hasTwd
-              ? [
-                  {
-                    type: "line",
-                    name: "USD/TWD",
-                    data: twdData,
-                    xAxisIndex: 1,
-                    yAxisIndex: 2,
-                    symbol: "none",
-                    lineStyle: { color: T.accent, width: 1.2 },
-                    connectNulls: true,
-                  },
-                ]
-              : []),
           ],
           tooltip: {
             trigger: "axis",
@@ -1004,7 +966,6 @@
             formatter(params) {
               const p = params.find((x) => x.seriesType === "candlestick");
               const v = params.find((x) => x.seriesName === "VIX");
-              const tw = params.find((x) => x.seriesName === "USD/TWD");
               if (!p) return "";
               const [o, c] = p.value;
               const cc = c >= o ? T.candleUp : T.candleDown;
@@ -1012,15 +973,11 @@
                 v?.value != null
                   ? `<br/><span style="color:${T.warn}">VIX ${v.value.toFixed(1)}</span>`
                   : "";
-              const twStr =
-                tw?.value != null
-                  ? `<br/><span style="color:${T.accent}">美元/台幣 ${tw.value.toFixed(2)}</span>`
-                  : "";
               const ev = (ohlc.events || {})[p.name];
               const evStr = ev
                 ? `<br/><span style="color:${T.event};font-weight:600">${ev}</span>`
                 : "";
-              return `<span style="color:${T.ink3};font-size:12px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}${twStr}${evStr}`;
+              return `<span style="color:${T.ink3};font-size:12px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}${evStr}`;
             },
           },
           dataZoom: [

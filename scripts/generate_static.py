@@ -38,7 +38,6 @@ from taiex_big_drops import (
     find_top_point_gains,
     load_foreign_net,
     load_ohlc_from_yfinance,
-    load_usdtwd_from_yfinance,
     load_vix_from_yfinance,
     patch_missing_trading_days,
 )
@@ -201,7 +200,6 @@ def generate_bear() -> None:
     clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
     dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()
     vix_dict = load_vix_from_yfinance()
-    twd_dict = load_usdtwd_from_yfinance()
 
     now = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -230,11 +228,6 @@ def generate_bear() -> None:
             "close": clean["Close"].round().astype(int).tolist(),
             "vix":   [
                 round(v, 1) if (v := vix_dict.get(d)) is not None else None
-                for d in dates
-            ],
-            # 美元兌新台幣（數字越大＝台幣越弱），取 2 位小數
-            "usdtwd": [
-                round(v, 2) if (v := twd_dict.get(d)) is not None else None
                 for d in dates
             ],
             "events": KNOWN_EVENTS,
