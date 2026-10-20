@@ -126,17 +126,48 @@
         margin: 16px auto;
       }
 
+      /* ── 外資每月買賣超 ── */
+      #monthly-chart {
+        height: 300px;
+        border-bottom: 1px solid var(--rule);
+      }
+      .monthly-scroll {
+        max-height: 440px;
+        overflow-y: auto;
+      }
+      .monthly-scroll th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      /* 匯出 PNG 只放最近 24 個月，避免整份歷史的圖片過長（手機 canvas 有尺寸上限） */
+      .exporting .monthly-scroll {
+        max-height: none;
+        overflow: visible;
+      }
+      .exporting #t-foreign-monthly tr:nth-child(n + 25) {
+        display: none;
+      }
+
       /* ── 今日排名摘要 ── */
       #today {
         max-width: 1120px;
         margin: 0 auto 16px;
         padding: 0 24px;
         display: none;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
         gap: 12px;
       }
       #today.ready {
         display: grid;
+      }
+      .today-head .export-btn {
+        margin-left: 0;
+      }
+      .today-head-right {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
       }
       .today-block {
         padding: 14px 18px;
@@ -175,15 +206,12 @@
       .today-block table td,
       .today-block table th {
         padding: 4px 6px;
-        text-align: right;
-      }
-      .today-block table td:first-child,
-      .today-block table th:first-child {
+        width: 50%;
         text-align: left;
-        width: auto;
+      }
+      .today-note {
         font-size: 0.8rem;
-        color: var(--ink-2);
-        font-family: inherit;
+        color: var(--ink-3);
       }
       .today-rank {
         font-family: var(--font-mono);
@@ -198,6 +226,36 @@
       }
       .today-block[data-color="gain"] .today-rank.top {
         color: var(--up);
+      }
+      .today-streak-btn {
+        padding: 0;
+        border: none;
+        background: none;
+        font: inherit;
+        cursor: pointer;
+        border-bottom: 1px dashed currentColor;
+      }
+      .today-streak-btn::after {
+        content: " ▾";
+        font-size: 0.7em;
+        color: var(--ink-3);
+      }
+      .today-streak-btn[aria-expanded="true"]::after {
+        content: " ▴";
+      }
+      .today-streak-detail {
+        margin-top: 8px;
+        border-top: 1px solid var(--rule);
+        padding-top: 6px;
+      }
+      .today-block .today-streak-detail td,
+      .today-block .today-streak-detail th {
+        font-family: var(--font-mono);
+      }
+      .today-block .today-streak-detail tfoot td {
+        border-top: 1px solid var(--rule);
+        font-weight: 600;
+        color: var(--ink);
       }
       .today-total {
         font-family: var(--font-mono);
@@ -351,6 +409,12 @@
       .exporting .export-btn {
         display: none;
       }
+      .exporting .today-streak-btn {
+        border-bottom: none;
+      }
+      .exporting .today-streak-btn::after {
+        content: none;
+      }
       .exporting td,
       .exporting th {
         white-space: nowrap !important;
@@ -423,6 +487,13 @@
           margin: 14px auto;
           padding: 0 8px;
         }
+        #today {
+          padding: 0 8px;
+          gap: 8px;
+        }
+        .today-block {
+          padding: 12px 12px;
+        }
         .streak-col + .streak-col {
           border-left: none;
           border-top: 1px solid var(--rule);
@@ -491,6 +562,9 @@
         </button>
         <button class="type-btn" data-color="gain" data-type="foreign-buys">
           外資買超
+        </button>
+        <button class="type-btn" data-color="stats" data-type="foreign-monthly">
+          外資月度
         </button>
         <button class="type-btn" data-color="stats" data-type="stats">
           統計分析
@@ -1079,6 +1153,37 @@
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 外資每月買賣超：長條圖 + 月份表（不分期間） -->
+    <div id="panel-foreign-monthly" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>外資每月買賣超</h2>
+            <span class="badge">月度 外資</span>
+          </div>
+          <!-- 圖表不進 PNG（clone 不會帶 canvas 內容），匯出只含表格 -->
+          <div id="monthly-chart" data-html2canvas-ignore></div>
+          <div class="table-wrap monthly-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">月份</th>
+                  <th>買賣超 (億)</th>
+                  <th>買超天數</th>
+                  <th>賣超天數</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-monthly">
+                <tr>
+                  <td colspan="4" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -2402,13 +2507,6 @@
         outer.style.display = "block";
       }
 
-      const TODAY_PERIODS = [
-        ["5y", "近 5 年"],
-        ["10y", "近 10 年"],
-        ["20y", "近 20 年"],
-        ["all", "全時"],
-      ];
-
       function fmtSigned(v, digits = 2) {
         return (v > 0 ? "+" : "") + v.toFixed(digits);
       }
@@ -2429,22 +2527,22 @@
         const isDrop = t.direction === "drop";
         const word = isDrop ? "跌" : "漲";
         el.dataset.color = t.direction;
-        const rows =
+        // 排名皆為全時（data.json 只產生 ranks.all）
+        const r = t.ranks.all;
+        const body =
           t.direction === "flat"
-            ? `<tr><td colspan="3">平盤，不列入排名</td></tr>`
-            : TODAY_PERIODS.map(([p, label]) => {
-                const r = t.ranks[p];
-                return `<tr><td>${label}</td>
+            ? `<div class="today-note">平盤，不列入排名</div>`
+            : `<table>
+                <thead><tr><th>${word}幅% 排名</th><th>${word}點 排名</th></tr></thead>
+                <tbody><tr>
                   <td>${todayRankCell(r.pct, r.total)}</td>
-                  <td>${todayRankCell(r.pt, r.total)}</td></tr>`;
-              }).join("");
+                  <td>${todayRankCell(r.pt, r.total)}</td>
+                </tr></tbody>
+              </table>`;
         el.innerHTML = `
           <div class="today-head"><span>加權指數 收盤 ${t.close.toLocaleString()}</span><b>${t.date}</b></div>
           <div class="today-value ${t.direction}">${fmtSigned(t.change_pct)}%<small>${fmtSigned(t.change_pt)} 點</small></div>
-          <table>
-            <thead><tr><th>期間</th><th>${word}幅% 排名</th><th>${word}點 排名</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`;
+          ${body}`;
         return true;
       }
 
@@ -2458,21 +2556,156 @@
         const isSell = f.direction === "sell";
         const word = isSell ? "賣超" : "買超";
         el.dataset.color = isSell ? "drop" : f.direction === "buy" ? "gain" : "";
-        const rows =
+        const r = f.ranks.all;
+        const fmtYi = (v) =>
+          Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const days = f.streak_days || [];
+        // 有逐日明細時天數做成按鈕，點開列出這幾天（新到舊）的金額與合計
+        const streakCell = days.length
+          ? `<button type="button" class="today-rank today-streak-btn" aria-expanded="false"
+               aria-controls="today-streak-list">${f.streak.toLocaleString()} 天</button>`
+          : `<span class="today-rank">${(f.streak || 0).toLocaleString()} 天</span>`;
+        const detail = days.length
+          ? `<div class="today-streak-detail" id="today-streak-list" hidden>
+              <table>
+                <thead><tr><th>日期</th><th>${word}金額（億元）</th></tr></thead>
+                <tbody>${days
+                  .slice()
+                  .reverse()
+                  .map((x) => `<tr><td>${x.date}</td><td>${fmtYi(x.foreign_net)}</td></tr>`)
+                  .join("")}</tbody>
+                <tfoot><tr><td>合計 ${days.length} 天</td><td>${fmtYi(
+                  days.reduce((sum, x) => sum + x.foreign_net, 0),
+                )}</td></tr></tfoot>
+              </table>
+            </div>`
+          : "";
+        const body =
           f.direction === "flat"
-            ? `<tr><td colspan="2">買賣超為 0，不列入排名</td></tr>`
-            : TODAY_PERIODS.map(([p, label]) => {
-                const r = f.ranks[p];
-                return `<tr><td>${label}</td><td>${todayRankCell(r.rank, r.total)}</td></tr>`;
-              }).join("");
+            ? `<div class="today-note">買賣超為 0，不列入排名</div>`
+            : `<table>
+                <thead><tr><th>${word}金額排名</th>${f.streak ? `<th>連續${word}</th>` : ""}</tr></thead>
+                <tbody><tr>
+                  <td>${todayRankCell(r.rank, r.total)}</td>
+                  ${f.streak ? `<td>${streakCell}</td>` : ""}
+                </tr></tbody>
+              </table>${detail}`;
         el.innerHTML = `
-          <div class="today-head"><span>外資${f.direction === "flat" ? "買賣超" : word}</span><b>${f.date}</b></div>
-          <div class="today-value ${el.dataset.color}">${Math.abs(f.foreign_net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<small>億元</small></div>
-          <table>
-            <thead><tr><th>期間</th><th>${word}金額排名</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`;
+          <div class="today-head"><span>外資${f.direction === "flat" ? "買賣超" : word}</span>
+            <span class="today-head-right"><b>${f.date}</b><button type="button" class="export-btn">⬇ PNG</button></span></div>
+          <div class="today-value ${el.dataset.color}">${fmtYi(f.foreign_net)}<small>億元</small></div>
+          ${body}`;
+        // 只輸出外資這張卡；固定寬度，手機上輸出也是同樣版面
+        el.querySelector(".export-btn").addEventListener("click", () => {
+          exportPng(el, `TAIEX_外資${word}_${f.date}.png`, (c) => {
+            c.style.width = "380px";
+          });
+        });
+        const btn = el.querySelector(".today-streak-btn");
+        if (btn) {
+          btn.addEventListener("click", () => {
+            const open = btn.getAttribute("aria-expanded") !== "true";
+            btn.setAttribute("aria-expanded", String(open));
+            el.querySelector(".today-streak-detail").hidden = !open;
+          });
+        }
       }
+
+      // ── 外資每月買賣超 ──
+      let _monthlyChart = null;
+
+      function renderMonthlyTable(rows) {
+        const tbody = document.getElementById("t-foreign-monthly");
+        if (!rows || !rows.length) {
+          tbody.innerHTML = `<tr><td colspan="4" class="loading">無外資資料</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = rows
+          .slice()
+          .reverse()
+          .map((r) => {
+            const cls = r.foreign_net < 0 ? "drop" : "gain";
+            return `<tr>
+              <td class="left date">${r.month}</td>
+              <td class="${cls}">${r.foreign_net > 0 ? "+" : ""}${fmt(r.foreign_net)}</td>
+              <td>${r.buy_days}</td>
+              <td>${r.sell_days}</td>
+            </tr>`;
+          })
+          .join("");
+      }
+
+      function renderMonthlyChart() {
+        const rows = _data && _data.foreign_monthly;
+        if (!rows || !rows.length) return;
+        const T = chartTheme();
+        if (!_monthlyChart) {
+          _monthlyChart = echarts.init(document.getElementById("monthly-chart"));
+          window.addEventListener("resize", () => _monthlyChart.resize());
+        } else {
+          _monthlyChart.resize();
+        }
+        const months = rows.map((r) => r.month);
+        _monthlyChart.setOption(
+          {
+            backgroundColor: "transparent",
+            textStyle: { color: T.ink2 },
+            grid: { left: 64, right: 16, top: 20, bottom: 64 },
+            tooltip: {
+              trigger: "axis",
+              axisPointer: { type: "shadow" },
+              backgroundColor: T.bg,
+              borderColor: T.rule,
+              textStyle: { color: T.ink },
+              formatter: (ps) => {
+                const r = rows[ps[0].dataIndex];
+                const word = r.foreign_net < 0 ? "賣超" : "買超";
+                return `${r.month}<br>外資${word} <b>${fmt(Math.abs(r.foreign_net))}</b> 億<br>
+                  買超 ${r.buy_days} 天 · 賣超 ${r.sell_days} 天`;
+              },
+            },
+            xAxis: {
+              type: "category",
+              data: months,
+              axisLine: { lineStyle: { color: T.ruleStrong } },
+              axisLabel: { color: T.ink3 },
+            },
+            yAxis: {
+              type: "value",
+              name: "億元",
+              nameTextStyle: { color: T.ink3 },
+              axisLabel: { color: T.ink3 },
+              splitLine: { lineStyle: { color: T.grid } },
+            },
+            // 預設顯示最近 5 年，可拖動／縮放看更早的月份
+            dataZoom: [
+              { type: "inside", startValue: Math.max(0, months.length - 60) },
+              {
+                type: "slider",
+                startValue: Math.max(0, months.length - 60),
+                bottom: 12,
+                height: 20,
+                borderColor: T.rule,
+                textStyle: { color: T.ink3 },
+              },
+            ],
+            series: [
+              {
+                type: "bar",
+                data: rows.map((r) => ({
+                  value: r.foreign_net,
+                  itemStyle: { color: r.foreign_net < 0 ? T.down : T.up },
+                })),
+              },
+            ],
+          },
+          true,
+        );
+      }
+
+      window.addEventListener("themechange", () => {
+        if (_monthlyChart && currentType === "foreign-monthly") renderMonthlyChart();
+      });
 
       function renderToday(data) {
         const ok = renderTodayIndex(data.today);
@@ -2516,6 +2749,8 @@
           });
           renderToday(data);
           renderStreaks(data.streaks);
+          renderMonthlyTable(data.foreign_monthly);
+          if (currentType === "foreign-monthly") renderMonthlyChart();
           Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
             renderTable(
               id,
@@ -2530,17 +2765,21 @@
         }
       }
 
+      // 不分期間的分頁：隱藏期間與欄位切換列
+      const NO_PERIOD_TYPES = new Set(["stats", "foreign-monthly"]);
+
       function switchPanel() {
-        const target =
-          currentType === "stats"
-            ? "panel-stats"
-            : `panel-${currentType}-${currentPeriod}`;
+        const target = NO_PERIOD_TYPES.has(currentType)
+          ? `panel-${currentType}`
+          : `panel-${currentType}-${currentPeriod}`;
         document
           .querySelectorAll(".tab-panel")
           .forEach((p) => p.classList.remove("active"));
         document.getElementById(target).classList.add("active");
         // K 線面板是各分頁共用的，切換分頁時關掉，避免留著上一個分頁點開的圖
         closeDropChart();
+        // 圖表要在面板顯示後才初始化，隱藏時 ECharts 量不到尺寸
+        if (currentType === "foreign-monthly") renderMonthlyChart();
       }
 
       document.querySelectorAll(".type-btn").forEach((btn) => {
@@ -2550,11 +2789,11 @@
             .forEach((b) => b.classList.remove("active"));
           btn.classList.add("active");
           currentType = btn.dataset.type;
-          const isStats = currentType === "stats";
-          document.getElementById("period-row").style.display = isStats
+          const noPeriod = NO_PERIOD_TYPES.has(currentType);
+          document.getElementById("period-row").style.display = noPeriod
             ? "none"
             : "";
-          document.getElementById("col-toggle-bar").style.display = isStats
+          document.getElementById("col-toggle-bar").style.display = noPeriod
             ? "none"
             : "";
           switchPanel();
@@ -2664,44 +2903,47 @@
         btn.addEventListener("click", () => {
           const card = btn.closest(".card");
           const title = card.querySelector("h2").textContent.trim();
-
-          // 複製一份到畫面外撐寬、截圖，原本畫面上的卡片完全不受影響（不會閃一下）
-          const clone = card.cloneNode(true);
-          clone.classList.add("exporting");
-          clone.style.position = "fixed";
-          clone.style.top = "-99999px";
-          clone.style.left = "0";
-          clone.style.overflow = "visible";
-          document.body.appendChild(clone);
-
-          html2canvas(clone, {
-            scale: 2,
-            backgroundColor: chartTheme().bg,
-            // html2canvas 會在這個寬度的 iframe 裡重排版，固定 1280 讓手機也套用桌面版 CSS
-            windowWidth: 1280,
-            // clone 是 position:fixed，與捲動位置無關；固定 scroll 為 0，避免 iOS
-            // 在 iframe 內 scrollTo 失敗造成截圖範圍位移
-            scrollX: 0,
-            scrollY: 0,
-            // 寬度要在 iframe（桌面版 CSS）裡量，不能在原頁面量：手機原頁面套的是
-            // 手機版 CSS，量出的尺寸與實際截圖時的排版不同，會截不完整。
-            // 不傳 width/height，html2canvas 會在 onclone 之後依 clone 的實際範圍截圖
-            onclone: (_doc, el) => fitExportWidth(el),
-          })
-            .then((canvas) => {
-              document.body.removeChild(clone);
-              const a = document.createElement("a");
-              a.download = `TAIEX_${title}.png`;
-              a.href = canvas.toDataURL("image/png");
-              a.click();
-            })
-            .catch((err) => {
-              document.body.removeChild(clone);
-              console.error(err);
-            });
+          exportPng(card, `TAIEX_${title}.png`, fitExportWidth);
         });
         header.appendChild(btn);
       });
+
+      function exportPng(src, filename, fit) {
+        // 複製一份到畫面外撐寬、截圖，原本畫面上的元素完全不受影響（不會閃一下）
+        const clone = src.cloneNode(true);
+        clone.classList.add("exporting");
+        clone.style.position = "fixed";
+        clone.style.top = "-99999px";
+        clone.style.left = "0";
+        clone.style.overflow = "visible";
+        document.body.appendChild(clone);
+
+        html2canvas(clone, {
+          scale: 4,
+          backgroundColor: chartTheme().bg,
+          // html2canvas 會在這個寬度的 iframe 裡重排版，固定 1280 讓手機也套用桌面版 CSS
+          windowWidth: 1280,
+          // clone 是 position:fixed，與捲動位置無關；固定 scroll 為 0，避免 iOS
+          // 在 iframe 內 scrollTo 失敗造成截圖範圍位移
+          scrollX: 0,
+          scrollY: 0,
+          // 寬度要在 iframe（桌面版 CSS）裡量，不能在原頁面量：手機原頁面套的是
+          // 手機版 CSS，量出的尺寸與實際截圖時的排版不同，會截不完整。
+          // 不傳 width/height，html2canvas 會在 onclone 之後依 clone 的實際範圍截圖
+          onclone: (_doc, el) => fit(el),
+        })
+          .then((canvas) => {
+            document.body.removeChild(clone);
+            const a = document.createElement("a");
+            a.download = filename;
+            a.href = canvas.toDataURL("image/png");
+            a.click();
+          })
+          .catch((err) => {
+            document.body.removeChild(clone);
+            console.error(err);
+          });
+      }
 
       // ── K 線圖（跌幅/跌點/漲幅/漲點/外資賣超點擊） ──
       let _ohlc = null;

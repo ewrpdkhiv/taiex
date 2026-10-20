@@ -555,6 +555,8 @@ def rank_latest_foreign(
 
     與 find_top_foreign_net_sells/buys 用同一份資料範圍（需有指數漲跌的交易日），
     名次可直接對照排行表；foreign_net 單位：億元（負值為賣超）。
+    streak 為截至最新一天連續同方向（賣超或買超）的交易日數，含最新一天；平盤為 0；
+    streak_days 為這幾天的日期與金額（億元），依日期由舊到新。
     """
     d = df.dropna(subset=["change_pct"]).merge(foreign_df, on="Date", how="inner")
     if d.empty:
@@ -572,12 +574,51 @@ def rank_latest_foreign(
                 "rank": _rank_of(same["foreign_net"], net, smaller_first=is_sell),
                 "total": len(same),
             }
+    streak = 0
+    if direction != "flat":
+        for v in reversed(d["foreign_net"].to_numpy()):
+            if (v < 0) != is_sell or v == 0:
+                break
+            streak += 1
+    tail = d.iloc[len(d) - streak:] if streak else d.iloc[0:0]
+    streak_days = [
+        {"date": pd.Timestamp(row.Date).strftime("%Y-%m-%d"), "foreign_net": round(float(row.foreign_net) / 1e8, 2)}
+        for row in tail.itertuples()
+    ]
     return {
         "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
         "foreign_net": round(net / 1e8, 2),
         "direction": direction,
         "ranks": ranks,
+        "streak": streak,
+        "streak_days": streak_days,
     }
+
+
+def foreign_monthly_net(foreign_df: pd.DataFrame) -> list[dict]:
+    """外資每月買賣超合計（依月份由舊到新）。
+
+    foreign_net 單位：億元（負值為賣超）；buy_days／sell_days 為當月買超／賣超的交易日數。
+    """
+    d = foreign_df.dropna(subset=["foreign_net"])
+    if d.empty:
+        return []
+    month = pd.to_datetime(d["Date"]).dt.to_period("M")
+    g = d.groupby(month)["foreign_net"]
+    out = pd.DataFrame({
+        "net": g.sum(),
+        "buy_days": g.apply(lambda s: int((s > 0).sum())),
+        "sell_days": g.apply(lambda s: int((s < 0).sum())),
+    })
+    return [
+        {
+            "month": str(m),
+            "foreign_net": round(float(r.net) / 1e8, 2),
+            "buy_days": int(r.buy_days),
+            "sell_days": int(r.sell_days),
+        }
+        for m, r in out.iterrows()
+    ]
 
 
 def load_from_csv(path: str) -> pd.DataFrame:

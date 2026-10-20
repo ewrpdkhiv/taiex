@@ -20,6 +20,7 @@ from taiex_big_drops import (
     patch_missing_trading_days,
     rank_latest_day,
     rank_latest_foreign,
+    foreign_monthly_net,
 )
 
 
@@ -639,6 +640,11 @@ class TestRankLatestForeign:
         assert r == {
             "date": "2025-01-05", "foreign_net": -30.0, "direction": "sell",
             "ranks": {"all": {"rank": 2, "total": 3}},
+            "streak": 2,
+            "streak_days": [
+                {"date": "2025-01-04", "foreign_net": -50.0},
+                {"date": "2025-01-05", "foreign_net": -30.0},
+            ],
         }
 
     def test_latest_buy_uses_latest_foreign_date(self):
@@ -652,6 +658,45 @@ class TestRankLatestForeign:
         assert r["date"] == "2025-01-03"
         assert r["direction"] == "buy"
         assert r["ranks"]["all"] == {"rank": 1, "total": 2}
+        assert r["streak"] == 2
+
+    def test_streak_counts_back_until_direction_changes(self):
+        dates = pd.date_range("2025-01-01", periods=6, freq="D")
+        df = calculate_daily_returns(pd.DataFrame({
+            "Date": dates, "Close": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0],
+        }))
+        foreign = pd.DataFrame({
+            "Date": dates, "foreign_net": [-1e8, -2e8, 3e8, -4e8, -5e8, -6e8],
+        })
+        r = rank_latest_foreign(df, foreign, periods={"all": None})
+        assert r["direction"] == "sell"
+        assert r["streak"] == 3
+        assert [x["date"] for x in r["streak_days"]] == ["2025-01-04", "2025-01-05", "2025-01-06"]
+        assert [x["foreign_net"] for x in r["streak_days"]] == [-4.0, -5.0, -6.0]
+
+    def test_flat_has_zero_streak(self):
+        dates = pd.date_range("2025-01-01", periods=3, freq="D")
+        df = calculate_daily_returns(pd.DataFrame({"Date": dates, "Close": [100.0, 101.0, 102.0]}))
+        foreign = pd.DataFrame({"Date": dates, "foreign_net": [1e8, 2e8, 0.0]})
+        r = rank_latest_foreign(df, foreign, periods={"all": None})
+        assert r["direction"] == "flat"
+        assert r["streak"] == 0
+        assert r["streak_days"] == []
+
+
+class TestForeignMonthlyNet:
+    def test_sums_by_month(self):
+        foreign = pd.DataFrame({
+            "Date": pd.to_datetime(["2025-01-02", "2025-01-03", "2025-01-06", "2025-02-03"]),
+            "foreign_net": [10e8, -30e8, 0.0, 5e8],
+        })
+        assert foreign_monthly_net(foreign) == [
+            {"month": "2025-01", "foreign_net": -20.0, "buy_days": 1, "sell_days": 1},
+            {"month": "2025-02", "foreign_net": 5.0, "buy_days": 1, "sell_days": 0},
+        ]
+
+    def test_empty(self):
+        assert foreign_monthly_net(pd.DataFrame({"Date": [], "foreign_net": []})) == []
 
 
 class TestEventShortNames:
