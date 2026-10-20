@@ -497,6 +497,89 @@ def find_top_foreign_net_buys(
     return d.nlargest(top_n, "foreign_net")
 
 
+RANK_PERIODS: dict[str, int | None] = {"20y": 20, "10y": 10, "5y": 5, "all": None}
+
+
+def _within_years(d: pd.DataFrame, years: int | None) -> pd.DataFrame:
+    if years is None:
+        return d
+    cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
+    return d[pd.to_datetime(d["Date"]) >= cutoff]
+
+
+def _rank_of(values: pd.Series, value: float, *, smaller_first: bool) -> int:
+    """value 在 values 中的名次（1 起算；同值並列取較前名次）。"""
+    return int((values < value).sum() if smaller_first else (values > value).sum()) + 1
+
+
+def rank_latest_day(
+    df: pd.DataFrame, periods: dict[str, int | None] = RANK_PERIODS,
+) -> dict | None:
+    """最新交易日的漲跌在各期間的排名。
+
+    下跌日排在「跌幅／跌點」排行、上漲日排在「漲幅／漲點」排行，
+    total 為該期間同方向（下跌或上漲）的交易日數；平盤日 ranks 為空。
+    """
+    d = df.dropna(subset=["change_pct"])
+    if d.empty:
+        return None
+    latest = d.iloc[-1]
+    pct = float(latest["change_pct"])
+    pt = float(latest["change_pt"])
+    direction = "drop" if pct < 0 else "gain" if pct > 0 else "flat"
+    ranks = {}
+    if direction != "flat":
+        is_drop = direction == "drop"
+        for period, years in periods.items():
+            w = _within_years(d, years)
+            same = w[w["change_pct"] < 0] if is_drop else w[w["change_pct"] > 0]
+            ranks[period] = {
+                "pct": _rank_of(w["change_pct"], pct, smaller_first=is_drop),
+                "pt": _rank_of(w["change_pt"], pt, smaller_first=is_drop),
+                "total": len(same),
+            }
+    return {
+        "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
+        "close": round(float(latest["Close"]), 2),
+        "change_pct": round(pct, 2),
+        "change_pt": round(pt, 2),
+        "direction": direction,
+        "ranks": ranks,
+    }
+
+
+def rank_latest_foreign(
+    df: pd.DataFrame, foreign_df: pd.DataFrame, periods: dict[str, int | None] = RANK_PERIODS,
+) -> dict | None:
+    """最新一筆外資買賣超在各期間賣超（或買超）排行中的名次。
+
+    與 find_top_foreign_net_sells/buys 用同一份資料範圍（需有指數漲跌的交易日），
+    名次可直接對照排行表；foreign_net 單位：億元（負值為賣超）。
+    """
+    d = df.dropna(subset=["change_pct"]).merge(foreign_df, on="Date", how="inner")
+    if d.empty:
+        return None
+    latest = d.iloc[-1]
+    net = float(latest["foreign_net"])
+    direction = "sell" if net < 0 else "buy" if net > 0 else "flat"
+    ranks = {}
+    if direction != "flat":
+        is_sell = direction == "sell"
+        for period, years in periods.items():
+            w = _within_years(d, years)
+            same = w[w["foreign_net"] < 0] if is_sell else w[w["foreign_net"] > 0]
+            ranks[period] = {
+                "rank": _rank_of(same["foreign_net"], net, smaller_first=is_sell),
+                "total": len(same),
+            }
+    return {
+        "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
+        "foreign_net": round(net / 1e8, 2),
+        "direction": direction,
+        "ranks": ranks,
+    }
+
+
 def load_from_csv(path: str) -> pd.DataFrame:
     """從 CSV 檔案讀取台股加權指數歷史資料。
 

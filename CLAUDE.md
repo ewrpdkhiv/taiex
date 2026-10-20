@@ -58,7 +58,7 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 | 輸出檔案    | 內容                                                                                                                                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data.json` | 16 組排行（跌幅%、漲幅%、跌點、漲點 × 5y/10y/20y/all），各取前 10 名，跌幅類附 `recovery_days`（回升天數）、漲幅類附 `fallback_days`（回落天數：之後第一次收盤跌回大漲前收盤所需交易日數）；另含 `post_drop_stats`／`post_gain_stats`（單日大跌／大漲 ≥5% 後 5/20/60 交易日的平均報酬、中位數、勝率）與 `streaks`（連續上漲／下跌天數排行 top 10）；`foreign_sells_{5y,10y,20y,all}` / `foreign_buys_{5y,10y,20y,all}` 為外資單日賣超／買超金額前 10 名（買超附 `fallback_days`）（FinMind 資料，快取於 `cache/institutional/foreign_net.csv`，`foreign_net` 單位億元） |
+| `data.json` | 16 組排行（跌幅%、漲幅%、跌點、漲點 × 5y/10y/20y/all），各取前 10 名，跌幅類附 `recovery_days`（回升天數）、漲幅類附 `fallback_days`（回落天數：之後第一次收盤跌回大漲前收盤所需交易日數）；另含 `post_drop_stats`／`post_gain_stats`（單日大跌／大漲 ≥5% 後 5/20/60 交易日的平均報酬、中位數、勝率）與 `streaks`（連續上漲／下跌天數排行 top 10）；`foreign_sells_{5y,10y,20y,all}` / `foreign_buys_{5y,10y,20y,all}` 為外資單日賣超／買超金額前 10 名（買超附 `fallback_days`）（FinMind 資料，快取於 `cache/institutional/foreign_net.csv`，`foreign_net` 單位億元）；`today`（`rank_latest_day()`：最新交易日漲跌幅／漲跌點在各期間同方向的名次）與 `today_foreign`（`rank_latest_foreign()`：最新外資買賣超金額在賣超／買超排行的名次），顯示於首頁頂端摘要卡 |
 | `dca.json`  | 5 個情境：`results_10y`、`results_5y`、`results_crash_10y`（截至 2025-04-09）、`results_crash_5y`、`results_covid`（自 2020-02-01）；另含 `dip_buy_comparison`（固定扣款 vs 大跌 ≥5% 加碼 2 倍的績效比較）；`yearly`（`run_yearly()`：近 10 個完整年度 + 今年 YTD，每年 1 月起獨立扣款 12 次、以年底收盤算 XIRR）                   |
 | `bear.json` | 空頭週期列表                                                                                                                                                                                                                 |
 | `ohlc.json` | OHLC + VIX 時序資料（K 線圖用）；另含 `events`（= `KNOWN_EVENTS`，完整說明，顯示於 tooltip）與 `event_short`（= `EVENT_SHORT_NAMES`，K 線事件帶上的短名稱；新增事件時兩個 dict 都要加，測試會檢查鍵一致）                                                                                                                                     |
@@ -82,7 +82,7 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 `run_all(monthly_amount, years, force_start, force_end)` 對 `TICKERS`（33 檔標的）逐一呼叫 `run_dca()`。`generate_static.py` 固定使用 `monthly_amount=3_000`。
 
-`run_dip_buy_comparison()` 比較「固定扣款」與「大跌加碼」兩種策略：先用 `taiex_big_drops.find_big_drops()` 抓出台股加權指數單日跌幅 ≥ 門檻（預設 5%）的日期，於下一個交易日額外加碼 (倍數-1) 倍的月扣款金額（預設 2 倍），再對每檔標的各跑一次 `run_dca()`（`extra_buys` 參數）與基準情境比較。加碼買點的合併邏輯抽成 `_merge_extra_buys()` 純函式，便於測試。
+`run_dip_buy_comparison()` 比較「固定扣款」與「大跌加碼」兩種策略：先用 `taiex_big_drops.find_big_drops()` 抓出台股加權指數單日跌幅 ≥ 門檻（預設 5%）的日期，於下一個交易日額外加碼 (倍數 -1) 倍的月扣款金額（預設 2 倍），再對每檔標的各跑一次 `run_dca()`（`extra_buys` 參數）與基準情境比較。加碼買點的合併邏輯抽成 `_merge_extra_buys()` 純函式，便於測試。
 
 每個標的附有 `TICKER_TAGS`（`tw/us`、`etf/stock`、`leveraged` 等），前端用於篩選。
 
@@ -108,7 +108,7 @@ K 線圖使用 ECharts 5，PNG 匯出使用 html2canvas；兩者皆 vendored 至
 
 ### 自動更新：[.github/workflows/update-data.yml](.github/workflows/update-data.yml)
 
-每個工作日 UTC 07:00（台灣時間 15:00）觸發，執行 `generate_static.py` 後 auto-commit `docs/data/*.json`。可手動從 Actions 頁面觸發（`workflow_dispatch`）。任何步驟失敗時，最後的 `Notify on failure` 步驟會自動建立（或在既有開放中的）GitHub Issue 留言通知，避免失敗被靜靜忽略。
+每個工作日 UTC 07:00（台灣時間 15:00）觸發，另外每次 push 到 `main`（只改 `docs/data/**`、`cache/**` 的除外）也會跑一次；執行 `generate_static.py` 後 auto-commit `docs/data/*.json`。可手動從 Actions 頁面觸發（`workflow_dispatch`）。任何步驟失敗時，最後的 `Notify on failure` 步驟會自動建立（或在既有開放中的）GitHub Issue 留言通知，避免失敗被靜靜忽略。
 
 ## 關鍵實作細節
 

@@ -126,6 +126,85 @@
         margin: 16px auto;
       }
 
+      /* ── 今日排名摘要 ── */
+      #today {
+        max-width: 1120px;
+        margin: 0 auto 16px;
+        padding: 0 24px;
+        display: none;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 12px;
+      }
+      #today.ready {
+        display: grid;
+      }
+      .today-block {
+        padding: 14px 18px;
+      }
+      .today-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.78rem;
+        color: var(--ink-3);
+      }
+      .today-head b {
+        font-family: var(--font-mono);
+        font-weight: 500;
+        color: var(--ink-2);
+      }
+      .today-value {
+        margin: 6px 0 10px;
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .today-value small {
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-left: 6px;
+      }
+      .today-value.drop {
+        color: var(--down);
+      }
+      .today-value.gain {
+        color: var(--up);
+      }
+      .today-block table td,
+      .today-block table th {
+        padding: 4px 6px;
+        text-align: right;
+      }
+      .today-block table td:first-child,
+      .today-block table th:first-child {
+        text-align: left;
+        width: auto;
+        font-size: 0.8rem;
+        color: var(--ink-2);
+        font-family: inherit;
+      }
+      .today-rank {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .today-rank.top {
+        color: var(--accent);
+      }
+      .today-block[data-color="drop"] .today-rank.top {
+        color: var(--down);
+      }
+      .today-block[data-color="gain"] .today-rank.top {
+        color: var(--up);
+      }
+      .today-total {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--ink-3);
+      }
+
       /* 卡片標題左側色條 */
       .card-header h2::before {
         content: "";
@@ -387,6 +466,11 @@
         <span>資料更新 <b id="last-updated">載入中…</b></span>
       </div>
     </header>
+
+    <section id="today" aria-label="今日排名">
+      <div class="card today-block" id="today-index"></div>
+      <div class="card today-block" id="today-foreign"></div>
+    </section>
 
     <nav class="controls">
       <div class="type-row">
@@ -2318,6 +2402,84 @@
         outer.style.display = "block";
       }
 
+      const TODAY_PERIODS = [
+        ["5y", "近 5 年"],
+        ["10y", "近 10 年"],
+        ["20y", "近 20 年"],
+        ["all", "全時"],
+      ];
+
+      function fmtSigned(v, digits = 2) {
+        return (v > 0 ? "+" : "") + v.toFixed(digits);
+      }
+
+      // 名次 + 同方向總日數；進前 10 名（排行表上看得到）時加強調色
+      function todayRankCell(rank, total) {
+        const cls = rank <= 10 ? "today-rank top" : "today-rank";
+        return `<span class="${cls}">第 ${rank.toLocaleString()} 名</span>
+          <span class="today-total">/ ${total.toLocaleString()}</span>`;
+      }
+
+      function renderTodayIndex(t) {
+        const el = document.getElementById("today-index");
+        if (!t) {
+          el.innerHTML = "";
+          return false;
+        }
+        const isDrop = t.direction === "drop";
+        const word = isDrop ? "跌" : "漲";
+        el.dataset.color = t.direction;
+        const rows =
+          t.direction === "flat"
+            ? `<tr><td colspan="3">平盤，不列入排名</td></tr>`
+            : TODAY_PERIODS.map(([p, label]) => {
+                const r = t.ranks[p];
+                return `<tr><td>${label}</td>
+                  <td>${todayRankCell(r.pct, r.total)}</td>
+                  <td>${todayRankCell(r.pt, r.total)}</td></tr>`;
+              }).join("");
+        el.innerHTML = `
+          <div class="today-head"><span>加權指數 收盤 ${t.close.toLocaleString()}</span><b>${t.date}</b></div>
+          <div class="today-value ${t.direction}">${fmtSigned(t.change_pct)}%<small>${fmtSigned(t.change_pt)} 點</small></div>
+          <table>
+            <thead><tr><th>期間</th><th>${word}幅% 排名</th><th>${word}點 排名</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+        return true;
+      }
+
+      function renderTodayForeign(f) {
+        const el = document.getElementById("today-foreign");
+        if (!f) {
+          el.style.display = "none";
+          return;
+        }
+        el.style.display = "";
+        const isSell = f.direction === "sell";
+        const word = isSell ? "賣超" : "買超";
+        el.dataset.color = isSell ? "drop" : f.direction === "buy" ? "gain" : "";
+        const rows =
+          f.direction === "flat"
+            ? `<tr><td colspan="2">買賣超為 0，不列入排名</td></tr>`
+            : TODAY_PERIODS.map(([p, label]) => {
+                const r = f.ranks[p];
+                return `<tr><td>${label}</td><td>${todayRankCell(r.rank, r.total)}</td></tr>`;
+              }).join("");
+        el.innerHTML = `
+          <div class="today-head"><span>外資${f.direction === "flat" ? "買賣超" : word}</span><b>${f.date}</b></div>
+          <div class="today-value ${el.dataset.color}">${Math.abs(f.foreign_net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<small>億元</small></div>
+          <table>
+            <thead><tr><th>期間</th><th>${word}金額排名</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      }
+
+      function renderToday(data) {
+        const ok = renderTodayIndex(data.today);
+        renderTodayForeign(data.today_foreign);
+        document.getElementById("today").classList.toggle("ready", ok);
+      }
+
       async function fetchData() {
         try {
           const res = await fetch("data/data.json");
@@ -2352,6 +2514,7 @@
           Object.keys(STATS_PANELS).forEach((key) => {
             renderStatsPanel(key, STATS_PANELS[key].getStats(data));
           });
+          renderToday(data);
           renderStreaks(data.streaks);
           Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
             renderTable(

@@ -18,6 +18,8 @@ from taiex_big_drops import (
     find_top_foreign_net_buys,
     find_top_foreign_net_sells,
     patch_missing_trading_days,
+    rank_latest_day,
+    rank_latest_foreign,
 )
 
 
@@ -594,6 +596,62 @@ class TestFindTopForeignNetBuys:
         # 首日沒有 change_pct 會被排除；賣超日（負值）也不列入
         assert result["Date"].tolist() == [dates[3], dates[4]]
         assert result["foreign_net"].tolist() == [50.0, 30.0]
+
+
+
+class TestRankLatestDay:
+    def _df(self, closes):
+        dates = pd.date_range("2025-01-01", periods=len(closes), freq="D")
+        return calculate_daily_returns(pd.DataFrame({"Date": dates, "Close": closes}))
+
+    def test_drop_day_ranked_among_drops(self):
+        # -10%（-10 點）、+10%、-5%（-4.95 點）、-8%（-7.52 點，最新）→ 跌幅、跌點都第 2
+        df = self._df([100.0, 90.0, 99.0, 94.05, 86.526])
+        r = rank_latest_day(df, periods={"all": None})
+        assert r["direction"] == "drop"
+        assert r["date"] == "2025-01-05"
+        assert r["change_pct"] == -8.0
+        assert r["ranks"]["all"] == {"pct": 2, "pt": 2, "total": 3}
+
+    def test_gain_day_ranked_among_gains(self):
+        df = self._df([100.0, 110.0, 99.0, 102.0])
+        r = rank_latest_day(df, periods={"all": None})
+        assert r["direction"] == "gain"
+        assert r["ranks"]["all"] == {"pct": 2, "pt": 2, "total": 2}
+
+    def test_flat_day_has_no_ranks(self):
+        r = rank_latest_day(self._df([100.0, 90.0, 90.0]), periods={"all": None})
+        assert r["direction"] == "flat"
+        assert r["ranks"] == {}
+
+
+class TestRankLatestForeign:
+    def test_latest_sell_ranked_among_sells(self):
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        df = calculate_daily_returns(pd.DataFrame({
+            "Date": dates, "Close": [100.0, 98.0, 99.0, 95.0, 97.0],
+        }))
+        foreign = pd.DataFrame({
+            "Date": dates, "foreign_net": [-999e8, -10e8, 5e8, -50e8, -30e8],
+        })
+        r = rank_latest_foreign(df, foreign, periods={"all": None})
+        # 首日無漲跌被排除（與排行表一致）→ 賣超日 -10、-50、-30，-30 排第 2
+        assert r == {
+            "date": "2025-01-05", "foreign_net": -30.0, "direction": "sell",
+            "ranks": {"all": {"rank": 2, "total": 3}},
+        }
+
+    def test_latest_buy_uses_latest_foreign_date(self):
+        dates = pd.date_range("2025-01-01", periods=4, freq="D")
+        df = calculate_daily_returns(pd.DataFrame({
+            "Date": dates, "Close": [100.0, 101.0, 102.0, 103.0],
+        }))
+        # 外資資料只到第 3 天（尚未公布最新一天）
+        foreign = pd.DataFrame({"Date": dates[:3], "foreign_net": [1e8, 20e8, 30e8]})
+        r = rank_latest_foreign(df, foreign, periods={"all": None})
+        assert r["date"] == "2025-01-03"
+        assert r["direction"] == "buy"
+        assert r["ranks"]["all"] == {"rank": 1, "total": 2}
 
 
 class TestEventShortNames:

@@ -41,6 +41,8 @@ from taiex_big_drops import (
     load_ohlc_from_yfinance,
     load_vix_from_yfinance,
     patch_missing_trading_days,
+    rank_latest_day,
+    rank_latest_foreign,
 )
 
 _TW = timezone(timedelta(hours=8))
@@ -140,6 +142,7 @@ def generate_data() -> None:
     payload: dict = {"last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"), "error": None}
     for key, result_df, kind in batches:
         payload[key] = _df_to_records(result_df, df, kind)
+    payload["today"] = rank_latest_day(df)
     try:
         foreign_df = load_foreign_net()
         for period, years in (("20y", 20), ("10y", 10), ("5y", 5), ("all", None)):
@@ -149,6 +152,7 @@ def generate_data() -> None:
             payload[f"foreign_buys_{period}"] = _df_to_records(
                 find_top_foreign_net_buys(df, foreign_df, top_n=10, years=years), df, "gain",
             )
+        payload["today_foreign"] = rank_latest_foreign(df, foreign_df)
         payload["foreign_data_start"] = pd.Timestamp(foreign_df["Date"].min()).strftime("%Y-%m-%d")
     except Exception as exc:  # noqa: BLE001 - 外資資料失敗不應拖垮整份 data.json
         print(f"⚠ 外資買賣超資料產生失敗：{exc}")
