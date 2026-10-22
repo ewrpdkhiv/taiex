@@ -5,6 +5,8 @@ from taiex_big_drops import (
     EVENT_SHORT_NAMES,
     KNOWN_EVENTS,
     _parse_finmind_institutional,
+    _parse_finmind_margin,
+    _calc_margin_maintenance,
     _parse_roc_or_ad_date,
     _parse_twse_month_payload,
     analyze_bear_market_distance,
@@ -21,6 +23,8 @@ from taiex_big_drops import (
     rank_latest_day,
     rank_latest_foreign,
     foreign_monthly_net,
+    load_latest_margin,
+    load_margin_maintenance,
 )
 
 
@@ -705,3 +709,90 @@ class TestEventShortNames:
 
     def test_short_names_are_short(self):
         assert all(len(s) <= 10 for s in EVENT_SHORT_NAMES.values())
+
+
+# ── 融資餘額／維持率 ──────────────────────────────────────────────────────────
+
+
+class TestParseFinmindMargin:
+    def test_takes_latest_margin_money_row(self):
+        payload = {"status": 200, "data": [
+            {"date": "2025-04-07", "name": "MarginPurchaseMoney", "TodayBalance": 300e8, "YesBalance": 320e8},
+            {"date": "2025-04-08", "name": "MarginPurchaseMoney", "TodayBalance": 305.5e8, "YesBalance": 300e8},
+            {"date": "2025-04-08", "name": "MarginPurchase", "TodayBalance": 999, "YesBalance": 1},
+        ]}
+        assert _parse_finmind_margin(payload) == {"date": "2025-04-08", "balance": 305.5, "change": 5.5}
+
+    def test_no_margin_money_rows(self):
+        assert _parse_finmind_margin({"status": 200, "data": []}) is None
+
+
+def _margin_payload(amount_k: str, lots: dict[str, str]) -> dict:
+    return {"stat": "OK", "tables": [
+        {"fields": ["項目", "買進", "賣出", "現金(券)償還", "前日餘額", "今日餘額"], "data": [
+            ["融資(交易單位)", "1", "1", "1", "1", "1"],
+            ["融資金額(仟元)", "0", "0", "0", "0", amount_k],
+        ]},
+        {"fields": ["代號", "名稱", "買進", "賣出", "現金償還", "前日餘額", "今日餘額",
+                    "次一營業日限額", "買進", "賣出", "現券償還", "前日餘額", "今日餘額"],
+         "data": [[code, "x", "0", "0", "0", "0", v, "0", "0", "0", "0", "0", "99,999"]
+                  for code, v in lots.items()]},
+    ]}
+
+
+def _quotes_payload(closes: dict[str, str]) -> dict:
+    return {"stat": "OK", "tables": [
+        {"fields": ["證券代號", "證券名稱", "收盤價"], "data": [[c, "x", v] for c, v in closes.items()]},
+    ]}
+
+
+class TestCalcMarginMaintenance:
+    def test_market_value_over_margin_amount(self):
+        # 2,000 張 × 100 元 + 1,000 張 × 50 元 = 250,000 仟元；融資金額 150,000 仟元
+        margin = _margin_payload("150,000", {"1111": "2,000", "2222": "1,000", "3333": "500"})
+        quotes = _quotes_payload({"1111": "100.00", "2222": "50.00", "3333": "--"})
+        assert _calc_margin_maintenance(margin, quotes) == 166.67
+
+    def test_missing_tables(self):
+        assert _calc_margin_maintenance({"stat": "OK", "tables": []}, _quotes_payload({})) is None
+
+
+class TestLoadMarginMaintenance:
+    def test_skips_holidays_and_reports_change(self):
+        ratios = {"20250408": "100.00", "20250407": "110.00"}  # 04-06 週日無資料
+
+        def fetch(url, params):
+            close = ratios.get(params["date"])
+            if close is None:
+                return {"stat": "很抱歉，沒有符合條件的資料!"}
+            if "MI_MARGN" in url:
+                return _margin_payload("1,000", {"1111": "15"})
+            return _quotes_payload({"1111": close})
+
+        result = load_margin_maintenance(fetch=fetch, today=pd.Timestamp("2025-04-08"), pause=0)
+        assert result == {"date": "2025-04-08", "ratio": 150.0, "change": -15.0}
+
+    def test_no_data(self):
+        result = load_margin_maintenance(
+            max_days=3, fetch=lambda url, params: {"stat": "no"}, today=pd.Timestamp("2025-04-08"), pause=0,
+        )
+        assert result is None
+
+
+class TestLoadLatestMargin:
+    def test_one_source_failing_keeps_the_other(self):
+        def fetch(dataset, start):
+            return {"status": 200, "data": [
+                {"date": "2025-04-08", "name": "MarginPurchaseMoney", "TodayBalance": 2e10, "YesBalance": 1e10},
+            ]}
+
+        def load_maintenance():
+            raise RuntimeError("boom")
+        result = load_latest_margin(fetch=fetch, load_maintenance=load_maintenance)
+        assert result["margin"]["change"] == 100.0
+        assert result["maintenance"] is None
+
+    def test_both_failing_returns_none(self):
+        def fail(*_):
+            raise RuntimeError("boom")
+        assert load_latest_margin(fetch=fail, load_maintenance=fail) is None

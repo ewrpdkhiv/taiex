@@ -22,6 +22,7 @@ CSV 格式（從台灣證交所下載）：
 
 import argparse
 import sys
+import time
 
 import pandas as pd
 
@@ -32,6 +33,8 @@ TAIEX_TICKER = "^TWII"
 START_DATE = "1990-01-01"
 TWSE_INDEX_HIST_URL = "https://www.twse.com.tw/indicesReport/MI_5MINS_HIST"
 FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/data"
+TWSE_MARGIN_URL = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
+TWSE_DAILY_QUOTES_URL = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
 FOREIGN_START_DATE = "2004-04-07"
 FOREIGN_INVESTOR_NAMES = ("Foreign_Investor", "Foreign_Dealer_Self")
 
@@ -411,20 +414,25 @@ def _parse_finmind_institutional(payload: dict) -> pd.DataFrame:
     )
 
 
-def _fetch_finmind_institutional(start: str) -> pd.DataFrame:
-    """向 FinMind 查詢 start 起的全市場三大法人買賣金額，回傳外資每日買賣超。"""
+def _fetch_finmind(dataset: str, start: str) -> dict:
+    """向 FinMind 查詢 dataset 自 start 起的資料，回傳原始 JSON payload。"""
     import requests  # pylint: disable=import-outside-toplevel
 
     resp = requests.get(
         FINMIND_API_URL,
-        params={"dataset": "TaiwanStockTotalInstitutionalInvestors", "start_date": start},
+        params={"dataset": dataset, "start_date": start},
         timeout=60,
     )
     resp.raise_for_status()
     payload = resp.json()
     if payload.get("status") != 200:
         raise RuntimeError(f"FinMind 回傳錯誤：{payload.get('msg')}")
-    return _parse_finmind_institutional(payload)
+    return payload
+
+
+def _fetch_finmind_institutional(start: str) -> pd.DataFrame:
+    """向 FinMind 查詢 start 起的全市場三大法人買賣金額，回傳外資每日買賣超。"""
+    return _parse_finmind_institutional(_fetch_finmind("TaiwanStockTotalInstitutionalInvestors", start))
 
 
 def load_foreign_net(start: str = FOREIGN_START_DATE, fetch=_fetch_finmind_institutional) -> pd.DataFrame:
@@ -619,6 +627,132 @@ def foreign_monthly_net(foreign_df: pd.DataFrame) -> list[dict]:
         }
         for m, r in out.iterrows()
     ]
+
+
+def _parse_finmind_margin(payload: dict) -> dict | None:
+    """解析 FinMind「TaiwanStockTotalMarginPurchaseShortSale」，取最新一天的全市場融資金額。
+
+    只看 name == "MarginPurchaseMoney"（融資金額，單位：元）；
+    change 為今日餘額 - 前日餘額（正值為增加）。balance／change 轉成億元。
+    """
+    rows = [r for r in payload.get("data") or [] if r.get("name") == "MarginPurchaseMoney"]
+    if not rows:
+        return None
+    latest = max(rows, key=lambda r: r["date"])
+    today, yesterday = float(latest["TodayBalance"]), float(latest["YesBalance"])
+    return {
+        "date": latest["date"],
+        "balance": round(today / 1e8, 2),
+        "change": round((today - yesterday) / 1e8, 2),
+    }
+
+
+def _twse_num(value) -> float | None:
+    """TWSE 數字字串（含千分位逗號，無資料為 "--" 或空字串）轉 float。"""
+    try:
+        return float(str(value).replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def _find_twse_table(payload: dict, *fields: str) -> dict | None:
+    """在 TWSE rwd API 的 tables 中找出欄位名稱包含所有 fields 的第一張表。"""
+    for table in payload.get("tables") or []:
+        names = [f.strip() for f in table.get("fields") or []]
+        if all(f in names for f in fields):
+            return {"fields": names, "data": table.get("data") or []}
+    return None
+
+
+def _calc_margin_maintenance(margin_payload: dict, quotes_payload: dict) -> float | None:
+    """以 TWSE 當日資料估算上市大盤融資維持率（%）。
+
+    維持率 = Σ(各股融資今日餘額〔張〕× 1000 × 收盤價) ÷ 融資金額今日餘額〔仟元 × 1000〕。
+    當日無收盤價（未成交）的個股略過；資料不齊回傳 None。
+    """
+    summary = _find_twse_table(margin_payload, "項目", "今日餘額")
+    per_stock = _find_twse_table(margin_payload, "代號", "今日餘額")
+    quotes = _find_twse_table(quotes_payload, "證券代號", "收盤價")
+    if not (summary and per_stock and quotes):
+        return None
+
+    bal_col = summary["fields"].index("今日餘額")
+    amount = next(
+        (_twse_num(r[bal_col]) for r in summary["data"] if str(r[0]).startswith("融資金額")),
+        None,
+    )
+    if not amount:
+        return None
+
+    code_col, close_col = quotes["fields"].index("證券代號"), quotes["fields"].index("收盤價")
+    prices = {str(r[code_col]).strip(): _twse_num(r[close_col]) for r in quotes["data"]}
+
+    # 彙總表有融資、融券兩組「今日餘額」，第一個是融資
+    lots_col = per_stock["fields"].index("今日餘額")
+    value = 0.0
+    for r in per_stock["data"]:
+        lots, price = _twse_num(r[lots_col]), prices.get(str(r[0]).strip())
+        if lots and price:
+            value += lots * price
+    return round(value / amount * 100, 2) if value else None
+
+
+def _fetch_twse_json(url: str, params: dict) -> dict:
+    import requests  # pylint: disable=import-outside-toplevel
+
+    resp = requests.get(url, params={**params, "response": "json"}, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def load_margin_maintenance(
+    max_days: int = 14, fetch=_fetch_twse_json, today: pd.Timestamp | None = None, pause: float = 1.5,
+) -> dict | None:
+    """從 TWSE 往回找最近兩個交易日，計算最新的大盤融資維持率與前一交易日的差。
+
+    fetch: 接受 (url, params) 回傳 payload 的函式，測試時可替換成假資料來源。
+    pause: 每次查詢間隔秒數（TWSE 有頻率限制）。
+    """
+    day = (today or pd.Timestamp.now(tz="Asia/Taipei")).normalize()
+    found: list[tuple[str, float]] = []
+    for _ in range(max_days):
+        date_str = day.strftime("%Y%m%d")
+        margin = fetch(TWSE_MARGIN_URL, {"date": date_str, "selectType": "ALL"})
+        if margin.get("stat") == "OK":
+            time.sleep(pause)
+            quotes = fetch(TWSE_DAILY_QUOTES_URL, {"date": date_str, "type": "ALLBUT0999"})
+            ratio = _calc_margin_maintenance(margin, quotes)
+            if ratio is not None:
+                found.append((day.strftime("%Y-%m-%d"), ratio))
+                if len(found) == 2:
+                    break
+        time.sleep(pause)
+        day -= pd.Timedelta(days=1)
+    if not found:
+        return None
+    date, ratio = found[0]
+    change = round(ratio - found[1][1], 2) if len(found) > 1 else None
+    return {"date": date, "ratio": ratio, "change": change}
+
+
+def load_latest_margin(days: int = 30, fetch=_fetch_finmind, load_maintenance=load_margin_maintenance) -> dict | None:
+    """最新一天的全市場融資餘額增減（FinMind）與上市大盤融資維持率（TWSE 自行計算），首頁摘要卡用。
+
+    兩份資料各自抓，其中一份失敗另一份仍會輸出（失敗的欄位為 None）；都失敗則回傳 None。
+    fetch: 接受 (dataset, start) 回傳 payload 的函式；load_maintenance: 回傳維持率 dict 的函式。
+    測試時皆可替換成假資料來源。
+    """
+    start = (pd.Timestamp.today() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+    result: dict = {"margin": None, "maintenance": None}
+    for key, load in (
+        ("margin", lambda: _parse_finmind_margin(fetch("TaiwanStockTotalMarginPurchaseShortSale", start))),
+        ("maintenance", load_maintenance),
+    ):
+        try:
+            result[key] = load()
+        except Exception as exc:  # noqa: BLE001 - 單一資料源失敗不影響另一個
+            print(f"⚠ 融資{'維持率' if key == 'maintenance' else '餘額'}下載失敗：{exc}")
+    return result if any(result.values()) else None
 
 
 def load_from_csv(path: str) -> pd.DataFrame:

@@ -541,6 +541,7 @@
     <section id="today" aria-label="今日排名">
       <div class="card today-block" id="today-index"></div>
       <div class="card today-block" id="today-foreign"></div>
+      <div class="card today-block" id="today-margin"></div>
     </section>
 
     <nav class="controls">
@@ -2611,6 +2612,43 @@
         }
       }
 
+      // 融資餘額增減（億元）＋ 大盤融資維持率；任一份缺資料就只顯示另一份
+      function renderTodayMargin(m) {
+        const el = document.getElementById("today-margin");
+        const margin = m && m.margin;
+        const maint = m && m.maintenance;
+        if (!margin && !maint) {
+          el.style.display = "none";
+          return;
+        }
+        el.style.display = "";
+        const fmt2 = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt2(Math.abs(v));
+        const dir = margin ? (margin.change > 0 ? "gain" : margin.change < 0 ? "drop" : "") : "";
+        el.dataset.color = dir;
+        const word = !margin ? "融資" : margin.change > 0 ? "融資增加" : margin.change < 0 ? "融資減少" : "融資持平";
+        const value = margin
+          ? `<div class="today-value ${dir}">${signed(margin.change)}<small>億元</small></div>`
+          : `<div class="today-value">${fmt2(maint.ratio)}<small>%</small></div>`;
+        const maintCell = maint
+          ? `<span class="today-rank">${fmt2(maint.ratio)}%</span> ${
+              maint.change == null ? "" : `<span class="today-total">${signed(maint.change)}</span>`
+            }`
+          : `<span class="today-total">—</span>`;
+        // 兩份資料日期不同（例如維持率較晚公布）時，在維持率旁標日期
+        const maintDate = maint && margin && maint.date !== margin.date ? `（${maint.date}）` : "";
+        el.innerHTML = `
+          <div class="today-head"><span>${word}</span><b>${(margin || maint).date}</b></div>
+          ${value}
+          <table>
+            <thead><tr><th>融資餘額</th><th>融資維持率${maintDate}</th></tr></thead>
+            <tbody><tr>
+              <td>${margin ? `<span class="today-rank">${fmt2(margin.balance)}</span> <span class="today-total">億元</span>` : "—"}</td>
+              <td>${maintCell}</td>
+            </tr></tbody>
+          </table>`;
+      }
+
       // ── 外資每月買賣超 ──
       let _monthlyChart = null;
 
@@ -2710,6 +2748,7 @@
       function renderToday(data) {
         const ok = renderTodayIndex(data.today);
         renderTodayForeign(data.today_foreign);
+        renderTodayMargin(data.today_margin);
         document.getElementById("today").classList.toggle("ready", ok);
       }
 

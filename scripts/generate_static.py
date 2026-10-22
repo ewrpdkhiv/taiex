@@ -39,6 +39,7 @@ from taiex_big_drops import (
     find_top_point_gains,
     foreign_monthly_net,
     load_foreign_net,
+    load_latest_margin,
     load_ohlc_from_yfinance,
     load_vix_from_yfinance,
     patch_missing_trading_days,
@@ -158,6 +159,7 @@ def generate_data() -> None:
         payload["foreign_data_start"] = pd.Timestamp(foreign_df["Date"].min()).strftime("%Y-%m-%d")
     except Exception as exc:  # noqa: BLE001 - 外資資料失敗不應拖垮整份 data.json
         print(f"⚠ 外資買賣超資料產生失敗：{exc}")
+    payload["today_margin"] = load_latest_margin()
     payload["post_drop_stats"] = analyze_post_drop_returns(df)
     payload["post_gain_stats"] = analyze_post_gain_returns(df)
     payload["ma_touch_stats"] = {
