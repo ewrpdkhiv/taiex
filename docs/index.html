@@ -219,6 +219,11 @@
         width: 50%;
         text-align: left;
       }
+      /* 卡片窄（四張並排）時，「/ 總數」換到名次下一行，而不是被卡片的 overflow 裁掉；
+         名次與總數本身不拆行 */
+      .today-block table td {
+        white-space: normal;
+      }
       .today-note {
         font-size: 0.8rem;
         color: var(--ink-3);
@@ -227,6 +232,7 @@
         font-family: var(--font-mono);
         font-weight: 600;
         color: var(--ink);
+        white-space: nowrap;
       }
       .today-rank.top {
         color: var(--accent);
@@ -280,6 +286,7 @@
         font-family: var(--font-mono);
         font-size: 0.75rem;
         color: var(--ink-3);
+        white-space: nowrap;
       }
 
       /* 卡片標題左側色條 */
