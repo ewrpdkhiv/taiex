@@ -152,7 +152,7 @@ class TestRunYearly:
     def test_years_are_independent(self):
         # 2021 年價格上漲、2022 年價格下跌，各年 XIRR 應各自反映當年走勢
         def price(d):
-            return 100.0 + d.dayofyear if d.year == 2021 else 400.0 - d.dayofyear
+            return 100.0 + d.day_of_year if d.year == 2021 else 400.0 - d.day_of_year
         hist = self._hist("2021-01-01", "2022-12-31", price)
         out = run_yearly({"X": (hist, None)}, monthly_amount=1000, years=1,
                          today=pd.Timestamp("2022-12-31"))

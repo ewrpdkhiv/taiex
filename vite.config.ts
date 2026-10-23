@@ -24,8 +24,8 @@ export default defineConfig({
         },
       },
     },
-    // ECharts 完整版約 1 MB（與原本 vendored 的 echarts.min.js 同大小），不是意外變大
-    chunkSizeWarningLimit: 1100,
+    // ECharts 6 完整版約 1.1 MB，不是意外變大
+    chunkSizeWarningLimit: 1200,
   },
   plugins: [
     {
