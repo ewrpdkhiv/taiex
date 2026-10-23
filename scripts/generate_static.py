@@ -35,16 +35,19 @@ from taiex_big_drops import (
     find_top_foreign_net_buys,
     find_top_foreign_net_sells,
     find_top_gains,
+    find_top_margin_changes,
     find_top_point_drops,
     find_top_point_gains,
     foreign_monthly_net,
     load_foreign_net,
     load_latest_margin,
+    load_margin_history,
     load_ohlc_from_yfinance,
     load_vix_from_yfinance,
     patch_missing_trading_days,
     rank_latest_day,
     rank_latest_foreign,
+    rank_latest_margin,
 )
 
 _TW = timezone(timedelta(hours=8))
@@ -83,6 +86,7 @@ def _df_to_records(
     records = []
     has_pt = "change_pt" in df.columns
     has_foreign = "foreign_net" in df.columns
+    has_margin = "margin_change" in df.columns
     for rank, (_, row) in enumerate(df.iterrows(), start=1):
         date_str = pd.Timestamp(row["Date"]).strftime("%Y-%m-%d")
         recovery = None
@@ -112,6 +116,10 @@ def _df_to_records(
         if has_foreign:
             # 外資買賣超，單位：億元（負值為賣超）
             record["foreign_net"] = round(float(row["foreign_net"]) / 1e8, 2)
+        if has_margin:
+            # 融資增減與餘額，單位：億元（負值為減少）
+            record["margin_change"] = round(float(row["margin_change"]) / 1e8, 2)
+            record["margin_balance"] = round(float(row["margin_balance"]) / 1e8, 2)
         records.append(record)
     return records
 
@@ -159,7 +167,22 @@ def generate_data() -> None:
         payload["foreign_data_start"] = pd.Timestamp(foreign_df["Date"].min()).strftime("%Y-%m-%d")
     except Exception as exc:  # noqa: BLE001 - 外資資料失敗不應拖垮整份 data.json
         print(f"⚠ 外資買賣超資料產生失敗：{exc}")
-    payload["today_margin"] = load_latest_margin()
+    margin_df = None
+    try:
+        margin_df = load_margin_history()
+        for period, years in (("20y", 20), ("10y", 10), ("5y", 5), ("all", None)):
+            payload[f"margin_increases_{period}"] = _df_to_records(
+                find_top_margin_changes(df, margin_df, top_n=10, years=years, increase=True), df, "gain",
+            )
+            payload[f"margin_decreases_{period}"] = _df_to_records(
+                find_top_margin_changes(df, margin_df, top_n=10, years=years, increase=False), df,
+            )
+        payload["margin_data_start"] = pd.Timestamp(margin_df["Date"].min()).strftime("%Y-%m-%d")
+    except Exception as exc:  # noqa: BLE001 - 融資資料失敗不應拖垮整份 data.json
+        print(f"⚠ 融資餘額資料產生失敗：{exc}")
+    payload["today_margin"] = load_latest_margin(
+        lambda: rank_latest_margin(df, margin_df) if margin_df is not None else None,
+    )
     payload["post_drop_stats"] = analyze_post_drop_returns(df)
     payload["post_gain_stats"] = analyze_post_gain_returns(df)
     payload["ma_touch_stats"] = {

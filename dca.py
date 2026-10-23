@@ -215,7 +215,8 @@ def _load_ticker_history(ticker: str) -> tuple[pd.DataFrame, float | None]:
         hist = pd.DataFrame()
 
     if not hist.empty:
-        hist.index = hist.index.tz_localize(None) if hist.index.tz else hist.index
+        if isinstance(hist.index, pd.DatetimeIndex) and hist.index.tz is not None:
+            hist.index = hist.index.tz_localize(None)
         if "Dividends" not in hist.columns:
             hist["Dividends"] = 0.0
         fresh = hist[["Close", "Dividends"]].copy()
@@ -267,12 +268,12 @@ def run_dca(
         return None
 
     indexed = window.set_index("Date")
-    trading_dates = indexed.index
+    trading_dates = pd.DatetimeIndex(indexed.index)
     close = indexed["Close"]
     divs = indexed["Dividends"]
     divs = divs[divs > 0]
 
-    buy_events: dict[pd.Timestamp, int] = {}
+    buy_events: dict[pd.Timestamp, float] = {}
     last_date = trading_dates[-1]
     # 若 invest_day 已早於 start_date 當月的日，從下個月起算，確保整 10 年 = 120 次
     _first = trading_dates[0]

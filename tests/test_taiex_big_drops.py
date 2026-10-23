@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 import pandas as pd
 import pytest
 
@@ -19,9 +21,11 @@ from taiex_big_drops import (
     find_longest_streaks,
     find_top_foreign_net_buys,
     find_top_foreign_net_sells,
+    find_top_margin_changes,
     patch_missing_trading_days,
     rank_latest_day,
     rank_latest_foreign,
+    rank_latest_margin,
     foreign_monthly_net,
     load_latest_margin,
     load_margin_maintenance,
@@ -153,7 +157,7 @@ class TestPatchMissingTradingDays:
 # ── find_bear_markets ─────────────────────────────────────────────────────
 
 
-def _make_df(closes: list[float], lows: list[float] | None = None) -> pd.DataFrame:
+def _make_df(closes: Sequence[float], lows: Sequence[float] | None = None) -> pd.DataFrame:
     dates = pd.date_range("2020-01-01", periods=len(closes), freq="D")
     return pd.DataFrame({"Date": dates, "Close": closes, "Low": lows or closes})
 
@@ -613,6 +617,7 @@ class TestRankLatestDay:
         # -10%（-10 點）、+10%、-5%（-4.95 點）、-8%（-7.52 點，最新）→ 跌幅、跌點都第 2
         df = self._df([100.0, 90.0, 99.0, 94.05, 86.526])
         r = rank_latest_day(df, periods={"all": None})
+        assert r is not None
         assert r["direction"] == "drop"
         assert r["date"] == "2025-01-05"
         assert r["change_pct"] == -8.0
@@ -621,11 +626,13 @@ class TestRankLatestDay:
     def test_gain_day_ranked_among_gains(self):
         df = self._df([100.0, 110.0, 99.0, 102.0])
         r = rank_latest_day(df, periods={"all": None})
+        assert r is not None
         assert r["direction"] == "gain"
         assert r["ranks"]["all"] == {"pct": 2, "pt": 2, "total": 2}
 
     def test_flat_day_has_no_ranks(self):
         r = rank_latest_day(self._df([100.0, 90.0, 90.0]), periods={"all": None})
+        assert r is not None
         assert r["direction"] == "flat"
         assert r["ranks"] == {}
 
@@ -659,6 +666,7 @@ class TestRankLatestForeign:
         # 外資資料只到第 3 天（尚未公布最新一天）
         foreign = pd.DataFrame({"Date": dates[:3], "foreign_net": [1e8, 20e8, 30e8]})
         r = rank_latest_foreign(df, foreign, periods={"all": None})
+        assert r is not None
         assert r["date"] == "2025-01-03"
         assert r["direction"] == "buy"
         assert r["ranks"]["all"] == {"rank": 1, "total": 2}
@@ -673,6 +681,7 @@ class TestRankLatestForeign:
             "Date": dates, "foreign_net": [-1e8, -2e8, 3e8, -4e8, -5e8, -6e8],
         })
         r = rank_latest_foreign(df, foreign, periods={"all": None})
+        assert r is not None
         assert r["direction"] == "sell"
         assert r["streak"] == 3
         assert [x["date"] for x in r["streak_days"]] == ["2025-01-04", "2025-01-05", "2025-01-06"]
@@ -683,6 +692,7 @@ class TestRankLatestForeign:
         df = calculate_daily_returns(pd.DataFrame({"Date": dates, "Close": [100.0, 101.0, 102.0]}))
         foreign = pd.DataFrame({"Date": dates, "foreign_net": [1e8, 2e8, 0.0]})
         r = rank_latest_foreign(df, foreign, periods={"all": None})
+        assert r is not None
         assert r["direction"] == "flat"
         assert r["streak"] == 0
         assert r["streak_days"] == []
@@ -715,16 +725,59 @@ class TestEventShortNames:
 
 
 class TestParseFinmindMargin:
-    def test_takes_latest_margin_money_row(self):
+    def test_keeps_margin_money_rows(self):
         payload = {"status": 200, "data": [
-            {"date": "2025-04-07", "name": "MarginPurchaseMoney", "TodayBalance": 300e8, "YesBalance": 320e8},
             {"date": "2025-04-08", "name": "MarginPurchaseMoney", "TodayBalance": 305.5e8, "YesBalance": 300e8},
+            {"date": "2025-04-07", "name": "MarginPurchaseMoney", "TodayBalance": 300e8, "YesBalance": 320e8},
             {"date": "2025-04-08", "name": "MarginPurchase", "TodayBalance": 999, "YesBalance": 1},
         ]}
-        assert _parse_finmind_margin(payload) == {"date": "2025-04-08", "balance": 305.5, "change": 5.5}
+        df = _parse_finmind_margin(payload)
+        assert df["Date"].dt.strftime("%Y-%m-%d").tolist() == ["2025-04-07", "2025-04-08"]
+        assert df["margin_balance"].tolist() == [300e8, 305.5e8]
+        assert df["margin_change"].tolist() == [-20e8, 5.5e8]
 
     def test_no_margin_money_rows(self):
-        assert _parse_finmind_margin({"status": 200, "data": []}) is None
+        df = _parse_finmind_margin({"status": 200, "data": []})
+        assert df.empty
+        assert list(df.columns) == ["Date", "margin_balance", "margin_change"]
+
+
+def _margin_history(changes_yi: list[float]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """指數 df（第一天無漲跌）與同日期的融資 df（margin_change 單位：元）。"""
+    dates = pd.date_range("2025-01-01", periods=len(changes_yi), freq="D")
+    df = calculate_daily_returns(_make_df([100 + i for i in range(len(changes_yi))]))
+    df["Date"] = dates
+    margin = pd.DataFrame({
+        "Date": dates,
+        "margin_balance": [3000e8 + i * 1e8 for i in range(len(changes_yi))],
+        "margin_change": [c * 1e8 for c in changes_yi],
+    })
+    return df, margin
+
+
+class TestFindTopMarginChanges:
+    def test_increases_skip_first_day_without_index_change(self):
+        df, margin = _margin_history([999, 10, -5, 50, 30])
+        result = find_top_margin_changes(df, margin, top_n=2, increase=True)
+        assert result["margin_change"].tolist() == [50e8, 30e8]
+
+    def test_decreases(self):
+        df, margin = _margin_history([-999, -10, 5, -50, -30])
+        result = find_top_margin_changes(df, margin, top_n=2, increase=False)
+        assert result["margin_change"].tolist() == [-50e8, -30e8]
+
+
+class TestRankLatestMargin:
+    def test_rank_among_same_direction(self):
+        df, margin = _margin_history([0, -10, 5, -50, -30])
+        r = rank_latest_margin(df, margin)
+        assert r == {"date": "2025-01-05", "balance": 3004.0, "change": -30.0, "rank": 2, "total": 3}
+
+    def test_flat_has_no_rank(self):
+        df, margin = _margin_history([0, 5, 0])
+        r = rank_latest_margin(df, margin)
+        assert r is not None
+        assert (r["rank"], r["total"]) == (None, None)
 
 
 def _margin_payload(amount_k: str, lots: dict[str, str]) -> dict:
@@ -781,18 +834,14 @@ class TestLoadMarginMaintenance:
 
 class TestLoadLatestMargin:
     def test_one_source_failing_keeps_the_other(self):
-        def fetch(dataset, start):
-            return {"status": 200, "data": [
-                {"date": "2025-04-08", "name": "MarginPurchaseMoney", "TodayBalance": 2e10, "YesBalance": 1e10},
-            ]}
-
         def load_maintenance():
             raise RuntimeError("boom")
-        result = load_latest_margin(fetch=fetch, load_maintenance=load_maintenance)
+        result = load_latest_margin(lambda: {"change": 100.0}, load_maintenance=load_maintenance)
+        assert result is not None
         assert result["margin"]["change"] == 100.0
         assert result["maintenance"] is None
 
     def test_both_failing_returns_none(self):
         def fail(*_):
             raise RuntimeError("boom")
-        assert load_latest_margin(fetch=fail, load_maintenance=fail) is None
+        assert load_latest_margin(fail, load_maintenance=fail) is None

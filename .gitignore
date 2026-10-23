@@ -36,3 +36,5 @@ wheels/
 .ripgreprc
 .zprofile
 .zshrc
+# 前端（Vite / TypeScript；build 輸出的 dist/ 已在上方忽略）
+node_modules/

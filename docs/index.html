@@ -11,8 +11,18 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="theme.css" />
-    <script src="theme.js"></script>
-    <script src="kline-events.js"></script>
+    <script>
+      // 首次繪製前套用主題，避免閃爍；切換按鈕等其餘邏輯在 src/theme.ts
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem("taiex-theme");
+        } catch (e) {}
+        var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute("data-theme", t || (dark ? "dark" : "light"));
+      })();
+    </script>
+    <script type="module" src="./src/index.ts"></script>
     <style>
       /* ── 類型／期間切換 ── */
       nav.controls {
@@ -155,7 +165,7 @@
         margin: 0 auto 16px;
         padding: 0 24px;
         display: none;
-        grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
         gap: 12px;
       }
       #today.ready {
@@ -223,6 +233,15 @@
       }
       .today-block[data-color="drop"] .today-rank.top {
         color: var(--down);
+      }
+      .today-rank.drop {
+        color: var(--down);
+      }
+      .today-rank.gain {
+        color: var(--up);
+      }
+      .today-block > .today-note {
+        margin-top: 6px;
       }
       .today-block[data-color="gain"] .today-rank.top {
         color: var(--up);
@@ -542,6 +561,7 @@
       <div class="card today-block" id="today-index"></div>
       <div class="card today-block" id="today-foreign"></div>
       <div class="card today-block" id="today-margin"></div>
+      <div class="card today-block" id="today-maintenance"></div>
     </section>
 
     <nav class="controls">
@@ -563,6 +583,12 @@
         </button>
         <button class="type-btn" data-color="gain" data-type="foreign-buys">
           外資買超
+        </button>
+        <button class="type-btn" data-color="gain" data-type="margin-increases">
+          融資增加
+        </button>
+        <button class="type-btn" data-color="drop" data-type="margin-decreases">
+          融資減少
         </button>
         <button class="type-btn" data-color="stats" data-type="foreign-monthly">
           外資月度
@@ -1951,6 +1977,270 @@
       </div>
     </div>
 
+    <div id="panel-margin-increases-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年融資增加前 10 名</h2>
+            <span class="badge">20Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-20y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-increases-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年融資增加前 10 名</h2>
+            <span class="badge">10Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-10y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-increases-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年融資增加前 10 名</h2>
+            <span class="badge">5Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-5y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-increases-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時融資增加前 10 名</h2>
+            <span class="badge">ALL 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-all">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年融資減少前 10 名</h2>
+            <span class="badge">20Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-20y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年融資減少前 10 名</h2>
+            <span class="badge">10Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-10y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年融資減少前 10 名</h2>
+            <span class="badge">5Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-5y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時融資減少前 10 名</h2>
+            <span class="badge">ALL 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-all">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- K 線圖面板（跌幅/跌點/漲幅/漲點/外資賣超點擊後顯示） -->
     <div id="chart-outer">
       <div class="card">
@@ -1968,1337 +2258,5 @@
         <div id="chart-container"></div>
       </div>
     </div>
-
-    <script>
-      const REFRESH_MS = 3600 * 1000;
-      let currentType = "drops-pct";
-      let currentPeriod = "20y";
-      let _data = null;
-      const _sortState = {};
-
-      const fmt = (n) =>
-        n.toLocaleString("zh-TW", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
-
-      const recStr = (days, none = "—") =>
-        days === 0 ? "當日" : days != null ? days + " 天" : none;
-
-      function pctRow(r, cls) {
-        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
-          <td>${r.rank}</td>
-          <td class="date">${r.date}</td>
-          <td class="col-close">${fmt(r.close)}</td>
-          <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${cls} col-pct">${r.change_pct.toFixed(2)}%</td>
-          <td class="recovery">${recStr(r.fallback_days, "未回落")}</td>
-          <td class="event col-event">${r.event}</td>
-        </tr>`;
-      }
-
-      function dropPctRow(r, cls) {
-        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
-          <td>${r.rank}</td>
-          <td class="date">${r.date}</td>
-          <td class="col-close">${fmt(r.close)}</td>
-          <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${cls} col-pct">${r.change_pct.toFixed(2)}%</td>
-          <td class="recovery">${recStr(r.recovery_days)}</td>
-          <td class="event col-event">${r.event}</td>
-        </tr>`;
-      }
-
-      function ptRow(r, cls) {
-        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
-          <td>${r.rank}</td>
-          <td class="date">${r.date}</td>
-          <td class="col-close">${fmt(r.close)}</td>
-          <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${cls}">${fmt(r.change_pt)}</td>
-          <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
-          <td class="recovery">${recStr(r.fallback_days, "未回落")}</td>
-          <td class="event col-event">${r.event}</td>
-        </tr>`;
-      }
-
-      function dropPtRow(r, cls) {
-        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
-          <td>${r.rank}</td>
-          <td class="date">${r.date}</td>
-          <td class="col-close">${fmt(r.close)}</td>
-          <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${cls}">${fmt(r.change_pt)}</td>
-          <td class="col-pct pct">${r.change_pct.toFixed(2)}%</td>
-          <td class="recovery">${recStr(r.recovery_days)}</td>
-          <td class="event col-event">${r.event}</td>
-        </tr>`;
-      }
-
-      function foreignBuyRow(r) {
-        const pctCls = r.change_pct < 0 ? "drop" : "gain";
-        const sign = r.change_pct > 0 ? "+" : "";
-        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
-          <td>${r.rank}</td>
-          <td class="date">${r.date}</td>
-          <td class="gain">+${fmt(r.foreign_net)}</td>
-          <td class="col-close">${fmt(r.close)}</td>
-          <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${pctCls} col-pct">${sign}${r.change_pct.toFixed(2)}%</td>
-          <td class="recovery">${recStr(r.fallback_days, "未回落")}</td>
-          <td class="event col-event">${r.event}</td>
-        </tr>`;
-      }
-
-      function foreignSellRow(r) {
-        const pctCls = r.change_pct < 0 ? "drop" : "gain";
-        const sign = r.change_pct > 0 ? "+" : "";
-        return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
-          <td>${r.rank}</td>
-          <td class="date">${r.date}</td>
-          <td class="drop">${fmt(r.foreign_net)}</td>
-          <td class="col-close">${fmt(r.close)}</td>
-          <td class="col-prev">${fmt(r.prev_close)}</td>
-          <td class="${pctCls} col-pct">${sign}${r.change_pct.toFixed(2)}%</td>
-          <td class="recovery">${recStr(r.recovery_days)}</td>
-          <td class="event col-event">${r.event}</td>
-        </tr>`;
-      }
-
-      const TABLE_CONFIG = {
-        "t-drops-pct-20y": {
-          key: "drops_20y",
-          fn: dropPctRow,
-          cls: "drop",
-          cols: 7,
-        },
-        "t-drops-pct-10y": {
-          key: "drops_10y",
-          fn: dropPctRow,
-          cls: "drop",
-          cols: 7,
-        },
-        "t-drops-pct-5y": {
-          key: "drops_5y",
-          fn: dropPctRow,
-          cls: "drop",
-          cols: 7,
-        },
-        "t-drops-pct-all": {
-          key: "drops_all",
-          fn: dropPctRow,
-          cls: "drop",
-          cols: 7,
-        },
-        "t-gains-pct-20y": {
-          key: "gains_20y",
-          fn: pctRow,
-          cls: "gain",
-          cols: 7,
-        },
-        "t-gains-pct-10y": {
-          key: "gains_10y",
-          fn: pctRow,
-          cls: "gain",
-          cols: 7,
-        },
-        "t-gains-pct-5y": {
-          key: "gains_5y",
-          fn: pctRow,
-          cls: "gain",
-          cols: 7,
-        },
-        "t-gains-pct-all": {
-          key: "gains_all",
-          fn: pctRow,
-          cls: "gain",
-          cols: 7,
-        },
-        "t-drops-pt-20y": {
-          key: "drops_pt_20y",
-          fn: dropPtRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-drops-pt-10y": {
-          key: "drops_pt_10y",
-          fn: dropPtRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-drops-pt-5y": {
-          key: "drops_pt_5y",
-          fn: dropPtRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-drops-pt-all": {
-          key: "drops_pt_all",
-          fn: dropPtRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-gains-pt-20y": {
-          key: "gains_pt_20y",
-          fn: ptRow,
-          cls: "gain",
-          cols: 8,
-        },
-        "t-gains-pt-10y": {
-          key: "gains_pt_10y",
-          fn: ptRow,
-          cls: "gain",
-          cols: 8,
-        },
-        "t-gains-pt-5y": {
-          key: "gains_pt_5y",
-          fn: ptRow,
-          cls: "gain",
-          cols: 8,
-        },
-        "t-gains-pt-all": {
-          key: "gains_pt_all",
-          fn: ptRow,
-          cls: "gain",
-          cols: 8,
-        },
-        "t-foreign-sells-20y": {
-          key: "foreign_sells_20y",
-          fn: foreignSellRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-foreign-sells-10y": {
-          key: "foreign_sells_10y",
-          fn: foreignSellRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-foreign-sells-5y": {
-          key: "foreign_sells_5y",
-          fn: foreignSellRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-foreign-sells-all": {
-          key: "foreign_sells_all",
-          fn: foreignSellRow,
-          cls: "drop",
-          cols: 8,
-        },
-        "t-foreign-buys-20y": {
-          key: "foreign_buys_20y",
-          fn: foreignBuyRow,
-          cls: "gain",
-          cols: 8,
-        },
-        "t-foreign-buys-10y": {
-          key: "foreign_buys_10y",
-          fn: foreignBuyRow,
-          cls: "gain",
-          cols: 8,
-        },
-        "t-foreign-buys-5y": {
-          key: "foreign_buys_5y",
-          fn: foreignBuyRow,
-          cls: "gain",
-          cols: 8,
-        },
-        "t-foreign-buys-all": {
-          key: "foreign_buys_all",
-          fn: foreignBuyRow,
-          cls: "gain",
-          cols: 8,
-        },
-      };
-
-      const SORT_MODES = ["original", "time-desc"];
-      const SORT_LABELS = { original: "依幅度", "time-desc": "時間 ↓" };
-
-      function sortedRows(rows, state) {
-        if (!rows || !rows.length) return rows;
-        const r = [...rows];
-        if (state === "time-desc")
-          r.sort((a, b) => b.date.localeCompare(a.date));
-        else r.sort((a, b) => a.rank - b.rank);
-        return r;
-      }
-
-      function renderTable(id, rows, rowFn, cls, cols) {
-        const tbody = document.getElementById(id);
-        if (!rows || !rows.length) {
-          tbody.innerHTML = `<tr><td colspan="${cols}" class="loading">暫無資料</td></tr>`;
-          return;
-        }
-        tbody.innerHTML = rows.map((r) => rowFn(r, cls)).join("");
-      }
-
-      function streakRow(s, cls) {
-        return `<tr>
-          <td class="left date">${s.start_date} ~ ${s.end_date}</td>
-          <td class="pct">${s.days} 天</td>
-          <td class="${cls}">${s.cumulative_pct.toFixed(2)}%</td>
-        </tr>`;
-      }
-
-      function renderStreaks(streaks) {
-        const upBody = document.getElementById("t-streak-up");
-        const downBody = document.getElementById("t-streak-down");
-        if (!streaks || !streaks.up || !streaks.up.length) {
-          upBody.innerHTML = `<tr><td colspan="3" class="loading">暫無資料</td></tr>`;
-        } else {
-          upBody.innerHTML = streaks.up
-            .map((s) => streakRow(s, "gain"))
-            .join("");
-        }
-        if (!streaks || !streaks.down || !streaks.down.length) {
-          downBody.innerHTML = `<tr><td colspan="3" class="loading">暫無資料</td></tr>`;
-        } else {
-          downBody.innerHTML = streaks.down
-            .map((s) => streakRow(s, "drop"))
-            .join("");
-        }
-      }
-
-      // 節日連假（中秋、過年、端午）明細列：連假期間、買進日、賣出日、報酬
-      function holidayDetailRow(ev) {
-        const cls = ev.return_pct >= 0 ? "gain" : "drop";
-        return `<tr>
-          <td class="left date">${ev.holiday_start} ~ ${ev.holiday_end}（${ev.holiday_days} 天）</td>
-          <td class="date">${ev.buy_date}（${ev.buy_close.toFixed(2)}）</td>
-          <td class="date">${ev.sell_date}（${ev.sell_close.toFixed(2)}）</td>
-          <td class="${cls}">${ev.return_pct.toFixed(2)}%</td>
-        </tr>`;
-      }
-
-      // ── 大跌後 / 跌破均線後表現統計：共用渲染邏輯 ──
-      const STATS_PANELS = {
-        "post-drop": {
-          tbodyId: "t-post-drop-stats",
-          badgeId: "post-drop-badge",
-          detailId: "post-drop-detail",
-          detailInfoId: "post-drop-detail-info",
-          detailTbodyId: "t-post-drop-detail",
-          extraField: "drop_pct",
-          getStats: (data) => data && data.post_drop_stats,
-          badgeText: (s) =>
-            `跌幅 ≥ ${s.threshold}%（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `大跌之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        "post-gain": {
-          tbodyId: "t-post-gain-stats",
-          badgeId: "post-gain-badge",
-          detailId: "post-gain-detail",
-          detailInfoId: "post-gain-detail-info",
-          detailTbodyId: "t-post-gain-detail",
-          extraField: "gain_pct",
-          extraFieldCls: "gain",
-          getStats: (data) => data && data.post_gain_stats,
-          badgeText: (s) =>
-            `漲幅 ≥ ${s.threshold}%（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `大漲之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        ma20: {
-          tbodyId: "t-ma20-stats",
-          badgeId: "ma20-badge",
-          detailId: "ma20-detail",
-          detailInfoId: "ma20-detail-info",
-          detailTbodyId: "t-ma20-detail",
-          extraField: "touch_pct",
-          getStats: (data) =>
-            data && data.ma_touch_stats && data.ma_touch_stats.ma20,
-          badgeText: (s) =>
-            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `跌破 20 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        ma60: {
-          tbodyId: "t-ma60-stats",
-          badgeId: "ma60-badge",
-          detailId: "ma60-detail",
-          detailInfoId: "ma60-detail-info",
-          detailTbodyId: "t-ma60-detail",
-          extraField: "touch_pct",
-          getStats: (data) =>
-            data && data.ma_touch_stats && data.ma_touch_stats.ma60,
-          badgeText: (s) =>
-            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `跌破 60 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        ma120: {
-          tbodyId: "t-ma120-stats",
-          badgeId: "ma120-badge",
-          detailId: "ma120-detail",
-          detailInfoId: "ma120-detail-info",
-          detailTbodyId: "t-ma120-detail",
-          extraField: "touch_pct",
-          getStats: (data) =>
-            data && data.ma_touch_stats && data.ma_touch_stats.ma120,
-          badgeText: (s) =>
-            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `跌破 120 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        ma240: {
-          tbodyId: "t-ma240-stats",
-          badgeId: "ma240-badge",
-          detailId: "ma240-detail",
-          detailInfoId: "ma240-detail-info",
-          detailTbodyId: "t-ma240-detail",
-          extraField: "touch_pct",
-          getStats: (data) =>
-            data && data.ma_touch_stats && data.ma_touch_stats.ma240,
-          badgeText: (s) =>
-            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `跌破 240 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        ma1200: {
-          tbodyId: "t-ma1200-stats",
-          badgeId: "ma1200-badge",
-          detailId: "ma1200-detail",
-          detailInfoId: "ma1200-detail-info",
-          detailTbodyId: "t-ma1200-detail",
-          extraField: "touch_pct",
-          getStats: (data) =>
-            data && data.ma_touch_stats && data.ma_touch_stats.ma1200,
-          badgeText: (s) =>
-            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `跌破 1200 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        ma2400: {
-          tbodyId: "t-ma2400-stats",
-          badgeId: "ma2400-badge",
-          detailId: "ma2400-detail",
-          detailInfoId: "ma2400-detail-info",
-          detailTbodyId: "t-ma2400-detail",
-          extraField: "touch_pct",
-          getStats: (data) =>
-            data && data.ma_touch_stats && data.ma_touch_stats.ma2400,
-          badgeText: (s) =>
-            `跌破 ${s.ma_window} 日均線（樣本 ${s.sample_size} 次）`,
-          detailInfo: (days, count) =>
-            `跌破 2400 日均線之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
-        },
-        "mid-autumn": {
-          tbodyId: "t-mid-autumn-stats",
-          badgeId: "mid-autumn-badge",
-          detailId: "mid-autumn-detail",
-          detailInfoId: "mid-autumn-detail-info",
-          detailTbodyId: "t-mid-autumn-detail",
-          getStats: (data) => data && data.mid_autumn_stats,
-          badgeText: (s) =>
-            `連假前最後一個交易日收盤買進（${s.sample_size} 年）`,
-          detailInfo: (days, count) =>
-            `連假後第 ${days} 個交易日收盤賣出的個別報酬（共 ${count} 年）`,
-          detailRow: holidayDetailRow,
-        },
-        "lunar-new-year": {
-          tbodyId: "t-lunar-new-year-stats",
-          badgeId: "lunar-new-year-badge",
-          detailId: "lunar-new-year-detail",
-          detailInfoId: "lunar-new-year-detail-info",
-          detailTbodyId: "t-lunar-new-year-detail",
-          getStats: (data) => data && data.lunar_new_year_stats,
-          badgeText: (s) =>
-            `封關日收盤買進（${s.sample_size} 年）`,
-          detailInfo: (days, count) =>
-            `開紅盤後第 ${days} 個交易日收盤賣出的個別報酬（共 ${count} 年）`,
-          detailRow: holidayDetailRow,
-        },
-        "dragon-boat": {
-          tbodyId: "t-dragon-boat-stats",
-          badgeId: "dragon-boat-badge",
-          detailId: "dragon-boat-detail",
-          detailInfoId: "dragon-boat-detail-info",
-          detailTbodyId: "t-dragon-boat-detail",
-          getStats: (data) => data && data.dragon_boat_stats,
-          badgeText: (s) =>
-            `連假前最後一個交易日收盤買進（${s.sample_size} 年）`,
-          detailInfo: (days, count) =>
-            `連假後第 ${days} 個交易日收盤賣出的個別報酬（共 ${count} 年）`,
-          detailRow: holidayDetailRow,
-        },
-      };
-
-      function renderStatsPanel(panelKey, stats) {
-        const cfg = STATS_PANELS[panelKey];
-        const tbody = document.getElementById(cfg.tbodyId);
-        if (!stats || !stats.horizons || !stats.horizons.length) {
-          tbody.innerHTML = `<tr><td colspan="5" class="loading">暫無資料</td></tr>`;
-          return;
-        }
-        document.getElementById(cfg.badgeId).textContent = cfg.badgeText(stats);
-        closeStatsDetail(panelKey);
-        tbody.innerHTML = stats.horizons
-          .map((h) => {
-            if (!h.avg_return_pct && h.avg_return_pct !== 0) {
-              return `<tr>
-                <td class="left date">${h.days} 日</td>
-                <td colspan="4" class="loading">樣本不足</td>
-              </tr>`;
-            }
-            const cls = h.avg_return_pct >= 0 ? "gain" : "drop";
-            return `<tr class="clickable-horizon" data-panel="${panelKey}" data-days="${h.days}">
-              <td class="left date">${h.days} 日</td>
-              <td class="${cls}">${h.avg_return_pct.toFixed(2)}%</td>
-              <td class="pct">${h.median_return_pct.toFixed(2)}%</td>
-              <td class="pct">${h.win_rate_pct.toFixed(1)}%</td>
-              <td class="pct">${h.sample_size}</td>
-            </tr>`;
-          })
-          .join("");
-      }
-
-      const _activeStatsRow = {};
-
-      document.addEventListener("click", (e) => {
-        const tr = e.target.closest("tr.clickable-horizon");
-        if (!tr) return;
-        const panelKey = tr.dataset.panel;
-        const days = Number(tr.dataset.days);
-        if (_activeStatsRow[panelKey]) {
-          _activeStatsRow[panelKey].classList.remove("active");
-        }
-        _activeStatsRow[panelKey] = tr;
-        tr.classList.add("active");
-        openStatsDetail(panelKey, days);
-      });
-
-      function closeStatsDetail(panelKey) {
-        const cfg = STATS_PANELS[panelKey];
-        const outer = document.getElementById(cfg.detailId);
-        if (outer) outer.style.display = "none";
-        if (_activeStatsRow[panelKey]) {
-          _activeStatsRow[panelKey].classList.remove("active");
-          _activeStatsRow[panelKey] = null;
-        }
-      }
-
-      function openStatsDetail(panelKey, days) {
-        const cfg = STATS_PANELS[panelKey];
-        const stats = cfg.getStats(_data);
-        const horizon = stats && stats.horizons.find((h) => h.days === days);
-        if (!horizon || !horizon.events) return;
-
-        const outer = document.getElementById(cfg.detailId);
-        document.getElementById(cfg.detailInfoId).textContent = cfg.detailInfo(
-          days,
-          horizon.events.length,
-        );
-
-        const rows = [...horizon.events].reverse();
-        const extraCls = cfg.extraFieldCls || "drop";
-        document.getElementById(cfg.detailTbodyId).innerHTML = rows
-          .map((ev) => {
-            if (cfg.detailRow) return cfg.detailRow(ev);
-            const cls = ev.return_pct >= 0 ? "gain" : "drop";
-            return `<tr>
-              <td class="left date">${ev.date}</td>
-              <td class="${extraCls}">${ev[cfg.extraField].toFixed(2)}%</td>
-              <td class="${cls}">${ev.return_pct.toFixed(2)}%</td>
-            </tr>`;
-          })
-          .join("");
-
-        outer.style.display = "block";
-      }
-
-      function fmtSigned(v, digits = 2) {
-        return (v > 0 ? "+" : "") + v.toFixed(digits);
-      }
-
-      // 名次 + 同方向總日數；進前 10 名（排行表上看得到）時加強調色
-      function todayRankCell(rank, total) {
-        const cls = rank <= 10 ? "today-rank top" : "today-rank";
-        return `<span class="${cls}">第 ${rank.toLocaleString()} 名</span>
-          <span class="today-total">/ ${total.toLocaleString()}</span>`;
-      }
-
-      function renderTodayIndex(t) {
-        const el = document.getElementById("today-index");
-        if (!t) {
-          el.innerHTML = "";
-          return false;
-        }
-        const isDrop = t.direction === "drop";
-        const word = isDrop ? "跌" : "漲";
-        el.dataset.color = t.direction;
-        // 排名皆為全時（data.json 只產生 ranks.all）
-        const r = t.ranks.all;
-        const body =
-          t.direction === "flat"
-            ? `<div class="today-note">平盤，不列入排名</div>`
-            : `<table>
-                <thead><tr><th>${word}幅% 排名</th><th>${word}點 排名</th></tr></thead>
-                <tbody><tr>
-                  <td>${todayRankCell(r.pct, r.total)}</td>
-                  <td>${todayRankCell(r.pt, r.total)}</td>
-                </tr></tbody>
-              </table>`;
-        el.innerHTML = `
-          <div class="today-head"><span>加權指數 收盤 ${t.close.toLocaleString()}</span><b>${t.date}</b></div>
-          <div class="today-value ${t.direction}">${fmtSigned(t.change_pct)}%<small>${fmtSigned(t.change_pt)} 點</small></div>
-          ${body}`;
-        return true;
-      }
-
-      function renderTodayForeign(f) {
-        const el = document.getElementById("today-foreign");
-        if (!f) {
-          el.style.display = "none";
-          return;
-        }
-        el.style.display = "";
-        const isSell = f.direction === "sell";
-        const word = isSell ? "賣超" : "買超";
-        el.dataset.color = isSell ? "drop" : f.direction === "buy" ? "gain" : "";
-        const r = f.ranks.all;
-        const fmtYi = (v) =>
-          Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const days = f.streak_days || [];
-        // 有逐日明細時天數做成按鈕，點開列出這幾天（新到舊）的金額與合計
-        const streakCell = days.length
-          ? `<button type="button" class="today-rank today-streak-btn" aria-expanded="false"
-               aria-controls="today-streak-list">${f.streak.toLocaleString()} 天</button>`
-          : `<span class="today-rank">${(f.streak || 0).toLocaleString()} 天</span>`;
-        const detail = days.length
-          ? `<div class="today-streak-detail" id="today-streak-list" hidden>
-              <table>
-                <thead><tr><th>日期</th><th>${word}金額（億元）</th></tr></thead>
-                <tbody>${days
-                  .slice()
-                  .reverse()
-                  .map((x) => `<tr><td>${x.date}</td><td>${fmtYi(x.foreign_net)}</td></tr>`)
-                  .join("")}</tbody>
-                <tfoot><tr><td>合計 ${days.length} 天</td><td>${fmtYi(
-                  days.reduce((sum, x) => sum + x.foreign_net, 0),
-                )}</td></tr></tfoot>
-              </table>
-            </div>`
-          : "";
-        const body =
-          f.direction === "flat"
-            ? `<div class="today-note">買賣超為 0，不列入排名</div>`
-            : `<table>
-                <thead><tr><th>${word}金額排名</th>${f.streak ? `<th>連續${word}</th>` : ""}</tr></thead>
-                <tbody><tr>
-                  <td>${todayRankCell(r.rank, r.total)}</td>
-                  ${f.streak ? `<td>${streakCell}</td>` : ""}
-                </tr></tbody>
-              </table>${detail}`;
-        el.innerHTML = `
-          <div class="today-head"><span>外資${f.direction === "flat" ? "買賣超" : word}</span>
-            <span class="today-head-right"><b>${f.date}</b><button type="button" class="export-btn">⬇ PNG</button></span></div>
-          <div class="today-value ${el.dataset.color}">${fmtYi(f.foreign_net)}<small>億元</small></div>
-          ${body}`;
-        // 只輸出外資這張卡；固定寬度，手機上輸出也是同樣版面
-        el.querySelector(".export-btn").addEventListener("click", () => {
-          exportPng(el, `TAIEX_外資${word}_${f.date}.png`, (c) => {
-            c.style.width = "380px";
-          });
-        });
-        const btn = el.querySelector(".today-streak-btn");
-        if (btn) {
-          btn.addEventListener("click", () => {
-            const open = btn.getAttribute("aria-expanded") !== "true";
-            btn.setAttribute("aria-expanded", String(open));
-            el.querySelector(".today-streak-detail").hidden = !open;
-          });
-        }
-      }
-
-      // 融資餘額增減（億元）＋ 大盤融資維持率；任一份缺資料就只顯示另一份
-      function renderTodayMargin(m) {
-        const el = document.getElementById("today-margin");
-        const margin = m && m.margin;
-        const maint = m && m.maintenance;
-        if (!margin && !maint) {
-          el.style.display = "none";
-          return;
-        }
-        el.style.display = "";
-        const fmt2 = (v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt2(Math.abs(v));
-        const dir = margin ? (margin.change > 0 ? "gain" : margin.change < 0 ? "drop" : "") : "";
-        el.dataset.color = dir;
-        const word = !margin ? "融資" : margin.change > 0 ? "融資增加" : margin.change < 0 ? "融資減少" : "融資持平";
-        const value = margin
-          ? `<div class="today-value ${dir}">${signed(margin.change)}<small>億元</small></div>`
-          : `<div class="today-value">${fmt2(maint.ratio)}<small>%</small></div>`;
-        const maintCell = maint
-          ? `<span class="today-rank">${fmt2(maint.ratio)}%</span> ${
-              maint.change == null ? "" : `<span class="today-total">${signed(maint.change)}</span>`
-            }`
-          : `<span class="today-total">—</span>`;
-        // 兩份資料日期不同（例如維持率較晚公布）時，在維持率旁標日期
-        const maintDate = maint && margin && maint.date !== margin.date ? `（${maint.date}）` : "";
-        el.innerHTML = `
-          <div class="today-head"><span>${word}</span><b>${(margin || maint).date}</b></div>
-          ${value}
-          <table>
-            <thead><tr><th>融資餘額</th><th>融資維持率${maintDate}</th></tr></thead>
-            <tbody><tr>
-              <td>${margin ? `<span class="today-rank">${fmt2(margin.balance)}</span> <span class="today-total">億元</span>` : "—"}</td>
-              <td>${maintCell}</td>
-            </tr></tbody>
-          </table>`;
-      }
-
-      // ── 外資每月買賣超 ──
-      let _monthlyChart = null;
-
-      function renderMonthlyTable(rows) {
-        const tbody = document.getElementById("t-foreign-monthly");
-        if (!rows || !rows.length) {
-          tbody.innerHTML = `<tr><td colspan="4" class="loading">無外資資料</td></tr>`;
-          return;
-        }
-        tbody.innerHTML = rows
-          .slice()
-          .reverse()
-          .map((r) => {
-            const cls = r.foreign_net < 0 ? "drop" : "gain";
-            return `<tr>
-              <td class="left date">${r.month}</td>
-              <td class="${cls}">${r.foreign_net > 0 ? "+" : ""}${fmt(r.foreign_net)}</td>
-              <td>${r.buy_days}</td>
-              <td>${r.sell_days}</td>
-            </tr>`;
-          })
-          .join("");
-      }
-
-      function renderMonthlyChart() {
-        const rows = _data && _data.foreign_monthly;
-        if (!rows || !rows.length) return;
-        const T = chartTheme();
-        if (!_monthlyChart) {
-          _monthlyChart = echarts.init(document.getElementById("monthly-chart"));
-          window.addEventListener("resize", () => _monthlyChart.resize());
-        } else {
-          _monthlyChart.resize();
-        }
-        const months = rows.map((r) => r.month);
-        _monthlyChart.setOption(
-          {
-            backgroundColor: "transparent",
-            textStyle: { color: T.ink2 },
-            grid: { left: 64, right: 16, top: 20, bottom: 64 },
-            tooltip: {
-              trigger: "axis",
-              axisPointer: { type: "shadow" },
-              backgroundColor: T.bg,
-              borderColor: T.rule,
-              textStyle: { color: T.ink },
-              formatter: (ps) => {
-                const r = rows[ps[0].dataIndex];
-                const word = r.foreign_net < 0 ? "賣超" : "買超";
-                return `${r.month}<br>外資${word} <b>${fmt(Math.abs(r.foreign_net))}</b> 億<br>
-                  買超 ${r.buy_days} 天 · 賣超 ${r.sell_days} 天`;
-              },
-            },
-            xAxis: {
-              type: "category",
-              data: months,
-              axisLine: { lineStyle: { color: T.ruleStrong } },
-              axisLabel: { color: T.ink3 },
-            },
-            yAxis: {
-              type: "value",
-              name: "億元",
-              nameTextStyle: { color: T.ink3 },
-              axisLabel: { color: T.ink3 },
-              splitLine: { lineStyle: { color: T.grid } },
-            },
-            // 預設顯示最近 5 年，可拖動／縮放看更早的月份
-            dataZoom: [
-              { type: "inside", startValue: Math.max(0, months.length - 60) },
-              {
-                type: "slider",
-                startValue: Math.max(0, months.length - 60),
-                bottom: 12,
-                height: 20,
-                borderColor: T.rule,
-                textStyle: { color: T.ink3 },
-              },
-            ],
-            series: [
-              {
-                type: "bar",
-                data: rows.map((r) => ({
-                  value: r.foreign_net,
-                  itemStyle: { color: r.foreign_net < 0 ? T.down : T.up },
-                })),
-              },
-            ],
-          },
-          true,
-        );
-      }
-
-      window.addEventListener("themechange", () => {
-        if (_monthlyChart && currentType === "foreign-monthly") renderMonthlyChart();
-      });
-
-      function renderToday(data) {
-        const ok = renderTodayIndex(data.today);
-        renderTodayForeign(data.today_foreign);
-        renderTodayMargin(data.today_margin);
-        document.getElementById("today").classList.toggle("ready", ok);
-      }
-
-      async function fetchData() {
-        try {
-          const res = await fetch("data/data.json");
-          const data = await res.json();
-          const err = document.getElementById("error-banner");
-          if (data.error) {
-            err.style.display = "block";
-            err.textContent = "資料更新失敗：" + data.error;
-            return;
-          }
-          err.style.display = "none";
-          document.getElementById("last-updated").textContent =
-            data.last_updated || "—";
-
-          _data = data;
-          if (data.data_start) {
-            const allBtn = document.querySelector(
-              '.period-btn[data-period="all"]',
-            );
-            if (allBtn) allBtn.textContent = `全時（${data.data_start}～）`;
-          }
-          if (data.foreign_data_start) {
-            document.querySelector(
-              "#panel-foreign-sells-all h2",
-            ).textContent =
-              `歷史全時（${data.foreign_data_start}～）外資賣超前 10 名`;
-            document.querySelector(
-              "#panel-foreign-buys-all h2",
-            ).textContent =
-              `歷史全時（${data.foreign_data_start}～）外資買超前 10 名`;
-          }
-          Object.keys(STATS_PANELS).forEach((key) => {
-            renderStatsPanel(key, STATS_PANELS[key].getStats(data));
-          });
-          renderToday(data);
-          renderStreaks(data.streaks);
-          renderMonthlyTable(data.foreign_monthly);
-          if (currentType === "foreign-monthly") renderMonthlyChart();
-          Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
-            renderTable(
-              id,
-              sortedRows(data[cfg.key], _sortState[id] || "original"),
-              cfg.fn,
-              cfg.cls,
-              cfg.cols,
-            );
-          });
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      // 不分期間的分頁：隱藏期間與欄位切換列
-      const NO_PERIOD_TYPES = new Set(["stats", "foreign-monthly"]);
-
-      function switchPanel() {
-        const target = NO_PERIOD_TYPES.has(currentType)
-          ? `panel-${currentType}`
-          : `panel-${currentType}-${currentPeriod}`;
-        document
-          .querySelectorAll(".tab-panel")
-          .forEach((p) => p.classList.remove("active"));
-        document.getElementById(target).classList.add("active");
-        // K 線面板是各分頁共用的，切換分頁時關掉，避免留著上一個分頁點開的圖
-        closeDropChart();
-        // 圖表要在面板顯示後才初始化，隱藏時 ECharts 量不到尺寸
-        if (currentType === "foreign-monthly") renderMonthlyChart();
-      }
-
-      document.querySelectorAll(".type-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          document
-            .querySelectorAll(".type-btn")
-            .forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
-          currentType = btn.dataset.type;
-          const noPeriod = NO_PERIOD_TYPES.has(currentType);
-          document.getElementById("period-row").style.display = noPeriod
-            ? "none"
-            : "";
-          document.getElementById("col-toggle-bar").style.display = noPeriod
-            ? "none"
-            : "";
-          switchPanel();
-        });
-      });
-
-      document.querySelectorAll(".period-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          document
-            .querySelectorAll(".period-btn")
-            .forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
-          currentPeriod = btn.dataset.period;
-          switchPanel();
-        });
-      });
-
-      async function hourlyRefresh() {
-        await fetchData();
-        setTimeout(hourlyRefresh, REFRESH_MS);
-      }
-
-      fetchData();
-      setTimeout(hourlyRefresh, REFRESH_MS);
-
-      // ── 欄位 toggle ──
-      const COL_TOGGLES = [
-        { cls: "col-close", label: "收盤指數", on: false },
-        { cls: "col-prev", label: "前日收盤", on: false },
-        { cls: "col-pct", label: "漲跌幅%", on: true },
-        { cls: "recovery", label: "回升／回落天數", on: true },
-        { cls: "col-event", label: "事件", on: false },
-      ];
-      (function initColToggles() {
-        const bar = document.getElementById("col-toggle-bar");
-        COL_TOGGLES.forEach((t) => {
-          if (!t.on) document.body.classList.add("hide-" + t.cls);
-          const btn = document.createElement("button");
-          btn.className = "col-chip" + (t.on ? " on" : "");
-          btn.textContent = t.label;
-          btn.addEventListener("click", () => {
-            const nowOn = btn.classList.toggle("on");
-            document.body.classList.toggle("hide-" + t.cls, !nowOn);
-          });
-          bar.appendChild(btn);
-        });
-      })();
-
-      // 匯出 PNG 用：把卡片撐到表格完整寬度（依目前勾選的欄位）
-      function fitExportWidth(el) {
-        const tables = el.querySelectorAll("table");
-        let fullW;
-        if (tables.length > 1) {
-          // 並排多表格（如連續漲跌卡片）：讓每個表格依自身內容寬度顯示，
-          // 否則 flex:1 會平分寬度，寬的表格會被裁掉右側欄位
-          let sum = 0;
-          tables.forEach((t) => {
-            const w = t.scrollWidth;
-            const flexItem = t.closest(".table-wrap")?.parentElement;
-            if (flexItem) {
-              flexItem.style.flex = "none";
-              flexItem.style.width = w + "px";
-            }
-            sum += w;
-          });
-          fullW = sum + 60;
-        } else {
-          fullW = (tables[0] ? tables[0].scrollWidth : el.scrollWidth) + 40;
-        }
-        el.style.width = fullW + "px";
-      }
-
-      // ── 排序按鈕（僅套用在有對應 TABLE_CONFIG 的排行表格）與匯出 PNG 按鈕 ──
-      document.querySelectorAll(".card-header").forEach((header) => {
-        const tbody = header.closest(".card").querySelector("tbody");
-        const tbodyId = tbody.id;
-
-        if (TABLE_CONFIG[tbodyId]) {
-          _sortState[tbodyId] = "original";
-
-          const sortBtn = document.createElement("button");
-          sortBtn.className = "sort-btn";
-          sortBtn.textContent = SORT_LABELS.original;
-          sortBtn.addEventListener("click", () => {
-            const cur = _sortState[tbodyId];
-            const next =
-              SORT_MODES[(SORT_MODES.indexOf(cur) + 1) % SORT_MODES.length];
-            _sortState[tbodyId] = next;
-            sortBtn.textContent = SORT_LABELS[next];
-            if (_data) {
-              const cfg = TABLE_CONFIG[tbodyId];
-              renderTable(
-                tbodyId,
-                sortedRows(_data[cfg.key], next),
-                cfg.fn,
-                cfg.cls,
-                cfg.cols,
-              );
-            }
-          });
-          header.appendChild(sortBtn);
-        }
-
-        const btn = document.createElement("button");
-        btn.className = "export-btn";
-        btn.textContent = "⬇ PNG";
-        btn.addEventListener("click", () => {
-          const card = btn.closest(".card");
-          const title = card.querySelector("h2").textContent.trim();
-          exportPng(card, `TAIEX_${title}.png`, fitExportWidth);
-        });
-        header.appendChild(btn);
-      });
-
-      function exportPng(src, filename, fit) {
-        // 複製一份到畫面外撐寬、截圖，原本畫面上的元素完全不受影響（不會閃一下）
-        const clone = src.cloneNode(true);
-        clone.classList.add("exporting");
-        clone.style.position = "fixed";
-        clone.style.top = "-99999px";
-        clone.style.left = "0";
-        clone.style.overflow = "visible";
-        document.body.appendChild(clone);
-
-        html2canvas(clone, {
-          scale: 4,
-          backgroundColor: chartTheme().bg,
-          // html2canvas 會在這個寬度的 iframe 裡重排版，固定 1280 讓手機也套用桌面版 CSS
-          windowWidth: 1280,
-          // clone 是 position:fixed，與捲動位置無關；固定 scroll 為 0，避免 iOS
-          // 在 iframe 內 scrollTo 失敗造成截圖範圍位移
-          scrollX: 0,
-          scrollY: 0,
-          // 寬度要在 iframe（桌面版 CSS）裡量，不能在原頁面量：手機原頁面套的是
-          // 手機版 CSS，量出的尺寸與實際截圖時的排版不同，會截不完整。
-          // 不傳 width/height，html2canvas 會在 onclone 之後依 clone 的實際範圍截圖
-          onclone: (_doc, el) => fit(el),
-        })
-          .then((canvas) => {
-            document.body.removeChild(clone);
-            const a = document.createElement("a");
-            a.download = filename;
-            a.href = canvas.toDataURL("image/png");
-            a.click();
-          })
-          .catch((err) => {
-            document.body.removeChild(clone);
-            console.error(err);
-          });
-      }
-
-      // ── K 線圖（跌幅/跌點/漲幅/漲點/外資賣超點擊） ──
-      let _ohlc = null;
-      let _dropChart = null;
-      let _activeDropRow = null;
-
-      document.addEventListener("click", (e) => {
-        const tr = e.target.closest("tr.clickable-drop");
-        if (!tr) return;
-        const r = JSON.parse(decodeURIComponent(tr.dataset.drop));
-        if (_activeDropRow) _activeDropRow.classList.remove("active");
-        _activeDropRow = tr;
-        tr.classList.add("active");
-        openDropChart(r);
-      });
-
-      function offsetsToISODates(epochStr, offsets) {
-        const epoch = Date.UTC(
-          ...epochStr.split("-").map((v, i) => (i === 1 ? +v - 1 : +v)),
-        );
-        const DAY_MS = 86400000;
-        return offsets.map((o) =>
-          new Date(epoch + o * DAY_MS).toISOString().slice(0, 10),
-        );
-      }
-
-      async function loadOhlc() {
-        if (_ohlc) return _ohlc;
-        const resp = await fetch("data/ohlc.json");
-        const data = await resp.json();
-        if (data.error) throw new Error(data.error);
-        if (data.date_epoch && typeof data.dates[0] === "number") {
-          data.dates = offsetsToISODates(data.date_epoch, data.dates);
-        }
-        _ohlc = data;
-        return _ohlc;
-      }
-
-      let _bears = null;
-      async function loadBears() {
-        if (_bears) return _bears;
-        const resp = await fetch("data/bear.json");
-        const data = await resp.json();
-        if (data.error) throw new Error(data.error);
-        _bears = data.bears || [];
-        return _bears;
-      }
-
-      function closeDropChart() {
-        document.getElementById("chart-outer").style.display = "none";
-        if (_activeDropRow) {
-          _activeDropRow.classList.remove("active");
-          _activeDropRow = null;
-        }
-      }
-
-      function openDropChart(r) {
-        const outer = document.getElementById("chart-outer");
-        outer.style.display = "block";
-        const isGain = "fallback_days" in r;
-        document.getElementById("legend-day-dot").className =
-          "legend-dot " + (isGain ? "up" : "down");
-        document.getElementById("legend-day").textContent = isGain
-          ? "大漲當日"
-          : "跌幅當日";
-        document.getElementById("legend-after-dot").className =
-          "legend-dot " + (isGain ? "down" : "up");
-        document.getElementById("legend-after").textContent = isGain
-          ? "回落期間"
-          : "回升期間";
-        document.getElementById("chart-info").textContent =
-          `${r.date}  ${r.change_pct < 0 ? "跌幅" : "漲幅"} ${r.change_pct.toFixed(2)}%  ` +
-          (r.foreign_net != null ? `外資 ${fmt(r.foreign_net)} 億  ` : "") +
-          `前收 ${fmt(r.prev_close)} → 收 ${fmt(r.close)}` +
-          (r.event ? `  ｜${r.event}` : "");
-        const loading = document.getElementById("chart-loading");
-        loading.style.display = "block";
-        document.getElementById("chart-container").style.display = "none";
-        Promise.all([loadOhlc(), loadBears()])
-          .then(([ohlc, bears]) => {
-            // 載入期間已切換分頁（面板被關掉）就不畫
-            if (outer.style.display === "none") return;
-            loading.style.display = "none";
-            document.getElementById("chart-container").style.display = "block";
-            renderDropChart(r, ohlc, bears);
-            outer.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          })
-          .catch((err) => {
-            loading.textContent = "K 線載入失敗：" + err.message;
-          });
-      }
-
-      let _lastDropChartArgs = null;
-      window.addEventListener("themechange", () => {
-        if (_dropChart && _lastDropChartArgs) renderDropChart(..._lastDropChartArgs);
-      });
-
-      function renderDropChart(r, ohlc, bears) {
-        _lastDropChartArgs = [r, ohlc, bears];
-        const T = chartTheme();
-        const dates = ohlc.dates;
-        const O = ohlc.open,
-          H = ohlc.high,
-          L = ohlc.low,
-          C = ohlc.close;
-        const vixRaw = ohlc.vix || [];
-        const candleData = dates.map((_, i) => [O[i], C[i], L[i], H[i]]);
-        const vixData = dates.map((_, i) => vixRaw[i] ?? null);
-
-        const dropIdx = dates.indexOf(r.date);
-        if (dropIdx < 0) return;
-
-        // 大跌日找回升日（第一個 close >= prev_close）；大漲日找回落日（第一個 close <= prev_close）
-        const isGain = "fallback_days" in r;
-        let recoveryDate = null;
-        for (let i = dropIdx + 1; i < dates.length; i++) {
-          if (isGain ? C[i] <= r.prev_close : C[i] >= r.prev_close) {
-            recoveryDate = dates[i];
-            break;
-          }
-        }
-        const nextDate = dates[dropIdx + 1] || null;
-
-        // markArea：空頭區間底色（先畫，讓當日跌幅／回升標記疊在上層）
-        const markData = (bears || []).map((b) => [
-          { xAxis: b.peak_date, itemStyle: { color: T.accentSoft } },
-          { xAxis: b.recovery_date || b.trough_date },
-        ]);
-        markData.push([
-          { xAxis: r.date, itemStyle: { color: isGain ? T.upLine : T.downLine } },
-          { xAxis: nextDate || r.date },
-        ]);
-        if (recoveryDate && nextDate) {
-          markData.push([
-            { xAxis: nextDate, itemStyle: { color: isGain ? T.downSoft : T.upSoft } },
-            { xAxis: recoveryDate },
-          ]);
-        }
-
-
-        // 縮放範圍
-        const bufPre = 60,
-          bufPost = 60;
-        const startI = Math.max(0, dropIdx - bufPre);
-        const recIdx = recoveryDate ? dates.indexOf(recoveryDate) : -1;
-        const endI =
-          recIdx >= 0
-            ? Math.min(dates.length - 1, recIdx + bufPost)
-            : Math.min(dates.length - 1, dropIdx + 250);
-        const zoomS = (startI / dates.length) * 100;
-        const zoomE = (endI / dates.length) * 100;
-
-        const option = {
-          animation: false,
-          backgroundColor: T.bg,
-          axisPointer: { link: [{ xAxisIndex: "all" }] },
-          grid: [
-            { left: "7%", right: "3%", top: "6%", bottom: "42%" },
-            { left: "7%", right: "3%", top: "66%", bottom: "12%" },
-          ],
-          xAxis: [
-            {
-              type: "category",
-              data: dates,
-              boundaryGap: true,
-              gridIndex: 0,
-              axisLabel: { show: false },
-              axisLine: { lineStyle: { color: T.rule } },
-              axisTick: { show: false },
-            },
-            {
-              type: "category",
-              data: dates,
-              boundaryGap: true,
-              gridIndex: 1,
-              axisLabel: {
-                formatter: (v) => v.slice(0, 7),
-                fontSize: 10,
-                rotate: 30,
-                color: T.ink3,
-              },
-              axisLine: { lineStyle: { color: T.rule } },
-              axisTick: { lineStyle: { color: T.rule } },
-            },
-          ],
-          yAxis: [
-            {
-              type: "value",
-              scale: true,
-              gridIndex: 0,
-              splitLine: { lineStyle: { color: T.rule } },
-              axisLabel: {
-                formatter: (v) => v.toLocaleString(),
-                fontSize: 11,
-                color: T.ink3,
-              },
-            },
-            {
-              type: "value",
-              scale: true,
-              gridIndex: 1,
-              splitLine: { lineStyle: { color: T.grid } },
-              axisLabel: { fontSize: 10, color: T.ink3 },
-              name: "VIX",
-              nameTextStyle: { color: T.warn, fontSize: 10 },
-            },
-          ],
-          series: [
-            {
-              type: "candlestick",
-              data: candleData,
-              xAxisIndex: 0,
-              yAxisIndex: 0,
-              itemStyle: {
-                color: T.candleUp,
-                color0: T.candleDown,
-                borderColor: T.candleUp,
-                borderColor0: T.candleDown,
-                borderWidth: 1,
-              },
-              markArea: { silent: true, data: markData },
-            },
-            {
-              type: "line",
-              name: "VIX",
-              data: vixData,
-              xAxisIndex: 1,
-              yAxisIndex: 1,
-              symbol: "none",
-              lineStyle: { color: T.warn, width: 1.5 },
-              areaStyle: { color: T.warnSoft },
-              connectNulls: false,
-              markLine: {
-                silent: true,
-                symbol: "none",
-                lineStyle: {
-                  color: T.warn,
-                  type: "dashed",
-                  width: 1,
-                  opacity: 0.4,
-                },
-                label: { fontSize: 11, color: T.warn, position: "end" },
-                data: [
-                  { yAxis: 30, name: "30" },
-                  { yAxis: 40, name: "40" },
-                ],
-              },
-            },
-          ],
-          tooltip: {
-            trigger: "axis",
-            axisPointer: { type: "cross", crossStyle: { color: T.ink3 } },
-            backgroundColor: T.bg,
-            borderColor: T.rule,
-            textStyle: { color: T.ink, fontSize: 13 },
-            position(point, params, dom, rect, size) {
-              const [px] = point;
-              const [cw, ch] = size.viewSize;
-              const dw = dom.offsetWidth || 100;
-              const x = px + dw + 16 > cw ? px - dw - 8 : px + 12;
-              return [x, ch * 0.08];
-            },
-            formatter(params) {
-              const p = params.find((x) => x.seriesType === "candlestick");
-              const v = params.find((x) => x.seriesName === "VIX");
-              if (!p) return "";
-              const [o, c] = p.value;
-              const cc = c >= o ? T.candleUp : T.candleDown;
-              const vStr =
-                v?.value != null
-                  ? `<br/><span style="color:${T.warn}">VIX ${v.value.toFixed(1)}</span>`
-                  : "";
-              const ev = (ohlc.events || {})[p.name];
-              const evStr = ev
-                ? `<br/><span style="color:${T.event};font-weight:600">${ev}</span>`
-                : "";
-              return `<span style="color:${T.ink3};font-size:12px">${p.name}</span><br/><span style="color:${cc}">${c.toFixed(2)}</span>${vStr}${evStr}`;
-            },
-          },
-          dataZoom: [
-            { type: "inside", xAxisIndex: [0, 1], start: zoomS, end: zoomE },
-            {
-              type: "slider",
-              xAxisIndex: [0, 1],
-              bottom: "3%",
-              height: 20,
-              start: zoomS,
-              end: zoomE,
-              borderColor: T.rule,
-              fillerColor: isGain ? T.upSoft : T.downSoft,
-              handleStyle: { color: isGain ? T.up : T.down },
-              textStyle: { fontSize: 10, color: T.ink3 },
-            },
-          ],
-        };
-
-        // 事件帶（K 線與 VIX 之間，見 kline-events.js）；會調整 grid 版面
-        const eventItems = addEventBand(
-          option,
-          T,
-          ohlc,
-          C,
-          r.date,
-          document.getElementById("chart-container").clientHeight,
-        );
-
-        if (!_dropChart) {
-          _dropChart = echarts.init(document.getElementById("chart-container"));
-          window.addEventListener("resize", () => _dropChart.resize());
-        }
-        _dropChart.setOption(option, true);
-        _dropChart.resize();
-        layoutEventLabels(_dropChart, eventItems);
-      }
-    </script>
-    <script src="vendor/html2canvas.min.js"></script>
-    <script src="vendor/echarts.min.js"></script>
   </body>
 </html>

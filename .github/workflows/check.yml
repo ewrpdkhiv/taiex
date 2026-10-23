@@ -1,0 +1,53 @@
+name: Check
+
+# 型別檢查與測試；與 update-data.yml 分開，失敗不會擋住每日資料更新
+# （前端型別錯誤仍會讓 update-data.yml 的 npm run build 失敗而不部署，但資料照常 commit）
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/data/**"
+      - "cache/**"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Type check
+        run: uv run pyright
+
+      - name: Test
+        run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # typecheck + vite build
+      - name: Build
+        run: npm run build

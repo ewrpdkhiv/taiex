@@ -36,6 +36,7 @@ FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/data"
 TWSE_MARGIN_URL = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
 TWSE_DAILY_QUOTES_URL = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
 FOREIGN_START_DATE = "2004-04-07"
+MARGIN_START_DATE = "2001-01-01"
 FOREIGN_INVESTOR_NAMES = ("Foreign_Investor", "Foreign_Dealer_Self")
 
 # 已知重大事件標籤（跌幅與漲幅共用）
@@ -225,6 +226,8 @@ def _cached_yf_download(cache_path, ticker: str, start: str, cols: list[str]) ->
         ).strftime("%Y-%m-%d")
 
     raw = yf.download(ticker, start=fetch_start, progress=False, auto_adjust=True)
+    if raw is None:
+        raise RuntimeError(f"yfinance 下載 {ticker} 沒有回傳資料")
     if isinstance(raw.columns, pd.MultiIndex):
         raw.columns = raw.columns.get_level_values(0)
     available_cols = [c for c in cols if c in raw.columns]
@@ -407,11 +410,8 @@ def _parse_finmind_institutional(payload: dict) -> pd.DataFrame:
     raw = pd.DataFrame(rows)
     raw["foreign_net"] = raw["buy"].astype(float) - raw["sell"].astype(float)
     raw["Date"] = pd.to_datetime(raw["date"])
-    return (
-        raw.groupby("Date", as_index=False)["foreign_net"].sum()
-        .sort_values("Date")
-        .reset_index(drop=True)[columns]
-    )
+    daily = raw.groupby("Date")["foreign_net"].sum().reset_index()
+    return daily.sort_values("Date").reset_index(drop=True)[columns]
 
 
 def _fetch_finmind(dataset: str, start: str) -> dict:
@@ -435,16 +435,10 @@ def _fetch_finmind_institutional(start: str) -> pd.DataFrame:
     return _parse_finmind_institutional(_fetch_finmind("TaiwanStockTotalInstitutionalInvestors", start))
 
 
-def load_foreign_net(start: str = FOREIGN_START_DATE, fetch=_fetch_finmind_institutional) -> pd.DataFrame:
-    """從快取 + FinMind 增量抓取外資每日買賣超（Date, foreign_net，單位：元）。
+def _load_cached_incremental(cache_path, start: str, fetch, label: str) -> pd.DataFrame:
+    """從快取 + fetch(start) 增量抓取依 Date 排序的資料，寫回快取後回傳 start 起的部分。"""
+    from price_cache import OVERLAP_DAYS, _merge_frames, read_cache, write_cache
 
-    Args:
-        start: 起始日期；證交所三大法人統計自 2004-04-07 起才有資料。
-        fetch: 抓取函式（接受起始日期字串），測試時可替換成假資料來源。
-    """
-    from price_cache import CACHE_DIR, OVERLAP_DAYS, _merge_frames, read_cache, write_cache
-
-    cache_path = CACHE_DIR / "institutional" / "foreign_net.csv"
     cached = read_cache(cache_path)
     start_ts = pd.Timestamp(start)
     if cached is None or start_ts < cached["Date"].min():
@@ -456,9 +450,21 @@ def load_foreign_net(start: str = FOREIGN_START_DATE, fetch=_fetch_finmind_insti
 
     combined = _merge_frames(cached, fetch(fetch_start))
     if combined.empty:
-        raise RuntimeError("外資買賣超資料下載失敗")
+        raise RuntimeError(f"{label}資料下載失敗")
     write_cache(cache_path, combined)
     return combined[combined["Date"] >= start_ts].reset_index(drop=True)
+
+
+def load_foreign_net(start: str = FOREIGN_START_DATE, fetch=_fetch_finmind_institutional) -> pd.DataFrame:
+    """從快取 + FinMind 增量抓取外資每日買賣超（Date, foreign_net，單位：元）。
+
+    Args:
+        start: 起始日期；證交所三大法人統計自 2004-04-07 起才有資料。
+        fetch: 抓取函式（接受起始日期字串），測試時可替換成假資料來源。
+    """
+    from price_cache import CACHE_DIR
+
+    return _load_cached_incremental(CACHE_DIR / "institutional" / "foreign_net.csv", start, fetch, "外資買賣超")
 
 
 def find_top_foreign_net_sells(
@@ -573,8 +579,8 @@ def rank_latest_foreign(
     net = float(latest["foreign_net"])
     direction = "sell" if net < 0 else "buy" if net > 0 else "flat"
     ranks = {}
+    is_sell = direction == "sell"
     if direction != "flat":
-        is_sell = direction == "sell"
         for period, years in periods.items():
             w = _within_years(d, years)
             same = w[w["foreign_net"] < 0] if is_sell else w[w["foreign_net"] > 0]
@@ -590,8 +596,8 @@ def rank_latest_foreign(
             streak += 1
     tail = d.iloc[len(d) - streak:] if streak else d.iloc[0:0]
     streak_days = [
-        {"date": pd.Timestamp(row.Date).strftime("%Y-%m-%d"), "foreign_net": round(float(row.foreign_net) / 1e8, 2)}
-        for row in tail.itertuples()
+        {"date": date, "foreign_net": round(float(v) / 1e8, 2)}
+        for date, v in zip(tail["Date"].dt.strftime("%Y-%m-%d"), tail["foreign_net"].to_numpy())
     ]
     return {
         "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
@@ -629,21 +635,85 @@ def foreign_monthly_net(foreign_df: pd.DataFrame) -> list[dict]:
     ]
 
 
-def _parse_finmind_margin(payload: dict) -> dict | None:
-    """解析 FinMind「TaiwanStockTotalMarginPurchaseShortSale」，取最新一天的全市場融資金額。
+def _parse_finmind_margin(payload: dict) -> pd.DataFrame:
+    """解析 FinMind「TaiwanStockTotalMarginPurchaseShortSale」，取全市場每日融資金額。
 
     只看 name == "MarginPurchaseMoney"（融資金額，單位：元）；
-    change 為今日餘額 - 前日餘額（正值為增加）。balance／change 轉成億元。
+    margin_change 為今日餘額 - 前日餘額（正值為增加）。
+
+    Returns:
+        含 Date、margin_balance、margin_change 欄位（單位：元）的 DataFrame；查無資料回傳空表。
     """
+    columns = ["Date", "margin_balance", "margin_change"]
     rows = [r for r in payload.get("data") or [] if r.get("name") == "MarginPurchaseMoney"]
     if not rows:
+        return pd.DataFrame(columns=columns)
+    raw = pd.DataFrame(rows)
+    raw["Date"] = pd.to_datetime(raw["date"])
+    raw["margin_balance"] = raw["TodayBalance"].astype(float)
+    raw["margin_change"] = raw["margin_balance"] - raw["YesBalance"].astype(float)
+    return raw.drop_duplicates("Date", keep="last").sort_values("Date").reset_index(drop=True)[columns]
+
+
+def _fetch_finmind_margin(start: str) -> pd.DataFrame:
+    return _parse_finmind_margin(_fetch_finmind("TaiwanStockTotalMarginPurchaseShortSale", start))
+
+
+def load_margin_history(start: str = MARGIN_START_DATE, fetch=_fetch_finmind_margin) -> pd.DataFrame:
+    """從快取 + FinMind 增量抓取全市場每日融資餘額與增減（Date, margin_balance, margin_change，單位：元）。
+
+    fetch: 抓取函式（接受起始日期字串），測試時可替換成假資料來源。
+    """
+    from price_cache import CACHE_DIR
+
+    return _load_cached_incremental(CACHE_DIR / "institutional" / "margin.csv", start, fetch, "融資餘額")
+
+
+def find_top_margin_changes(
+    df: pd.DataFrame,
+    margin_df: pd.DataFrame,
+    top_n: int = 10,
+    years: int | None = None,
+    *,
+    increase: bool,
+) -> pd.DataFrame:
+    """找出融資單日增加（increase=True）或減少金額前 N 名的交易日，並附上當日指數漲跌。
+
+    Args:
+        df: 含 Date、Close、prev_close、change_pct、change_pt 欄位的 DataFrame。
+        margin_df: 含 Date、margin_balance、margin_change 欄位的融資 DataFrame。
+        years: 限制近幾年，None 表示全時段。
+    """
+    d = df.dropna(subset=["change_pct"]).merge(margin_df, on="Date", how="inner")
+    d = _within_years(d, years)
+    if increase:
+        return d[d["margin_change"] > 0].nlargest(top_n, "margin_change")
+    return d[d["margin_change"] < 0].nsmallest(top_n, "margin_change")
+
+
+def rank_latest_margin(df: pd.DataFrame, margin_df: pd.DataFrame) -> dict | None:
+    """最新一天的融資餘額增減，及其在全時融資增加（或減少）排行中的名次。
+
+    與 find_top_margin_changes 用同一份資料範圍（需有指數漲跌的交易日），名次可直接對照排行表；
+    balance／change 單位：億元。持平時 rank／total 為 None。
+    """
+    d = df.dropna(subset=["change_pct"]).merge(margin_df, on="Date", how="inner")
+    if d.empty:
         return None
-    latest = max(rows, key=lambda r: r["date"])
-    today, yesterday = float(latest["TodayBalance"]), float(latest["YesBalance"])
+    latest = d.iloc[-1]
+    change = float(latest["margin_change"])
+    rank = total = None
+    if change != 0:
+        is_drop = change < 0
+        same = d[d["margin_change"] < 0] if is_drop else d[d["margin_change"] > 0]
+        rank = _rank_of(same["margin_change"], change, smaller_first=is_drop)
+        total = len(same)
     return {
-        "date": latest["date"],
-        "balance": round(today / 1e8, 2),
-        "change": round((today - yesterday) / 1e8, 2),
+        "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
+        "balance": round(float(latest["margin_balance"]) / 1e8, 2),
+        "change": round(change / 1e8, 2),
+        "rank": rank,
+        "total": total,
     }
 
 
@@ -735,19 +805,15 @@ def load_margin_maintenance(
     return {"date": date, "ratio": ratio, "change": change}
 
 
-def load_latest_margin(days: int = 30, fetch=_fetch_finmind, load_maintenance=load_margin_maintenance) -> dict | None:
+def load_latest_margin(load_margin, load_maintenance=load_margin_maintenance) -> dict | None:
     """最新一天的全市場融資餘額增減（FinMind）與上市大盤融資維持率（TWSE 自行計算），首頁摘要卡用。
 
     兩份資料各自抓，其中一份失敗另一份仍會輸出（失敗的欄位為 None）；都失敗則回傳 None。
-    fetch: 接受 (dataset, start) 回傳 payload 的函式；load_maintenance: 回傳維持率 dict 的函式。
-    測試時皆可替換成假資料來源。
+    load_margin: 回傳融資增減 dict（rank_latest_margin 的結果）的函式；
+    load_maintenance: 回傳維持率 dict 的函式。測試時皆可替換成假資料來源。
     """
-    start = (pd.Timestamp.today() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
     result: dict = {"margin": None, "maintenance": None}
-    for key, load in (
-        ("margin", lambda: _parse_finmind_margin(fetch("TaiwanStockTotalMarginPurchaseShortSale", start))),
-        ("maintenance", load_maintenance),
-    ):
+    for key, load in (("margin", load_margin), ("maintenance", load_maintenance)):
         try:
             result[key] = load()
         except Exception as exc:  # noqa: BLE001 - 單一資料源失敗不影響另一個
@@ -1176,11 +1242,15 @@ def find_longest_streaks(df: pd.DataFrame, top_n: int = 10) -> dict[str, list[di
     """
     d = df.dropna(subset=["change_pct"]).reset_index(drop=True)
     n = len(d)
+    changes = d["change_pct"].to_numpy(dtype=float)
+    closes = d["Close"].to_numpy(dtype=float)
+    prev_closes = d["prev_close"].to_numpy(dtype=float)
+    dates = d["Date"].dt.strftime("%Y-%m-%d").tolist()
 
     streaks: list[dict] = []
     i = 0
     while i < n:
-        change = float(d.loc[i, "change_pct"])
+        change = float(changes[i])
         sign = 1 if change > 0 else (-1 if change < 0 else 0)
         if sign == 0:
             i += 1
@@ -1188,18 +1258,18 @@ def find_longest_streaks(df: pd.DataFrame, top_n: int = 10) -> dict[str, list[di
 
         j = i
         while j + 1 < n:
-            next_change = float(d.loc[j + 1, "change_pct"])
+            next_change = float(changes[j + 1])
             next_sign = 1 if next_change > 0 else (-1 if next_change < 0 else 0)
             if next_sign != sign:
                 break
             j += 1
 
-        start_close = float(d.loc[i, "prev_close"])
-        end_close = float(d.loc[j, "Close"])
+        start_close = float(prev_closes[i])
+        end_close = float(closes[j])
         streaks.append({
             "direction": "up" if sign > 0 else "down",
-            "start_date": pd.Timestamp(d.loc[i, "Date"]).strftime("%Y-%m-%d"),
-            "end_date": pd.Timestamp(d.loc[j, "Date"]).strftime("%Y-%m-%d"),
+            "start_date": dates[i],
+            "end_date": dates[j],
             "days": j - i + 1,
             "cumulative_pct": round((end_close - start_close) / start_close * 100, 2),
         })

@@ -1,4 +1,4 @@
-name: Update static data
+name: Update data and deploy
 
 on:
   schedule:
@@ -14,8 +14,9 @@ on:
     # 06:00 美股收盤後更新（UTC 前一天 22:00），台灣時間週二到週六
     - cron: "0 22 * * 1-5"
   workflow_dispatch:
-  # 推送程式碼到 main 後也更新一次，讓前端／產生器的修改立刻反映到資料上；
-  # 只改到資料檔的 push 不觸發（bot 用 GITHUB_TOKEN 推的 commit 本來就不會再觸發 workflow）
+  # 推送程式碼到 main 後也更新一次，讓前端／產生器的修改立刻反映到資料與網站上；
+  # 只改到資料檔的 push 不觸發（bot 用 GITHUB_TOKEN 推的 commit 本來就不會再觸發 workflow，
+  # 所以部署必須放在同一個 workflow 裡，不能另開一個 on: push 的部署 workflow）
   push:
     branches: [main]
     paths-ignore:
@@ -33,6 +34,12 @@ jobs:
     permissions:
       contents: write
       issues: write
+      pages: write
+      id-token: write
+    # GitHub Pages 的 Source 須設為「GitHub Actions」（Settings → Pages）
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +67,36 @@ jobs:
           # 執行期間 main 可能又有新的 push，先 rebase 再推
           git pull --rebase
           git push
+
+      # 以下建置與部署即使資料更新失敗也照跑：產生失敗時不會覆寫舊的 JSON，
+      # 部署的是 repo 裡現有的資料，前端程式的修改不會因為資料來源暫時掛掉而上不了線
+      - name: Set up Node
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install frontend dependencies
+        if: ${{ !cancelled() }}
+        run: npm ci
+
+      # npm run build 會先跑 tsc 型別檢查，沒過就不部署
+      - name: Build site
+        id: build
+        if: ${{ !cancelled() }}
+        run: npm run build
+
+      - name: Upload Pages artifact
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/deploy-pages@v4
 
       - name: Notify on failure
         if: failure()
