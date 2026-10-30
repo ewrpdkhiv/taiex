@@ -17,8 +17,8 @@ import type {
   Bear,
   BearData,
   DayRecord,
-  ForeignMonth,
-  ForeignRecord,
+  InstitutionKey,
+  InstitutionYear,
   HolidayEvent,
   MarginRecord,
   Ohlc,
@@ -27,8 +27,8 @@ import type {
   Stats,
   Streak,
   TaiexData,
-  TodayForeign,
   TodayIndex,
+  TodayInstitution,
   TodayMaintenance,
   TodayMargin,
 } from "./types";
@@ -98,35 +98,29 @@ function dropPtRow(r: DayRecord, cls: string) {
   </tr>`;
 }
 
-function foreignBuyRow(r: ForeignRecord) {
-  const pctCls = r.change_pct < 0 ? "drop" : "gain";
-  const sign = r.change_pct > 0 ? "+" : "";
-  return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
+// 外資／投信的買超、賣超列（key 為金額欄位）；回落／回升天數欄位買超看回落、賣超看回升
+function institutionRow(key: InstitutionKey, buy: boolean) {
+  return (r: DayRecord) => {
+    const net = r[key] ?? 0;
+    const pctCls = r.change_pct < 0 ? "drop" : "gain";
+    const sign = r.change_pct > 0 ? "+" : "";
+    return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
     <td>${r.rank}</td>
     <td class="date">${r.date}</td>
-    <td class="gain">+${fmt(r.foreign_net)}</td>
+    <td class="${buy ? "gain" : "drop"}">${buy ? "+" : ""}${fmt(net)}</td>
     <td class="col-close">${fmt(r.close)}</td>
     <td class="col-prev">${fmt(r.prev_close)}</td>
     <td class="${pctCls} col-pct">${sign}${r.change_pct.toFixed(2)}%</td>
-    <td class="recovery">${recStr(r.fallback_days, "未回落")}</td>
+    <td class="recovery">${buy ? recStr(r.fallback_days, "未回落") : recStr(r.recovery_days)}</td>
     <td class="event col-event">${r.event}</td>
   </tr>`;
+  };
 }
 
-function foreignSellRow(r: ForeignRecord) {
-  const pctCls = r.change_pct < 0 ? "drop" : "gain";
-  const sign = r.change_pct > 0 ? "+" : "";
-  return `<tr class="clickable-drop" data-drop="${encodeURIComponent(JSON.stringify(r))}">
-    <td>${r.rank}</td>
-    <td class="date">${r.date}</td>
-    <td class="drop">${fmt(r.foreign_net)}</td>
-    <td class="col-close">${fmt(r.close)}</td>
-    <td class="col-prev">${fmt(r.prev_close)}</td>
-    <td class="${pctCls} col-pct">${sign}${r.change_pct.toFixed(2)}%</td>
-    <td class="recovery">${recStr(r.recovery_days)}</td>
-    <td class="event col-event">${r.event}</td>
-  </tr>`;
-}
+const foreignBuyRow = institutionRow("foreign_net", true);
+const foreignSellRow = institutionRow("foreign_net", false);
+const trustBuyRow = institutionRow("trust_net", true);
+const trustSellRow = institutionRow("trust_net", false);
 
 function marginRow(r: MarginRecord) {
   const isGain = r.margin_change > 0;
@@ -180,6 +174,14 @@ const TABLE_CONFIG: Record<string, TableConfig> = {
   "t-foreign-buys-10y": { key: "foreign_buys_10y", fn: foreignBuyRow, cls: "gain", cols: 8 },
   "t-foreign-buys-5y": { key: "foreign_buys_5y", fn: foreignBuyRow, cls: "gain", cols: 8 },
   "t-foreign-buys-all": { key: "foreign_buys_all", fn: foreignBuyRow, cls: "gain", cols: 8 },
+  "t-trust-sells-20y": { key: "trust_sells_20y", fn: trustSellRow, cls: "drop", cols: 8 },
+  "t-trust-sells-10y": { key: "trust_sells_10y", fn: trustSellRow, cls: "drop", cols: 8 },
+  "t-trust-sells-5y": { key: "trust_sells_5y", fn: trustSellRow, cls: "drop", cols: 8 },
+  "t-trust-sells-all": { key: "trust_sells_all", fn: trustSellRow, cls: "drop", cols: 8 },
+  "t-trust-buys-20y": { key: "trust_buys_20y", fn: trustBuyRow, cls: "gain", cols: 8 },
+  "t-trust-buys-10y": { key: "trust_buys_10y", fn: trustBuyRow, cls: "gain", cols: 8 },
+  "t-trust-buys-5y": { key: "trust_buys_5y", fn: trustBuyRow, cls: "gain", cols: 8 },
+  "t-trust-buys-all": { key: "trust_buys_all", fn: trustBuyRow, cls: "gain", cols: 8 },
   "t-margin-increases-20y": { key: "margin_increases_20y", fn: marginRow, cls: "gain", cols: 9 },
   "t-margin-increases-10y": { key: "margin_increases_10y", fn: marginRow, cls: "gain", cols: 9 },
   "t-margin-increases-5y": { key: "margin_increases_5y", fn: marginRow, cls: "gain", cols: 9 },
@@ -472,8 +474,14 @@ function renderTodayIndex(t: TodayIndex | null | undefined): boolean {
   return true;
 }
 
-function renderTodayForeign(f: TodayForeign | null | undefined) {
-  const el = byId("today-foreign");
+// 外資／投信單日買賣超（億元）＋ 在全時同方向排行的名次與連續天數
+function renderTodayInstitution(
+  id: string,
+  name: string,
+  key: InstitutionKey,
+  f: TodayInstitution | null | undefined,
+) {
+  const el = byId(id);
   if (!f) {
     el.style.display = "none";
     return;
@@ -498,10 +506,10 @@ function renderTodayForeign(f: TodayForeign | null | undefined) {
           <tbody>${days
             .slice()
             .reverse()
-            .map((x) => `<tr><td>${x.date}</td><td>${fmtYi(x.foreign_net)}</td></tr>`)
+            .map((x) => `<tr><td>${x.date}</td><td>${fmtYi(x[key] ?? 0)}</td></tr>`)
             .join("")}</tbody>
           <tfoot><tr><td>合計 ${days.length} 天</td><td>${fmtYi(
-            days.reduce((sum, x) => sum + x.foreign_net, 0),
+            days.reduce((sum, x) => sum + (x[key] ?? 0), 0),
           )}</td></tr></tfoot>
         </table>
       </div>`
@@ -517,13 +525,13 @@ function renderTodayForeign(f: TodayForeign | null | undefined) {
           </tr></tbody>
         </table>${detail}`;
   el.innerHTML = `
-    <div class="today-head"><span>外資${f.direction === "flat" ? "買賣超" : word}</span>
+    <div class="today-head"><span>${name}${f.direction === "flat" ? "買賣超" : word}</span>
       <span class="today-head-right"><b>${f.date}</b><button type="button" class="export-btn">⬇ PNG</button></span></div>
-    <div class="today-value ${el.dataset.color}">${fmtYi(f.foreign_net)}<small>億元</small></div>
+    <div class="today-value ${el.dataset.color}">${fmtYi(f[key] ?? 0)}<small>億元</small></div>
     ${body}`;
-  // 只輸出外資這張卡；固定寬度，手機上輸出也是同樣版面
+  // 只輸出這張卡；固定寬度，手機上輸出也是同樣版面
   query(".export-btn", el).addEventListener("click", () => {
-    exportPng(el, `TAIEX_外資${word}_${f.date}.png`, (c) => {
+    exportPng(el, `TAIEX_${name}${word}_${f.date}.png`, (c) => {
       c.style.width = "380px";
     });
   });
@@ -594,23 +602,27 @@ function renderTodayMaintenance(maint: TodayMaintenance | null | undefined) {
     <div class="today-note">依各股融資餘額 × 收盤價 ÷ 融資金額估算</div>`;
 }
 
-// ── 外資每月買賣超 ──
-let _monthlyChart: echarts.ECharts | null = null;
+// ── 外資／投信每年買賣超 ──
+type YearlyKind = "foreign" | "trust";
+const YEARLY_NAMES: Record<YearlyKind, string> = { foreign: "外資", trust: "投信" };
+const _yearlyCharts: Partial<Record<YearlyKind, echarts.ECharts>> = {};
 
-function renderMonthlyTable(rows: ForeignMonth[] | undefined) {
-  const tbody = byId("t-foreign-monthly");
+const yearlyRows = (kind: YearlyKind) => (_data ? _data[`${kind}_yearly`] : undefined);
+
+function renderYearlyTable(kind: YearlyKind, rows: InstitutionYear[] | undefined) {
+  const tbody = byId(`t-${kind}-yearly`);
   if (!rows || !rows.length) {
-    tbody.innerHTML = `<tr><td colspan="4" class="loading">無外資資料</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="loading">無${YEARLY_NAMES[kind]}資料</td></tr>`;
     return;
   }
   tbody.innerHTML = rows
     .slice()
     .reverse()
     .map((r) => {
-      const cls = r.foreign_net < 0 ? "drop" : "gain";
+      const cls = r.net < 0 ? "drop" : "gain";
       return `<tr>
-        <td class="left date">${r.month}</td>
-        <td class="${cls}">${r.foreign_net > 0 ? "+" : ""}${fmt(r.foreign_net)}</td>
+        <td class="left date">${r.year}</td>
+        <td class="${cls}">${r.net > 0 ? "+" : ""}${fmt(r.net)}</td>
         <td>${r.buy_days}</td>
         <td>${r.sell_days}</td>
       </tr>`;
@@ -618,23 +630,25 @@ function renderMonthlyTable(rows: ForeignMonth[] | undefined) {
     .join("");
 }
 
-function renderMonthlyChart() {
-  const rows = _data && _data.foreign_monthly;
+function renderYearlyChart(kind: YearlyKind) {
+  const rows = yearlyRows(kind);
   if (!rows || !rows.length) return;
   const T = chartTheme();
-  if (!_monthlyChart) {
-    const chart = echarts.init(byId("monthly-chart"));
-    _monthlyChart = chart;
-    window.addEventListener("resize", () => chart.resize());
+  let chart = _yearlyCharts[kind];
+  if (!chart) {
+    const c = echarts.init(byId(`${kind}-yearly-chart`));
+    chart = c;
+    _yearlyCharts[kind] = c;
+    window.addEventListener("resize", () => c.resize());
   } else {
-    _monthlyChart.resize();
+    chart.resize();
   }
-  const months = rows.map((r) => r.month);
-  _monthlyChart.setOption(
+  const name = YEARLY_NAMES[kind];
+  chart.setOption(
     {
       backgroundColor: "transparent",
       textStyle: { color: T.ink2 },
-      grid: { left: 64, right: 16, top: 20, bottom: 64 },
+      grid: { left: 64, right: 16, top: 20, bottom: 32 },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "shadow" },
@@ -643,14 +657,14 @@ function renderMonthlyChart() {
         textStyle: { color: T.ink },
         formatter: (ps: TooltipComponentFormatterCallbackParams) => {
           const r = rows[(ps as CallbackDataParams[])[0].dataIndex];
-          const word = r.foreign_net < 0 ? "賣超" : "買超";
-          return `${r.month}<br>外資${word} <b>${fmt(Math.abs(r.foreign_net))}</b> 億<br>
+          const word = r.net < 0 ? "賣超" : "買超";
+          return `${r.year}<br>${name}${word} <b>${fmt(Math.abs(r.net))}</b> 億<br>
             買超 ${r.buy_days} 天 · 賣超 ${r.sell_days} 天`;
         },
       },
       xAxis: {
         type: "category",
-        data: months,
+        data: rows.map((r) => String(r.year)),
         axisLine: { lineStyle: { color: T.ruleStrong } },
         axisLabel: { color: T.ink3 },
       },
@@ -661,24 +675,12 @@ function renderMonthlyChart() {
         axisLabel: { color: T.ink3 },
         splitLine: { lineStyle: { color: T.grid } },
       },
-      // 預設顯示最近 5 年，可拖動／縮放看更早的月份
-      dataZoom: [
-        { type: "inside", startValue: Math.max(0, months.length - 60) },
-        {
-          type: "slider",
-          startValue: Math.max(0, months.length - 60),
-          bottom: 12,
-          height: 20,
-          borderColor: T.rule,
-          textStyle: { color: T.ink3 },
-        },
-      ],
       series: [
         {
           type: "bar",
           data: rows.map((r) => ({
-            value: r.foreign_net,
-            itemStyle: { color: r.foreign_net < 0 ? T.down : T.up },
+            value: r.net,
+            itemStyle: { color: r.net < 0 ? T.down : T.up },
           })),
         },
       ],
@@ -687,13 +689,18 @@ function renderMonthlyChart() {
   );
 }
 
+const YEARLY_KINDS: YearlyKind[] = ["foreign", "trust"];
+const currentYearlyKind = () => YEARLY_KINDS.find((k) => currentType === `${k}-yearly`);
+
 window.addEventListener("themechange", () => {
-  if (_monthlyChart && currentType === "foreign-monthly") renderMonthlyChart();
+  const kind = currentYearlyKind();
+  if (kind) renderYearlyChart(kind);
 });
 
 function renderToday(data: TaiexData) {
   const ok = renderTodayIndex(data.today);
-  renderTodayForeign(data.today_foreign);
+  renderTodayInstitution("today-foreign", "外資", "foreign_net", data.today_foreign);
+  renderTodayInstitution("today-trust", "投信", "trust_net", data.today_trust);
   renderTodayMargin(data.today_margin && data.today_margin.margin);
   renderTodayMaintenance(data.today_margin && data.today_margin.maintenance);
   byId("today").classList.toggle("ready", ok);
@@ -723,6 +730,12 @@ async function fetchData() {
       query("#panel-foreign-buys-all h2").textContent =
         `歷史全時（${data.foreign_data_start}～）外資買超前 10 名`;
     }
+    if (data.trust_data_start) {
+      query("#panel-trust-sells-all h2").textContent =
+        `歷史全時（${data.trust_data_start}～）投信賣超前 10 名`;
+      query("#panel-trust-buys-all h2").textContent =
+        `歷史全時（${data.trust_data_start}～）投信買超前 10 名`;
+    }
     if (data.margin_data_start) {
       [
         ["increases", "增加"],
@@ -737,8 +750,9 @@ async function fetchData() {
     });
     renderToday(data);
     renderStreaks(data.streaks);
-    renderMonthlyTable(data.foreign_monthly);
-    if (currentType === "foreign-monthly") renderMonthlyChart();
+    YEARLY_KINDS.forEach((k) => renderYearlyTable(k, data[`${k}_yearly`]));
+    const yearlyKind = currentYearlyKind();
+    if (yearlyKind) renderYearlyChart(yearlyKind);
     Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
       renderTable(
         id,
@@ -754,7 +768,7 @@ async function fetchData() {
 }
 
 // 不分期間的分頁：隱藏期間與欄位切換列
-const NO_PERIOD_TYPES = new Set(["stats", "foreign-monthly"]);
+const NO_PERIOD_TYPES = new Set(["stats", "foreign-yearly", "trust-yearly"]);
 
 function switchPanel() {
   const target = NO_PERIOD_TYPES.has(currentType)
@@ -765,7 +779,8 @@ function switchPanel() {
   // K 線面板是各分頁共用的，切換分頁時關掉，避免留著上一個分頁點開的圖
   closeDropChart();
   // 圖表要在面板顯示後才初始化，隱藏時 ECharts 量不到尺寸
-  if (currentType === "foreign-monthly") renderMonthlyChart();
+  const kind = currentYearlyKind();
+  if (kind) renderYearlyChart(kind);
 }
 
 document.querySelectorAll<HTMLElement>(".type-btn").forEach((btn) => {
@@ -958,6 +973,7 @@ function openDropChart(r: DayRecord) {
   byId("chart-info").textContent =
     `${r.date}  ${r.change_pct < 0 ? "跌幅" : "漲幅"} ${r.change_pct.toFixed(2)}%  ` +
     (r.foreign_net != null ? `外資 ${fmt(r.foreign_net)} 億  ` : "") +
+    (r.trust_net != null ? `投信 ${fmt(r.trust_net)} 億  ` : "") +
     (r.margin_change != null
       ? `融資 ${r.margin_change > 0 ? "+" : ""}${fmt(r.margin_change)} 億  `
       : "") +

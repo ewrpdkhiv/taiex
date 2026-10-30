@@ -6,6 +6,7 @@ import pytest
 from taiex_big_drops import (
     EVENT_SHORT_NAMES,
     KNOWN_EVENTS,
+    TRUST_INVESTOR_NAMES,
     _parse_finmind_institutional,
     _parse_finmind_margin,
     _calc_margin_maintenance,
@@ -26,7 +27,7 @@ from taiex_big_drops import (
     rank_latest_day,
     rank_latest_foreign,
     rank_latest_margin,
-    foreign_monthly_net,
+    institutional_yearly_net,
     load_latest_margin,
     load_margin_maintenance,
 )
@@ -698,19 +699,35 @@ class TestRankLatestForeign:
         assert r["streak_days"] == []
 
 
-class TestForeignMonthlyNet:
-    def test_sums_by_month(self):
+class TestInstitutionalYearlyNet:
+    def test_sums_by_year(self):
         foreign = pd.DataFrame({
-            "Date": pd.to_datetime(["2025-01-02", "2025-01-03", "2025-01-06", "2025-02-03"]),
+            "Date": pd.to_datetime(["2024-12-30", "2025-01-03", "2025-01-06", "2025-02-03"]),
             "foreign_net": [10e8, -30e8, 0.0, 5e8],
         })
-        assert foreign_monthly_net(foreign) == [
-            {"month": "2025-01", "foreign_net": -20.0, "buy_days": 1, "sell_days": 1},
-            {"month": "2025-02", "foreign_net": 5.0, "buy_days": 1, "sell_days": 0},
+        assert institutional_yearly_net(foreign) == [
+            {"year": 2024, "net": 10.0, "buy_days": 1, "sell_days": 0},
+            {"year": 2025, "net": -25.0, "buy_days": 1, "sell_days": 1},
+        ]
+
+    def test_custom_column(self):
+        trust = pd.DataFrame({"Date": pd.to_datetime(["2025-01-03"]), "trust_net": [-2e8]})
+        assert institutional_yearly_net(trust, "trust_net") == [
+            {"year": 2025, "net": -2.0, "buy_days": 0, "sell_days": 1},
         ]
 
     def test_empty(self):
-        assert foreign_monthly_net(pd.DataFrame({"Date": [], "foreign_net": []})) == []
+        assert institutional_yearly_net(pd.DataFrame({"Date": [], "foreign_net": []})) == []
+
+
+class TestParseFinmindTrust:
+    def test_picks_only_investment_trust(self):
+        payload = {"status": 200, "data": [
+            {"date": "2025-04-07", "name": "Foreign_Investor", "buy": 999.0, "sell": 0.0},
+            {"date": "2025-04-07", "name": "Investment_Trust", "buy": 100.0, "sell": 40.0},
+        ]}
+        df = _parse_finmind_institutional(payload, TRUST_INVESTOR_NAMES, "trust_net")
+        assert df["trust_net"].tolist() == [60.0]
 
 
 class TestEventShortNames:

@@ -20,6 +20,8 @@ export interface DayRecord {
   fallback_days?: number | null;
   /* 外資排行才有（億元） */
   foreign_net?: number;
+  /* 投信排行才有（億元） */
+  trust_net?: number;
   /* 融資排行才有（億元） */
   margin_change?: number;
   margin_balance?: number;
@@ -29,6 +31,10 @@ export interface ForeignRecord extends DayRecord {
   foreign_net: number;
 }
 
+export interface TrustRecord extends DayRecord {
+  trust_net: number;
+}
+
 export interface MarginRecord extends DayRecord {
   margin_change: number;
   margin_balance: number;
@@ -36,11 +42,12 @@ export interface MarginRecord extends DayRecord {
 
 type DayRankingKey = `${"drops" | "gains" | "drops_pt" | "gains_pt"}_${Period}`;
 type ForeignRankingKey = `foreign_${"sells" | "buys"}_${Period}`;
+type TrustRankingKey = `trust_${"sells" | "buys"}_${Period}`;
 type MarginRankingKey = `margin_${"increases" | "decreases"}_${Period}`;
 
 export type Rankings = { [K in DayRankingKey]?: DayRecord[] } & {
   [K in ForeignRankingKey]?: ForeignRecord[];
-} & { [K in MarginRankingKey]?: MarginRecord[] };
+} & { [K in TrustRankingKey]?: TrustRecord[] } & { [K in MarginRankingKey]?: MarginRecord[] };
 
 export type RankingKey = keyof Rankings;
 
@@ -90,9 +97,10 @@ export interface Streak {
   cumulative_pct: number;
 }
 
-export interface ForeignMonth {
-  month: string;
-  foreign_net: number;
+/* 外資／投信每年買賣超合計（億元） */
+export interface InstitutionYear {
+  year: number;
+  net: number;
   buy_days: number;
   sell_days: number;
 }
@@ -106,14 +114,16 @@ export interface TodayIndex {
   ranks: { all: { pct: number; pt: number; total: number } };
 }
 
-export interface TodayForeign {
+/* 外資用 foreign_net、投信用 trust_net 欄位（億元） */
+export type InstitutionKey = "foreign_net" | "trust_net";
+
+export type TodayInstitution = {
   date: string;
-  foreign_net: number;
   direction: "sell" | "buy" | "flat";
   ranks: { all: { rank: number; total: number } };
   streak: number;
-  streak_days?: { date: string; foreign_net: number }[];
-}
+  streak_days?: ({ date: string } & Partial<Record<InstitutionKey, number>>)[];
+} & Partial<Record<InstitutionKey, number>>;
 
 export interface TodayMargin {
   date: string;
@@ -137,6 +147,7 @@ export interface TaiexData extends Rankings {
   error?: string | null;
   data_start?: string;
   foreign_data_start?: string;
+  trust_data_start?: string;
   margin_data_start?: string;
   post_drop_stats?: Stats<PostEvent>;
   post_gain_stats?: Stats<PostEvent>;
@@ -145,9 +156,11 @@ export interface TaiexData extends Rankings {
   lunar_new_year_stats?: Stats<HolidayEvent>;
   dragon_boat_stats?: Stats<HolidayEvent>;
   streaks?: { up?: Streak[]; down?: Streak[] };
-  foreign_monthly?: ForeignMonth[];
+  foreign_yearly?: InstitutionYear[];
+  trust_yearly?: InstitutionYear[];
   today?: TodayIndex | null;
-  today_foreign?: TodayForeign | null;
+  today_foreign?: TodayInstitution | null;
+  today_trust?: TodayInstitution | null;
   today_margin?: {
     margin: TodayMargin | null;
     maintenance: TodayMaintenance | null;

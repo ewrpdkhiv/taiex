@@ -38,8 +38,9 @@ from taiex_big_drops import (
     find_top_margin_changes,
     find_top_point_drops,
     find_top_point_gains,
-    foreign_monthly_net,
+    institutional_yearly_net,
     load_foreign_net,
+    load_trust_net,
     load_latest_margin,
     load_margin_history,
     load_ohlc_from_yfinance,
@@ -86,6 +87,7 @@ def _df_to_records(
     records = []
     has_pt = "change_pt" in df.columns
     has_foreign = "foreign_net" in df.columns
+    has_trust = "trust_net" in df.columns
     has_margin = "margin_change" in df.columns
     for rank, (_, row) in enumerate(df.iterrows(), start=1):
         date_str = pd.Timestamp(row["Date"]).strftime("%Y-%m-%d")
@@ -116,6 +118,9 @@ def _df_to_records(
         if has_foreign:
             # 外資買賣超，單位：億元（負值為賣超）
             record["foreign_net"] = round(float(row["foreign_net"]) / 1e8, 2)
+        if has_trust:
+            # 投信買賣超，單位：億元（負值為賣超）
+            record["trust_net"] = round(float(row["trust_net"]) / 1e8, 2)
         if has_margin:
             # 融資增減與餘額，單位：億元（負值為減少）
             record["margin_change"] = round(float(row["margin_change"]) / 1e8, 2)
@@ -162,11 +167,25 @@ def generate_data() -> None:
             payload[f"foreign_buys_{period}"] = _df_to_records(
                 find_top_foreign_net_buys(df, foreign_df, top_n=10, years=years), df, "gain",
             )
-        payload["foreign_monthly"] = foreign_monthly_net(foreign_df)
+        payload["foreign_yearly"] = institutional_yearly_net(foreign_df)
         payload["today_foreign"] = rank_latest_foreign(df, foreign_df, periods={"all": None})
         payload["foreign_data_start"] = pd.Timestamp(foreign_df["Date"].min()).strftime("%Y-%m-%d")
     except Exception as exc:  # noqa: BLE001 - 外資資料失敗不應拖垮整份 data.json
         print(f"⚠ 外資買賣超資料產生失敗：{exc}")
+    try:
+        trust_df = load_trust_net()
+        for period, years in (("20y", 20), ("10y", 10), ("5y", 5), ("all", None)):
+            payload[f"trust_sells_{period}"] = _df_to_records(
+                find_top_foreign_net_sells(df, trust_df, top_n=10, years=years, col="trust_net"), df,
+            )
+            payload[f"trust_buys_{period}"] = _df_to_records(
+                find_top_foreign_net_buys(df, trust_df, top_n=10, years=years, col="trust_net"), df, "gain",
+            )
+        payload["trust_yearly"] = institutional_yearly_net(trust_df, "trust_net")
+        payload["today_trust"] = rank_latest_foreign(df, trust_df, periods={"all": None}, col="trust_net")
+        payload["trust_data_start"] = pd.Timestamp(trust_df["Date"].min()).strftime("%Y-%m-%d")
+    except Exception as exc:  # noqa: BLE001 - 投信資料失敗不應拖垮整份 data.json
+        print(f"⚠ 投信買賣超資料產生失敗：{exc}")
     margin_df = None
     try:
         margin_df = load_margin_history()

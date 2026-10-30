@@ -136,27 +136,10 @@
         margin: 16px auto;
       }
 
-      /* ── 外資每月買賣超 ── */
-      #monthly-chart {
+      /* ── 外資／投信每年買賣超 ── */
+      .yearly-chart {
         height: 300px;
         border-bottom: 1px solid var(--rule);
-      }
-      .monthly-scroll {
-        max-height: 440px;
-        overflow-y: auto;
-      }
-      .monthly-scroll th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-      }
-      /* 匯出 PNG 只放最近 24 個月，避免整份歷史的圖片過長（手機 canvas 有尺寸上限） */
-      .exporting .monthly-scroll {
-        max-height: none;
-        overflow: visible;
-      }
-      .exporting #t-foreign-monthly tr:nth-child(n + 25) {
-        display: none;
       }
 
       /* ── 今日排名摘要 ── */
@@ -567,6 +550,7 @@
     <section id="today" aria-label="今日排名">
       <div class="card today-block" id="today-index"></div>
       <div class="card today-block" id="today-foreign"></div>
+      <div class="card today-block" id="today-trust"></div>
       <div class="card today-block" id="today-margin"></div>
       <div class="card today-block" id="today-maintenance"></div>
     </section>
@@ -591,14 +575,23 @@
         <button class="type-btn" data-color="gain" data-type="foreign-buys">
           外資買超
         </button>
+        <button class="type-btn" data-color="drop" data-type="trust-sells">
+          投信賣超
+        </button>
+        <button class="type-btn" data-color="gain" data-type="trust-buys">
+          投信買超
+        </button>
         <button class="type-btn" data-color="gain" data-type="margin-increases">
           融資增加
         </button>
         <button class="type-btn" data-color="drop" data-type="margin-decreases">
           融資減少
         </button>
-        <button class="type-btn" data-color="stats" data-type="foreign-monthly">
-          外資月度
+        <button class="type-btn" data-color="stats" data-type="foreign-yearly">
+          外資年度
+        </button>
+        <button class="type-btn" data-color="stats" data-type="trust-yearly">
+          投信年度
         </button>
         <button class="type-btn" data-color="stats" data-type="stats">
           統計分析
@@ -1192,27 +1185,58 @@
       </div>
     </div>
 
-    <!-- 外資每月買賣超：長條圖 + 月份表（不分期間） -->
-    <div id="panel-foreign-monthly" class="tab-panel">
+    <!-- 外資每年買賣超：長條圖 + 年度表（不分期間） -->
+    <div id="panel-foreign-yearly" class="tab-panel">
       <div class="panel-inner">
         <div class="card" data-color="stats">
           <div class="card-header">
-            <h2>外資每月買賣超</h2>
-            <span class="badge">月度 外資</span>
+            <h2>外資每年買賣超</h2>
+            <span class="badge">年度 外資</span>
           </div>
           <!-- 圖表不進 PNG（clone 不會帶 canvas 內容），匯出只含表格 -->
-          <div id="monthly-chart" data-html2canvas-ignore></div>
-          <div class="table-wrap monthly-scroll">
+          <div id="foreign-yearly-chart" class="yearly-chart" data-html2canvas-ignore></div>
+          <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th class="left">月份</th>
+                  <th class="left">年份</th>
                   <th>買賣超 (億)</th>
                   <th>買超天數</th>
                   <th>賣超天數</th>
                 </tr>
               </thead>
-              <tbody id="t-foreign-monthly">
+              <tbody id="t-foreign-yearly">
+                <tr>
+                  <td colspan="4" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 投信每年買賣超：長條圖 + 年度表（不分期間） -->
+    <div id="panel-trust-yearly" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>投信每年買賣超</h2>
+            <span class="badge">年度 投信</span>
+          </div>
+          <!-- 圖表不進 PNG（clone 不會帶 canvas 內容），匯出只含表格 -->
+          <div id="trust-yearly-chart" class="yearly-chart" data-html2canvas-ignore></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">年份</th>
+                  <th>買賣超 (億)</th>
+                  <th>買超天數</th>
+                  <th>賣超天數</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-yearly">
                 <tr>
                   <td colspan="4" class="loading">載入中…</td>
                 </tr>
@@ -1984,6 +2008,262 @@
       </div>
     </div>
 
+    <div id="panel-trust-sells-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年投信賣超前 10 名</h2>
+            <span class="badge">20Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-sells-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年投信賣超前 10 名</h2>
+            <span class="badge">10Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-sells-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年投信賣超前 10 名</h2>
+            <span class="badge">5Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-sells-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時投信賣超前 10 名</h2>
+            <span class="badge">ALL 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年投信買超前 10 名</h2>
+            <span class="badge">20Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年投信買超前 10 名</h2>
+            <span class="badge">10Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年投信買超前 10 名</h2>
+            <span class="badge">5Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時投信買超前 10 名</h2>
+            <span class="badge">ALL 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="panel-margin-increases-20y" class="tab-panel">
       <div class="panel-inner">
         <div class="card" data-color="gain">
@@ -2248,7 +2528,7 @@
       </div>
     </div>
 
-    <!-- K 線圖面板（跌幅/跌點/漲幅/漲點/外資賣超點擊後顯示） -->
+    <!-- K 線圖面板（跌幅/跌點/漲幅/漲點/外資／投信賣超點擊後顯示） -->
     <div id="chart-outer">
       <div class="card">
         <div class="chart-panel-header">

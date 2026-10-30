@@ -38,6 +38,7 @@ TWSE_DAILY_QUOTES_URL = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
 FOREIGN_START_DATE = "2004-04-07"
 MARGIN_START_DATE = "2001-01-01"
 FOREIGN_INVESTOR_NAMES = ("Foreign_Investor", "Foreign_Dealer_Self")
+TRUST_INVESTOR_NAMES = ("Investment_Trust",)
 
 # 已知重大事件標籤（跌幅與漲幅共用）
 KNOWN_EVENTS: dict[str, str] = {
@@ -391,26 +392,26 @@ def patch_missing_trading_days(
     return patched.sort_values("Date").reset_index(drop=True)
 
 
-def _parse_finmind_institutional(payload: dict) -> pd.DataFrame:
+def _parse_finmind_institutional(
+    payload: dict, names: tuple[str, ...] = FOREIGN_INVESTOR_NAMES, col: str = "foreign_net",
+) -> pd.DataFrame:
     """解析 FinMind「TaiwanStockTotalInstitutionalInvestors」回傳的 JSON。
 
     外資買賣超 = 外資及陸資（Foreign_Investor）+ 外資自營商（Foreign_Dealer_Self，
-    2018 年起才拆出）的買進金額 - 賣出金額，單位為新台幣元。
+    2018 年起才拆出）的買進金額 - 賣出金額，單位為新台幣元；
+    投信買賣超（names=TRUST_INVESTOR_NAMES、col="trust_net"）同理。
 
     Returns:
-        含 Date、foreign_net 欄位的 DataFrame；查無資料回傳空表。
+        含 Date、col 欄位的 DataFrame；查無資料回傳空表。
     """
-    columns = ["Date", "foreign_net"]
-    rows = [
-        r for r in payload.get("data") or []
-        if r.get("name") in FOREIGN_INVESTOR_NAMES
-    ]
+    columns = ["Date", col]
+    rows = [r for r in payload.get("data") or [] if r.get("name") in names]
     if not rows:
         return pd.DataFrame(columns=columns)
     raw = pd.DataFrame(rows)
-    raw["foreign_net"] = raw["buy"].astype(float) - raw["sell"].astype(float)
+    raw[col] = raw["buy"].astype(float) - raw["sell"].astype(float)
     raw["Date"] = pd.to_datetime(raw["date"])
-    daily = raw.groupby("Date")["foreign_net"].sum().reset_index()
+    daily = raw.groupby("Date")[col].sum().reset_index()
     return daily.sort_values("Date").reset_index(drop=True)[columns]
 
 
@@ -433,6 +434,14 @@ def _fetch_finmind(dataset: str, start: str) -> dict:
 def _fetch_finmind_institutional(start: str) -> pd.DataFrame:
     """向 FinMind 查詢 start 起的全市場三大法人買賣金額，回傳外資每日買賣超。"""
     return _parse_finmind_institutional(_fetch_finmind("TaiwanStockTotalInstitutionalInvestors", start))
+
+
+def _fetch_finmind_trust(start: str) -> pd.DataFrame:
+    """向 FinMind 查詢 start 起的全市場三大法人買賣金額，回傳投信每日買賣超。"""
+    return _parse_finmind_institutional(
+        _fetch_finmind("TaiwanStockTotalInstitutionalInvestors", start),
+        TRUST_INVESTOR_NAMES, "trust_net",
+    )
 
 
 def _load_cached_incremental(cache_path, start: str, fetch, label: str) -> pd.DataFrame:
@@ -467,11 +476,19 @@ def load_foreign_net(start: str = FOREIGN_START_DATE, fetch=_fetch_finmind_insti
     return _load_cached_incremental(CACHE_DIR / "institutional" / "foreign_net.csv", start, fetch, "外資買賣超")
 
 
+def load_trust_net(start: str = FOREIGN_START_DATE, fetch=_fetch_finmind_trust) -> pd.DataFrame:
+    """從快取 + FinMind 增量抓取投信每日買賣超（Date, trust_net，單位：元），參數同 load_foreign_net。"""
+    from price_cache import CACHE_DIR
+
+    return _load_cached_incremental(CACHE_DIR / "institutional" / "trust_net.csv", start, fetch, "投信買賣超")
+
+
 def find_top_foreign_net_sells(
     df: pd.DataFrame,
     foreign_df: pd.DataFrame,
     top_n: int = 10,
     years: int | None = None,
+    col: str = "foreign_net",
 ) -> pd.DataFrame:
     """找出外資單日賣超金額前 N 名的交易日，並附上當日指數漲跌。
 
@@ -480,16 +497,17 @@ def find_top_foreign_net_sells(
         foreign_df: 含 Date、foreign_net 欄位的外資買賣超 DataFrame。
         top_n: 取前幾名，預設 10。
         years: 限制近幾年，None 表示全時段。
+        col: 買賣超欄位名稱，投信資料傳 "trust_net"。
 
     Returns:
-        依賣超金額由大到小排序的交易日（foreign_net 為負值）。
+        依賣超金額由大到小排序的交易日（col 為負值）。
     """
     d = df.dropna(subset=["change_pct"]).merge(foreign_df, on="Date", how="inner")
-    d = d[d["foreign_net"] < 0]
+    d = d[d[col] < 0]
     if years is not None:
         cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
         d = d[pd.to_datetime(d["Date"]) >= cutoff]
-    return d.nsmallest(top_n, "foreign_net")
+    return d.nsmallest(top_n, col)
 
 
 def find_top_foreign_net_buys(
@@ -497,18 +515,19 @@ def find_top_foreign_net_buys(
     foreign_df: pd.DataFrame,
     top_n: int = 10,
     years: int | None = None,
+    col: str = "foreign_net",
 ) -> pd.DataFrame:
     """找出外資單日買超金額前 N 名的交易日，並附上當日指數漲跌（參數同 find_top_foreign_net_sells）。
 
     Returns:
-        依買超金額由大到小排序的交易日（foreign_net 為正值）。
+        依買超金額由大到小排序的交易日（col 為正值）。
     """
     d = df.dropna(subset=["change_pct"]).merge(foreign_df, on="Date", how="inner")
-    d = d[d["foreign_net"] > 0]
+    d = d[d[col] > 0]
     if years is not None:
         cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
         d = d[pd.to_datetime(d["Date"]) >= cutoff]
-    return d.nlargest(top_n, "foreign_net")
+    return d.nlargest(top_n, col)
 
 
 RANK_PERIODS: dict[str, int | None] = {"20y": 20, "10y": 10, "5y": 5, "all": None}
@@ -564,11 +583,12 @@ def rank_latest_day(
 
 def rank_latest_foreign(
     df: pd.DataFrame, foreign_df: pd.DataFrame, periods: dict[str, int | None] = RANK_PERIODS,
+    col: str = "foreign_net",
 ) -> dict | None:
     """最新一筆外資買賣超在各期間賣超（或買超）排行中的名次。
 
     與 find_top_foreign_net_sells/buys 用同一份資料範圍（需有指數漲跌的交易日），
-    名次可直接對照排行表；foreign_net 單位：億元（負值為賣超）。
+    名次可直接對照排行表；col（投信傳 "trust_net"）單位：億元（負值為賣超）。
     streak 為截至最新一天連續同方向（賣超或買超）的交易日數，含最新一天；平盤為 0；
     streak_days 為這幾天的日期與金額（億元），依日期由舊到新。
     """
@@ -576,32 +596,32 @@ def rank_latest_foreign(
     if d.empty:
         return None
     latest = d.iloc[-1]
-    net = float(latest["foreign_net"])
+    net = float(latest[col])
     direction = "sell" if net < 0 else "buy" if net > 0 else "flat"
     ranks = {}
     is_sell = direction == "sell"
     if direction != "flat":
         for period, years in periods.items():
             w = _within_years(d, years)
-            same = w[w["foreign_net"] < 0] if is_sell else w[w["foreign_net"] > 0]
+            same = w[w[col] < 0] if is_sell else w[w[col] > 0]
             ranks[period] = {
-                "rank": _rank_of(same["foreign_net"], net, smaller_first=is_sell),
+                "rank": _rank_of(same[col], net, smaller_first=is_sell),
                 "total": len(same),
             }
     streak = 0
     if direction != "flat":
-        for v in reversed(d["foreign_net"].to_numpy()):
+        for v in reversed(d[col].to_numpy()):
             if (v < 0) != is_sell or v == 0:
                 break
             streak += 1
     tail = d.iloc[len(d) - streak:] if streak else d.iloc[0:0]
     streak_days = [
-        {"date": date, "foreign_net": round(float(v) / 1e8, 2)}
-        for date, v in zip(tail["Date"].dt.strftime("%Y-%m-%d"), tail["foreign_net"].to_numpy())
+        {"date": date, col: round(float(v) / 1e8, 2)}
+        for date, v in zip(tail["Date"].dt.strftime("%Y-%m-%d"), tail[col].to_numpy())
     ]
     return {
         "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
-        "foreign_net": round(net / 1e8, 2),
+        col: round(net / 1e8, 2),
         "direction": direction,
         "ranks": ranks,
         "streak": streak,
@@ -609,16 +629,16 @@ def rank_latest_foreign(
     }
 
 
-def foreign_monthly_net(foreign_df: pd.DataFrame) -> list[dict]:
-    """外資每月買賣超合計（依月份由舊到新）。
+def institutional_yearly_net(inst_df: pd.DataFrame, col: str = "foreign_net") -> list[dict]:
+    """法人（外資或投信，col="trust_net"）每年買賣超合計（依年份由舊到新，最後一年為今年至今）。
 
-    foreign_net 單位：億元（負值為賣超）；buy_days／sell_days 為當月買超／賣超的交易日數。
+    net 單位：億元（負值為賣超）；buy_days／sell_days 為當年買超／賣超的交易日數。
     """
-    d = foreign_df.dropna(subset=["foreign_net"])
+    d = inst_df.dropna(subset=[col])
     if d.empty:
         return []
-    month = pd.to_datetime(d["Date"]).dt.to_period("M")
-    g = d.groupby(month)["foreign_net"]
+    year = pd.to_datetime(d["Date"]).dt.year
+    g = d.groupby(year)[col]
     out = pd.DataFrame({
         "net": g.sum(),
         "buy_days": g.apply(lambda s: int((s > 0).sum())),
@@ -626,12 +646,12 @@ def foreign_monthly_net(foreign_df: pd.DataFrame) -> list[dict]:
     })
     return [
         {
-            "month": str(m),
-            "foreign_net": round(float(r.net) / 1e8, 2),
+            "year": int(str(y)),
+            "net": round(float(r.net) / 1e8, 2),
             "buy_days": int(r.buy_days),
             "sell_days": int(r.sell_days),
         }
-        for m, r in out.iterrows()
+        for y, r in out.iterrows()
     ]
 
 
