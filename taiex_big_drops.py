@@ -716,6 +716,8 @@ def rank_latest_margin(df: pd.DataFrame, margin_df: pd.DataFrame) -> dict | None
 
     與 find_top_margin_changes 用同一份資料範圍（需有指數漲跌的交易日），名次可直接對照排行表；
     balance／change 單位：億元。持平時 rank／total 為 None。
+    streak 為截至最新一天連續同方向（增加或減少）的交易日數，含最新一天；持平為 0；
+    streak_days 為這幾天的日期與增減金額（億元），依日期由舊到新。
     """
     d = df.dropna(subset=["change_pct"]).merge(margin_df, on="Date", how="inner")
     if d.empty:
@@ -728,12 +730,25 @@ def rank_latest_margin(df: pd.DataFrame, margin_df: pd.DataFrame) -> dict | None
         same = d[d["margin_change"] < 0] if is_drop else d[d["margin_change"] > 0]
         rank = _rank_of(same["margin_change"], change, smaller_first=is_drop)
         total = len(same)
+    streak = 0
+    if change != 0:
+        for v in reversed(d["margin_change"].to_numpy()):
+            if v == 0 or (v < 0) != (change < 0):
+                break
+            streak += 1
+    tail = d.iloc[len(d) - streak:] if streak else d.iloc[0:0]
+    streak_days = [
+        {"date": date, "change": round(float(v) / 1e8, 2)}
+        for date, v in zip(tail["Date"].dt.strftime("%Y-%m-%d"), tail["margin_change"].to_numpy())
+    ]
     return {
         "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
         "balance": round(float(latest["margin_balance"]) / 1e8, 2),
         "change": round(change / 1e8, 2),
         "rank": rank,
         "total": total,
+        "streak": streak,
+        "streak_days": streak_days,
     }
 
 

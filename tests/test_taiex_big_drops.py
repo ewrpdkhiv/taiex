@@ -788,7 +788,14 @@ class TestRankLatestMargin:
     def test_rank_among_same_direction(self):
         df, margin = _margin_history([0, -10, 5, -50, -30])
         r = rank_latest_margin(df, margin)
-        assert r == {"date": "2025-01-05", "balance": 3004.0, "change": -30.0, "rank": 2, "total": 3}
+        assert r == {
+            "date": "2025-01-05", "balance": 3004.0, "change": -30.0, "rank": 2, "total": 3,
+            "streak": 2,
+            "streak_days": [
+                {"date": "2025-01-04", "change": -50.0},
+                {"date": "2025-01-05", "change": -30.0},
+            ],
+        }
 
     def test_flat_has_no_rank(self):
         df, margin = _margin_history([0, 5, 0])

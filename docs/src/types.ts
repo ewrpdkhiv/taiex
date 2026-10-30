@@ -132,6 +132,8 @@ export interface TodayMargin {
   /* 持平時不排名 */
   rank: number | null;
   total: number | null;
+  streak?: number;
+  streak_days?: { date: string; change: number }[];
 }
 
 export interface TodayMaintenance {

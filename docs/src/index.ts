@@ -474,6 +474,48 @@ function renderTodayIndex(t: TodayIndex | null | undefined): boolean {
   return true;
 }
 
+const fmtYi = (v: number) =>
+  Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// 連續天數：有逐日明細時天數做成按鈕，點開列出這幾天（新到舊）的金額與合計
+function streakParts(
+  listId: string,
+  header: string,
+  streak: number | undefined,
+  days: { date: string; value: number }[],
+) {
+  const cell = days.length
+    ? `<button type="button" class="today-rank today-streak-btn" aria-expanded="false"
+         aria-controls="${listId}">${(streak || 0).toLocaleString()} 天</button>`
+    : `<span class="today-rank">${(streak || 0).toLocaleString()} 天</span>`;
+  const detail = days.length
+    ? `<div class="today-streak-detail" id="${listId}" hidden>
+        <table>
+          <thead><tr><th>日期</th><th>${header}</th></tr></thead>
+          <tbody>${days
+            .slice()
+            .reverse()
+            .map((x) => `<tr><td>${x.date}</td><td>${fmtYi(x.value)}</td></tr>`)
+            .join("")}</tbody>
+          <tfoot><tr><td>合計 ${days.length} 天</td><td>${fmtYi(
+            days.reduce((sum, x) => sum + x.value, 0),
+          )}</td></tr></tfoot>
+        </table>
+      </div>`
+    : "";
+  return { cell, detail };
+}
+
+function wireStreakDetail(el: HTMLElement) {
+  const btn = el.querySelector<HTMLElement>(".today-streak-btn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const open = btn.getAttribute("aria-expanded") !== "true";
+    btn.setAttribute("aria-expanded", String(open));
+    query(".today-streak-detail", el).hidden = !open;
+  });
+}
+
 // 外資／投信單日買賣超（億元）＋ 在全時同方向排行的名次與連續天數
 function renderTodayInstitution(
   id: string,
@@ -491,29 +533,12 @@ function renderTodayInstitution(
   const word = isSell ? "賣超" : "買超";
   el.dataset.color = isSell ? "drop" : f.direction === "buy" ? "gain" : "";
   const r = f.ranks.all;
-  const fmtYi = (v: number) =>
-    Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const days = f.streak_days || [];
-  // 有逐日明細時天數做成按鈕，點開列出這幾天（新到舊）的金額與合計
-  const streakCell = days.length
-    ? `<button type="button" class="today-rank today-streak-btn" aria-expanded="false"
-         aria-controls="today-streak-list">${f.streak.toLocaleString()} 天</button>`
-    : `<span class="today-rank">${(f.streak || 0).toLocaleString()} 天</span>`;
-  const detail = days.length
-    ? `<div class="today-streak-detail" id="today-streak-list" hidden>
-        <table>
-          <thead><tr><th>日期</th><th>${word}金額（億元）</th></tr></thead>
-          <tbody>${days
-            .slice()
-            .reverse()
-            .map((x) => `<tr><td>${x.date}</td><td>${fmtYi(x[key] ?? 0)}</td></tr>`)
-            .join("")}</tbody>
-          <tfoot><tr><td>合計 ${days.length} 天</td><td>${fmtYi(
-            days.reduce((sum, x) => sum + (x[key] ?? 0), 0),
-          )}</td></tr></tfoot>
-        </table>
-      </div>`
-    : "";
+  const { cell: streakCell, detail } = streakParts(
+    `today-streak-${id}`,
+    `${word}金額（億元）`,
+    f.streak,
+    (f.streak_days || []).map((x) => ({ date: x.date, value: x[key] ?? 0 })),
+  );
   const body =
     f.direction === "flat"
       ? `<div class="today-note">買賣超為 0，不列入排名</div>`
@@ -535,14 +560,7 @@ function renderTodayInstitution(
       c.style.width = "380px";
     });
   });
-  const btn = el.querySelector<HTMLElement>(".today-streak-btn");
-  if (btn) {
-    btn.addEventListener("click", () => {
-      const open = btn.getAttribute("aria-expanded") !== "true";
-      btn.setAttribute("aria-expanded", String(open));
-      query(".today-streak-detail", el).hidden = !open;
-    });
-  }
+  wireStreakDetail(el);
 }
 
 const fmt2 = (v: number) =>
@@ -563,16 +581,25 @@ function renderTodayMargin(margin: TodayMargin | null | undefined) {
   // 持平不排名
   const { rank, total } = margin;
   const hasRank = rank != null && total != null;
+  const { cell: streakCell, detail } = streakParts(
+    "today-streak-margin",
+    `${word}金額（億元）`,
+    margin.streak,
+    (margin.streak_days || []).map((x) => ({ date: x.date, value: x.change })),
+  );
+  const hasStreak = !!margin.streak;
   el.innerHTML = `
     <div class="today-head"><span>融資${word}</span><b>${margin.date}</b></div>
     <div class="today-value ${dir}">${fmtSignedMinus(margin.change)}<small>億元</small></div>
     <table>
-      <thead><tr>${hasRank ? `<th>${word}排名</th>` : ""}<th>融資餘額</th></tr></thead>
+      <thead><tr>${hasRank ? `<th>${word}排名</th>` : ""}${hasStreak ? `<th>連續${word}</th>` : ""}<th>融資餘額</th></tr></thead>
       <tbody><tr>
         ${hasRank ? `<td>${todayRankCell(rank, total)}</td>` : ""}
+        ${hasStreak ? `<td>${streakCell}</td>` : ""}
         <td><span class="today-rank">${fmt2(margin.balance)}</span> <span class="today-total">億元</span></td>
       </tr></tbody>
-    </table>`;
+    </table>${detail}`;
+  wireStreakDetail(el);
 }
 
 // 上市大盤融資維持率（%，以 TWSE 各股融資餘額 × 收盤價自行估算）
