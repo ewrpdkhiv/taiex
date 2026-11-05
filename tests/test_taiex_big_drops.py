@@ -830,6 +830,13 @@ class TestCalcMarginMaintenance:
         quotes = _quotes_payload({"1111": "100.00", "2222": "50.00", "3333": "--"})
         assert _calc_margin_maintenance(margin, quotes) == 166.67
 
+    def test_excludes_etf(self):
+        # 非 ETF 市值 100,000 仟元；ETF 市值 50,000 仟元 → 估算 ETF 融資 30,000 仟元；
+        # 融資金額 80,000 仟元扣掉後剩 50,000 → 200%
+        margin = _margin_payload("80,000", {"1111": "1,000", "0050": "500"})
+        quotes = _quotes_payload({"1111": "100.00", "0050": "100.00"})
+        assert _calc_margin_maintenance(margin, quotes) == 200.0
+
     def test_missing_tables(self):
         assert _calc_margin_maintenance({"stat": "OK", "tables": []}, _quotes_payload({})) is None
 

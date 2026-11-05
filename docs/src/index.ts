@@ -626,7 +626,7 @@ function renderTodayMaintenance(maint: TodayMaintenance | null | undefined) {
         }</td>
       </tr></tbody>
     </table>
-    <div class="today-note">依各股融資餘額 × 收盤價 ÷ 融資金額估算</div>`;
+    <div class="today-note">扣除 ETF，依各股融資餘額 × 收盤價 ÷ 融資金額估算</div>`;
 }
 
 // ── 外資／投信每年買賣超 ──

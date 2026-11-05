@@ -36,6 +36,8 @@ FINMIND_API_URL = "https://api.finmindtrade.com/api/v4/data"
 TWSE_MARGIN_URL = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
 TWSE_DAILY_QUOTES_URL = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
 FOREIGN_START_DATE = "2004-04-07"
+ETF_CODE_PREFIX = "00"  # 上市 ETF／ETN 代號皆以 00 開頭
+ETF_MARGIN_LOAN_RATIO = 0.6  # 估算 ETF 融資金額 = 市值 × 融資成數上限 6 成
 MARGIN_START_DATE = "2001-01-01"
 FOREIGN_INVESTOR_NAMES = ("Foreign_Investor", "Foreign_Dealer_Self")
 TRUST_INVESTOR_NAMES = ("Investment_Trust",)
@@ -773,6 +775,8 @@ def _calc_margin_maintenance(margin_payload: dict, quotes_payload: dict) -> floa
     """以 TWSE 當日資料估算上市大盤融資維持率（%）。
 
     維持率 = Σ(各股融資今日餘額〔張〕× 1000 × 收盤價) ÷ 融資金額今日餘額〔仟元 × 1000〕。
+    扣除 ETF（代號 00 開頭）：分子不計 ETF 融資市值；TWSE 只公布全市場融資金額，
+    ETF 部分的融資金額以其市值 × ETF_MARGIN_LOAN_RATIO 估算後自分母扣除。
     當日無收盤價（未成交）的個股略過；資料不齊回傳 None。
     """
     summary = _find_twse_table(margin_payload, "項目", "今日餘額")
@@ -794,12 +798,17 @@ def _calc_margin_maintenance(margin_payload: dict, quotes_payload: dict) -> floa
 
     # 彙總表有融資、融券兩組「今日餘額」，第一個是融資
     lots_col = per_stock["fields"].index("今日餘額")
-    value = 0.0
+    value = etf_value = 0.0
     for r in per_stock["data"]:
-        lots, price = _twse_num(r[lots_col]), prices.get(str(r[0]).strip())
+        code = str(r[0]).strip()
+        lots, price = _twse_num(r[lots_col]), prices.get(code)
         if lots and price:
-            value += lots * price
-    return round(value / amount * 100, 2) if value else None
+            if code.startswith(ETF_CODE_PREFIX):
+                etf_value += lots * price
+            else:
+                value += lots * price
+    amount -= etf_value * ETF_MARGIN_LOAN_RATIO
+    return round(value / amount * 100, 2) if value and amount > 0 else None
 
 
 def _fetch_twse_json(url: str, params: dict) -> dict:
