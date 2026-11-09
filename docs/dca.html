@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>定期定額試算</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="theme.css" />
+    <script>
+      // 首次繪製前套用主題，避免閃爍；切換按鈕等其餘邏輯在 src/theme.ts
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem("taiex-theme");
+        } catch (e) {}
+        var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute("data-theme", t || (dark ? "dark" : "light"));
+      })();
+    </script>
+    <script type="module" src="./src/dca.ts"></script>
+    <style>
+      .container {
+        max-width: 1120px;
+        margin: 0 auto 40px;
+        padding: 0 24px;
+      }
+      #error-banner {
+        margin-bottom: 12px;
+      }
+
+      /* 回測設定 */
+      .info-bar {
+        background: var(--surface);
+        border: 1px solid var(--rule);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        align-items: center;
+        font-size: 0.84rem;
+        color: var(--ink-2);
+      }
+      .info-bar b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .info-bar .period {
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: var(--ink-3);
+      }
+      .info-bar .period b {
+        color: var(--ink-2);
+        font-family: var(--font-mono);
+        font-weight: 500;
+      }
+
+      .period-btns {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        width: 100%;
+        padding-top: 10px;
+        border-top: 1px solid var(--rule);
+      }
+      .period-btn {
+        background: transparent;
+        border: 1px solid var(--rule-strong);
+        border-radius: 999px;
+        padding: 4px 14px;
+        font-size: 0.8rem;
+        color: var(--ink-2);
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .period-btn:hover {
+        border-color: var(--ink-3);
+        color: var(--ink);
+      }
+      .period-btn.active {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--surface);
+        font-weight: 600;
+      }
+      .period-btn.crash {
+        border-color: var(--danger-line);
+        color: var(--danger);
+      }
+      .period-btn.crash:hover {
+        background: var(--danger-soft);
+      }
+      .period-btn.crash.active {
+        background: var(--danger);
+        border-color: var(--danger);
+        color: var(--surface);
+      }
+
+      /* 篩選／欄位列 */
+      .filter-bar,
+      .col-toggle-bar {
+        padding: 4px 2px;
+        margin-bottom: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .col-toggle-bar {
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .filter-group {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .filter-group + .filter-group {
+        padding-left: 12px;
+        border-left: 1px solid var(--rule-strong);
+      }
+      .filter-label {
+        font-size: 0.74rem;
+        color: var(--ink-3);
+        margin-right: 2px;
+        white-space: nowrap;
+      }
+
+      /* 表格 */
+      .table-wrap {
+        background: var(--surface);
+        border: 1px solid var(--rule);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+      }
+      th:first-child {
+        text-align: center;
+        width: 40px;
+      }
+      th:nth-child(2) {
+        text-align: left;
+        width: 130px;
+      }
+      .th-sort {
+        cursor: pointer;
+        user-select: none;
+      }
+      .th-sort:hover {
+        color: var(--ink);
+      }
+      .th-active {
+        cursor: pointer;
+        user-select: none;
+        color: var(--accent);
+      }
+      .sort-arrow {
+        font-size: 0.7rem;
+        margin-left: 3px;
+      }
+      td:nth-child(1) {
+        text-align: center;
+        color: var(--ink-3);
+        font-size: 0.75rem;
+        font-weight: 600;
+        font-family: var(--font-mono);
+      }
+      td:nth-child(2) {
+        text-align: left;
+        max-width: 130px;
+      }
+      tbody tr {
+        cursor: pointer;
+      }
+      tbody tr.selected td {
+        background: var(--accent-soft);
+      }
+      tbody tr.selected td:nth-child(1) {
+        color: var(--accent);
+      }
+
+      .ticker {
+        font-weight: 700;
+        color: var(--ink);
+        font-size: 0.88rem;
+        font-family: var(--font-mono);
+      }
+      .name {
+        color: var(--ink-3);
+        font-size: 0.74rem;
+        margin-top: 1px;
+      }
+      .pos,
+      .neg,
+      .mid {
+        font-weight: 700;
+        font-family: var(--font-mono);
+      }
+      .pos {
+        color: var(--up);
+      }
+      .neg {
+        color: var(--down);
+      }
+      .mid {
+        color: var(--warn);
+      }
+      .sub {
+        font-size: 0.74rem;
+        color: var(--ink-3);
+        margin-top: 2px;
+      }
+
+      .bar-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: flex-end;
+      }
+      .bar {
+        height: 5px;
+        border-radius: 999px;
+        min-width: 2px;
+        background: var(--up);
+        opacity: 0.75;
+        flex-shrink: 0;
+      }
+      .bar.neg-bar {
+        background: var(--down);
+      }
+
+      /* 逐年 XIRR */
+      .yearly-table td.partial span {
+        opacity: 0.5;
+      }
+      .yearly-table th.avg-col,
+      .yearly-table td.avg-col {
+        border-left: 1px solid var(--rule-strong);
+      }
+
+      /* 區段標題 */
+      .section-head {
+        margin: 36px 0 12px;
+      }
+      .section-head h2 {
+        font-family: var(--font-serif);
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 4px;
+      }
+      .section-head p {
+        font-size: 0.82rem;
+        color: var(--ink-3);
+        max-width: 760px;
+      }
+      .section-head b {
+        color: var(--ink-2);
+      }
+
+      /* 底部組合列 */
+      #portfolio-bar {
+        display: none;
+        position: fixed;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(1072px, calc(100% - 24px));
+        background: var(--surface);
+        border: 1px solid var(--rule-strong);
+        border-radius: 14px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+        padding: 12px 18px;
+        z-index: 200;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      #portfolio-bar.visible {
+        display: flex;
+      }
+      .portfolio-label {
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: var(--ink-3);
+        white-space: nowrap;
+      }
+      .portfolio-chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        flex: 1;
+      }
+      .portfolio-chip {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-line);
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 0.76rem;
+        font-family: var(--font-mono);
+        cursor: pointer;
+      }
+      .portfolio-chip:hover {
+        border-color: var(--accent);
+      }
+      .portfolio-stats {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .portfolio-hint {
+        font-size: 0.76rem;
+        color: var(--ink-3);
+      }
+      .portfolio-stat {
+        text-align: right;
+      }
+      .portfolio-stat .s-label {
+        font-size: 0.68rem;
+        color: var(--ink-3);
+        display: block;
+      }
+      .portfolio-stat .s-val {
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .portfolio-stat .s-val.pos {
+        color: var(--up);
+      }
+      .portfolio-stat .s-val.neg {
+        color: var(--down);
+      }
+      .portfolio-clear {
+        background: none;
+        border: 1px solid var(--rule-strong);
+        color: var(--ink-2);
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 0.76rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .portfolio-clear:hover {
+        border-color: var(--danger);
+        color: var(--danger);
+      }
+      body.has-portfolio {
+        padding-bottom: 96px;
+      }
+
+      @media (max-width: 600px) {
+        .container {
+          padding: 0 8px;
+        }
+        .info-bar {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 12px 14px;
+        }
+        .info-bar .period {
+          margin-left: 0;
+        }
+        .filter-group + .filter-group {
+          padding-left: 0;
+          border-left: none;
+        }
+        table {
+          min-width: 340px;
+        }
+        th:first-child,
+        td:nth-child(1) {
+          position: sticky;
+          left: 0;
+          background: var(--surface);
+          z-index: 1;
+        }
+        th:first-child {
+          background: var(--surface-2);
+        }
+        .bar {
+          display: none;
+        }
+        .yearly-table td,
+        .yearly-table th {
+          padding-left: 6px;
+          padding-right: 6px;
+        }
+        .bar-wrap {
+          gap: 0;
+        }
+        .ticker {
+          font-size: 0.8rem;
+        }
+        .name {
+          font-size: 0.66rem;
+        }
+        #portfolio-bar {
+          bottom: 8px;
+          padding: 10px 12px;
+          gap: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="site-tabs">
+      <a class="brand" href="index.html"
+        ><span class="brand-mark">TAIEX</span
+        ><span class="brand-sub">台股觀測</span></a
+      >
+      <nav class="site-links">
+        <a href="index.html" class="site-tab">漲跌排行</a>
+        <a href="dca.html" class="site-tab active">定期定額</a>
+        <a href="bear.html" class="site-tab">空頭市場</a>
+      </nav>
+      <button class="theme-toggle" id="theme-toggle" aria-label="切換深色／淺色主題"></button>
+    </div>
+
+    <header>
+      <div>
+        <div class="kicker">DCA Backtest</div>
+        <h1>定期定額試算</h1>
+      </div>
+      <div class="meta">
+        <span>資料更新 <b id="last-updated">載入中…</b></span>
+      </div>
+    </header>
+
+    <div id="error-banner"></div>
+
+    <div class="container">
+      <div class="info-bar" id="info-bar">
+        <span
+          >每月 <b>5 日</b> 投入
+          <b>3,000 元</b>・允許小數股・股息隔天再投入</span
+        >
+        <span class="period">回測期間：<b id="period-text">載入中…</b></span>
+        <div class="period-btns">
+          <button class="period-btn active" onclick="setPeriod('10y', this)">
+            近10年
+          </button>
+          <button class="period-btn" onclick="setPeriod('5y', this)">
+            近5年
+          </button>
+          <button
+            class="period-btn crash"
+            onclick="setPeriod('crash_10y', this)"
+          >
+            股災前10年
+          </button>
+          <button
+            class="period-btn crash"
+            onclick="setPeriod('crash_5y', this)"
+          >
+            股災前5年
+          </button>
+          <button class="period-btn" onclick="setPeriod('covid', this)">
+            2020/02起
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-bar" id="filter-bar"></div>
+
+      <div class="col-toggle-bar" id="col-toggles">
+        <span class="label">欄位：</span>
+      </div>
+
+      <div class="table-wrap">
+        <div id="table-container">
+          <div class="loading-msg">資料載入中，首次約需 60 秒…</div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <h2>大跌加碼 vs 固定扣款</h2>
+        <p>
+          台股加權指數單日跌幅 ≥ <b>5%</b> 時，隔一個交易日加碼
+          <b>2 倍</b>月扣款金額，與固定扣款比較（固定「近 10
+          年」情境，會套用上方篩選，但不隨期間按鈕變動）
+        </p>
+      </div>
+      <div class="table-wrap">
+        <div id="dip-compare-container">
+          <div class="loading-msg">資料載入中…</div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <h2>逐年定期定額 XIRR</h2>
+        <p>
+          每個日曆年獨立計算：1 月起每月 <b>5 日</b>投入
+          <b>3,000 元</b>（一年 12 次），以該年最後一個交易日收盤計算
+          XIRR，規則同上（小數股、股息隔天再投入）。今年為年初至今（YTD），不計入平均；淡色格表示當年投入不足
+          12 次（年中才上市）。點欄位標題排序，會套用上方篩選。
+        </p>
+      </div>
+      <div class="table-wrap">
+        <div id="yearly-container">
+          <div class="loading-msg">資料載入中…</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="portfolio-bar">
+      <span class="portfolio-label">組合</span>
+      <div class="portfolio-chips" id="portfolio-chips"></div>
+      <div class="portfolio-stats" id="portfolio-stats"></div>
+      <button class="portfolio-clear" onclick="clearPortfolio()">清除</button>
+    </div>
+  </body>
+</html>

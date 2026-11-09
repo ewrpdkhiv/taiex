@@ -1,0 +1,104 @@
+name: Update data and deploy
+
+on:
+  schedule:
+    # 每小時整點更新一次（UTC 週一到週五，即台灣時間週一 08:00 ～ 週六 07:59）
+    - cron: "0 * * * 1-5"
+  workflow_dispatch:
+  # 推送程式碼到 main 後也更新一次，讓前端／產生器的修改立刻反映到資料與網站上；
+  # 只改到資料檔的 push 不觸發（bot 用 GITHUB_TOKEN 推的 commit 本來就不會再觸發 workflow，
+  # 所以部署必須放在同一個 workflow 裡，不能另開一個 on: push 的部署 workflow）
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/data/**"
+      - "cache/**"
+
+# 同時只跑一個更新，避免排程與 push 觸發的兩次執行互相推送衝突
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pages: write
+      id-token: write
+    # GitHub Pages 的 Source 須設為「GitHub Actions」（Settings → Pages）
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate static data
+        run: uv run python scripts/generate_static.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data/ cache/
+          git diff --staged --quiet || git commit -m "chore: update static data [skip ci]"
+          # 執行期間 main 可能又有新的 push，先 rebase 再推
+          git pull --rebase
+          git push
+
+      # 以下建置與部署即使資料更新失敗也照跑：產生失敗時不會覆寫舊的 JSON，
+      # 部署的是 repo 裡現有的資料，前端程式的修改不會因為資料來源暫時掛掉而上不了線
+      - name: Set up Node
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install frontend dependencies
+        if: ${{ !cancelled() }}
+        run: npm ci
+
+      # npm run build 會先跑 tsc 型別檢查，沒過就不部署
+      - name: Build site
+        id: build
+        if: ${{ !cancelled() }}
+        run: npm run build
+
+      - name: Upload Pages artifact
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/deploy-pages@v4
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          BODY="工作流程執行失敗：${RUN_URL}"
+          ISSUE_NUM=$(gh issue list --repo "$GITHUB_REPOSITORY" --search "Data update failed in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$ISSUE_NUM" ]; then
+            gh issue comment "$ISSUE_NUM" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "⚠️ Data update failed" --body "$BODY"
+          fi

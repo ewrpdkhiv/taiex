@@ -1,0 +1,2602 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TAIEX 漲跌日排行</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="theme.css" />
+    <script>
+      // 首次繪製前套用主題，避免閃爍；切換按鈕等其餘邏輯在 src/theme.ts
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem("taiex-theme");
+        } catch (e) {}
+        var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute("data-theme", t || (dark ? "dark" : "light"));
+      })();
+    </script>
+    <script type="module" src="./src/index.ts"></script>
+    <style>
+      /* ── 類型／期間切換 ── */
+      nav.controls {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .type-row {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--rule);
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .type-btn {
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--ink-3);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
+      }
+      .type-btn:hover {
+        color: var(--ink);
+      }
+      .type-btn.active {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .type-btn[data-color="drop"].active {
+        border-bottom-color: var(--down);
+      }
+      .type-btn[data-color="gain"].active {
+        border-bottom-color: var(--up);
+      }
+      .type-btn[data-color="stats"].active {
+        border-bottom-color: var(--accent);
+      }
+
+      .period-row {
+        display: inline-flex;
+        align-self: flex-start;
+        padding: 3px;
+        gap: 2px;
+        background: var(--surface-2);
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+      }
+      .period-btn {
+        padding: 5px 14px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--ink-3);
+        background: none;
+        border: none;
+        border-radius: 999px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          color 0.15s,
+          background 0.15s;
+      }
+      .period-btn:hover {
+        color: var(--ink);
+      }
+      .period-btn.active {
+        background: var(--surface);
+        color: var(--ink);
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+      }
+
+      #col-toggle-bar {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 12px 24px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      #error-banner {
+        margin-top: 12px;
+      }
+
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+      .panel-inner {
+        max-width: 860px;
+        margin: 20px auto;
+        padding: 0 16px;
+      }
+      #panel-stats {
+        padding: 4px 0 12px;
+      }
+      #panel-stats .panel-inner {
+        margin: 16px auto;
+      }
+
+      /* ── 外資／投信每年買賣超 ── */
+      .yearly-chart {
+        height: 300px;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      /* ── 今日排名摘要 ── */
+      #today {
+        max-width: 1120px;
+        margin: 0 auto 16px;
+        padding: 0 24px;
+        display: none;
+        grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+        gap: 12px;
+      }
+      #today.ready {
+        display: grid;
+      }
+      .today-head .export-btn {
+        margin-left: 0;
+      }
+      .today-head-right {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .today-block {
+        padding: 14px 18px;
+      }
+      .today-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.78rem;
+        color: var(--ink-3);
+      }
+      .today-head b {
+        font-family: var(--font-mono);
+        font-weight: 500;
+        color: var(--ink-2);
+      }
+      .today-value {
+        margin: 6px 0 10px;
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .today-value small {
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-left: 6px;
+      }
+      .today-value.drop {
+        color: var(--down);
+      }
+      .today-value.gain {
+        color: var(--up);
+      }
+      .today-block table td,
+      .today-block table th {
+        padding: 4px 6px;
+        width: 50%;
+        text-align: left;
+      }
+      /* 卡片窄（四張並排）時，「/ 總數」換到名次下一行，而不是被卡片的 overflow 裁掉；
+         名次與總數本身不拆行 */
+      .today-block table td {
+        white-space: normal;
+      }
+      /* 正 2 融資四欄：跨兩格、欄寬依內容，避免「連增 N 天」被擠成多行 */
+      /* 單欄時不能 span 2，否則會多生出一個窄欄，把其他卡片擠成 240px + 111px */
+      @media (min-width: 560px) {
+        #today-leveraged {
+          grid-column: span 2;
+        }
+      }
+      #today-leveraged {
+        overflow-x: auto; /* 手機寬度放不下四欄時橫向捲動，不被卡片裁掉 */
+      }
+      #today-leveraged table td,
+      #today-leveraged table th {
+        width: auto;
+        white-space: nowrap;
+      }
+      .today-note {
+        font-size: 0.8rem;
+        color: var(--ink-3);
+      }
+      .today-rank {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+      }
+      .today-rank.top {
+        color: var(--accent);
+      }
+      .today-block[data-color="drop"] .today-rank.top {
+        color: var(--down);
+      }
+      .today-rank.drop {
+        color: var(--down);
+      }
+      .today-rank.gain {
+        color: var(--up);
+      }
+      .today-block > .today-note {
+        margin-top: 6px;
+      }
+      .today-block[data-color="gain"] .today-rank.top {
+        color: var(--up);
+      }
+      .today-streak-btn {
+        padding: 0;
+        border: none;
+        background: none;
+        font: inherit;
+        cursor: pointer;
+        border-bottom: 1px dashed currentColor;
+      }
+      .today-streak-btn::after {
+        content: " ▾";
+        font-size: 0.7em;
+        color: var(--ink-3);
+      }
+      .today-streak-btn[aria-expanded="true"]::after {
+        content: " ▴";
+      }
+      .today-streak-detail {
+        margin-top: 8px;
+        border-top: 1px solid var(--rule);
+        padding-top: 6px;
+      }
+      .today-block .today-streak-detail td,
+      .today-block .today-streak-detail th {
+        font-family: var(--font-mono);
+      }
+      .today-block .today-streak-detail tfoot td {
+        border-top: 1px solid var(--rule);
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .today-total {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--ink-3);
+        white-space: nowrap;
+      }
+
+      /* 卡片標題左側色條 */
+      .card-header h2::before {
+        content: "";
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: 2px;
+        background: var(--ink-3);
+      }
+      .card[data-color="drop"] .card-header h2::before {
+        background: var(--down);
+      }
+      .card[data-color="gain"] .card-header h2::before {
+        background: var(--up);
+      }
+      .card[data-color="stats"] .card-header h2::before {
+        background: var(--accent);
+      }
+      .card[data-color="drop"] .badge {
+        background: var(--down-soft);
+        color: var(--down);
+      }
+      .card[data-color="gain"] .badge {
+        background: var(--up-soft);
+        color: var(--up);
+      }
+
+      th:first-child,
+      th.left,
+      td.left {
+        text-align: left;
+      }
+      th.date-header,
+      th.recovery {
+        text-align: center;
+      }
+      td:first-child {
+        text-align: center;
+        color: var(--ink-3);
+        font-size: 0.75rem;
+        width: 36px;
+        font-family: var(--font-mono);
+      }
+      td.date {
+        text-align: center;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        color: var(--ink-2);
+      }
+      td.left.date {
+        text-align: left;
+      }
+      td.drop,
+      td.gain {
+        font-weight: 700;
+        font-family: var(--font-mono);
+      }
+      td.drop {
+        color: var(--down);
+      }
+      td.gain {
+        color: var(--up);
+      }
+      td.pct,
+      td.recovery {
+        color: var(--ink-3);
+        font-size: 0.8rem;
+        font-family: var(--font-mono);
+      }
+      td.recovery {
+        text-align: center;
+      }
+      td.col-close,
+      td.col-prev {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+      }
+      td.event {
+        text-align: left;
+        color: var(--ink-3);
+        font-size: 0.76rem;
+        white-space: normal;
+        min-width: 160px;
+      }
+
+      /* 連續漲跌天數：並排兩表 */
+      .streak-wrap {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .streak-col {
+        flex: 1;
+        min-width: 260px;
+      }
+      .streak-col + .streak-col {
+        border-left: 1px solid var(--rule);
+      }
+      .streak-title {
+        padding: 10px 12px 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+      }
+      .streak-title.up {
+        color: var(--up);
+      }
+      .streak-title.down {
+        color: var(--down);
+      }
+
+      .sort-btn,
+      .export-btn {
+        padding: 3px 10px;
+        font-size: 0.72rem;
+        font-weight: 500;
+        background: transparent;
+        color: var(--ink-2);
+        border: 1px solid var(--rule-strong);
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          background 0.15s,
+          color 0.15s,
+          border-color 0.15s;
+      }
+      .sort-btn {
+        margin-left: auto;
+      }
+      .export-btn {
+        margin-left: 6px;
+      }
+      .sort-btn:hover,
+      .export-btn:hover {
+        background: var(--hover);
+        color: var(--ink);
+        border-color: var(--ink-3);
+      }
+
+      .exporting {
+        box-shadow: none;
+      }
+      .exporting .export-btn {
+        display: none;
+      }
+      .exporting .today-streak-btn {
+        border-bottom: none;
+      }
+      .exporting .today-streak-btn::after {
+        content: none;
+      }
+      .exporting td,
+      .exporting th {
+        white-space: nowrap !important;
+      }
+      /* 手機版第一欄是 sticky，html2canvas 處理 sticky 會錯位，匯出時改回一般排版 */
+      .exporting th:first-child,
+      .exporting td:first-child {
+        position: static !important;
+      }
+
+      .hide-col-close .col-close,
+      .hide-col-prev .col-prev,
+      .hide-col-pct .col-pct,
+      .hide-recovery .recovery,
+      .hide-col-event .col-event {
+        display: none;
+      }
+
+      /* 可點擊列 */
+      .clickable-drop,
+      .clickable-horizon {
+        cursor: pointer;
+      }
+      .clickable-drop.active td {
+        background: var(--down-soft) !important;
+      }
+      .card[data-color="gain"] .clickable-drop.active td {
+        background: var(--up-soft) !important;
+      }
+      .clickable-horizon.active td {
+        background: var(--accent-soft) !important;
+      }
+
+      /* 統計明細面板（點擊列後由 JS 顯示） */
+      .card > div[id$="-detail"] {
+        display: none;
+        border-top: 1px solid var(--rule);
+      }
+
+      /* K 線圖面板 */
+      #chart-outer {
+        display: none;
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 16px 32px;
+      }
+      #chart-container {
+        height: 580px;
+      }
+
+      @media (max-width: 600px) {
+        nav.controls {
+          padding: 0 12px;
+        }
+        .type-btn {
+          padding: 9px 10px;
+          font-size: 0.82rem;
+        }
+        .period-row {
+          align-self: stretch;
+        }
+        .period-btn {
+          flex: 1;
+          padding: 5px 6px;
+        }
+        #col-toggle-bar {
+          padding: 10px 12px 0;
+        }
+        .panel-inner {
+          margin: 14px auto;
+          padding: 0 8px;
+        }
+        #today {
+          padding: 0 8px;
+          gap: 8px;
+        }
+        .today-block {
+          padding: 12px 12px;
+        }
+        .streak-col + .streak-col {
+          border-left: none;
+          border-top: 1px solid var(--rule);
+        }
+        th:first-child,
+        td:first-child {
+          position: sticky;
+          left: 0;
+          background: var(--surface);
+          z-index: 1;
+        }
+        th:first-child {
+          background: var(--surface-2);
+        }
+        #chart-container {
+          height: 460px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="site-tabs">
+      <a class="brand" href="index.html"
+        ><span class="brand-mark">TAIEX</span
+        ><span class="brand-sub">台股觀測</span></a
+      >
+      <nav class="site-links">
+        <a href="index.html" class="site-tab active">漲跌排行</a>
+        <a href="dca.html" class="site-tab">定期定額</a>
+        <a href="bear.html" class="site-tab">空頭市場</a>
+      </nav>
+      <button class="theme-toggle" id="theme-toggle" aria-label="切換深色／淺色主題"></button>
+    </div>
+
+    <header>
+      <div>
+        <div class="kicker">Daily Movers</div>
+        <h1>台股加權指數漲跌日排行</h1>
+      </div>
+      <div class="meta">
+        <span>資料更新 <b id="last-updated">載入中…</b></span>
+      </div>
+    </header>
+
+    <section id="today" aria-label="今日排名">
+      <div class="card today-block" id="today-index"></div>
+      <div class="card today-block" id="today-foreign"></div>
+      <div class="card today-block" id="today-trust"></div>
+      <div class="card today-block" id="today-margin"></div>
+      <div class="card today-block" id="today-maintenance"></div>
+      <div class="card today-block" id="today-samelevel"></div>
+      <div class="card today-block" id="today-leveraged"></div>
+    </section>
+
+    <nav class="controls">
+      <div class="type-row">
+        <button class="type-btn active" data-color="drop" data-type="drops-pct">
+          跌幅%
+        </button>
+        <button class="type-btn" data-color="gain" data-type="gains-pct">
+          漲幅%
+        </button>
+        <button class="type-btn" data-color="drop" data-type="drops-pt">
+          跌點
+        </button>
+        <button class="type-btn" data-color="gain" data-type="gains-pt">
+          漲點
+        </button>
+        <button class="type-btn" data-color="drop" data-type="foreign-sells">
+          外資賣超
+        </button>
+        <button class="type-btn" data-color="gain" data-type="foreign-buys">
+          外資買超
+        </button>
+        <button class="type-btn" data-color="drop" data-type="trust-sells">
+          投信賣超
+        </button>
+        <button class="type-btn" data-color="gain" data-type="trust-buys">
+          投信買超
+        </button>
+        <button class="type-btn" data-color="gain" data-type="margin-increases">
+          融資增加
+        </button>
+        <button class="type-btn" data-color="drop" data-type="margin-decreases">
+          融資減少
+        </button>
+        <button class="type-btn" data-color="stats" data-type="foreign-yearly">
+          外資年度
+        </button>
+        <button class="type-btn" data-color="stats" data-type="trust-yearly">
+          投信年度
+        </button>
+        <button class="type-btn" data-color="stats" data-type="nsf">
+          國安基金
+        </button>
+        <button class="type-btn" data-color="stats" data-type="stats">
+          統計分析
+        </button>
+      </div>
+      <div class="period-row" id="period-row">
+        <button class="period-btn active" data-period="20y">近 20 年</button>
+        <button class="period-btn" data-period="10y">近 10 年</button>
+        <button class="period-btn" data-period="5y">近 5 年</button>
+        <button class="period-btn" data-period="all">全 時</button>
+      </div>
+    </nav>
+
+    <div id="col-toggle-bar">
+      <span class="toggle-label">欄位：</span>
+    </div>
+
+    <div id="error-banner"></div>
+
+    <!-- 統計分析面板：大跌後表現統計、連續漲跌天數排行 -->
+    <div id="panel-stats" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>大跌後表現統計</h2>
+            <span class="badge" id="post-drop-badge">跌幅 ≥ 5%</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-post-drop-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="post-drop-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="post-drop-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('post-drop')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="post-drop-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">大跌日期</th>
+                    <th>當日跌幅</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-post-drop-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>大漲後表現統計</h2>
+            <span class="badge" id="post-gain-badge">漲幅 ≥ 5%</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-post-gain-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="post-gain-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="post-gain-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('post-gain')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="post-gain-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">大漲日期</th>
+                    <th>當日漲幅</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-post-gain-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 20 日均線後表現統計</h2>
+            <span class="badge" id="ma20-badge">20MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma20-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma20-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma20-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma20')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma20-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma20-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 60 日均線後表現統計</h2>
+            <span class="badge" id="ma60-badge">60MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma60-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma60-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma60-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma60')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma60-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma60-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 120 日均線後表現統計</h2>
+            <span class="badge" id="ma120-badge">120MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma120-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma120-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma120-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma120')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma120-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma120-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 240 日均線後表現統計</h2>
+            <span class="badge" id="ma240-badge">240MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma240-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma240-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma240-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma240')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma240-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma240-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 1200 日均線後表現統計</h2>
+            <span class="badge" id="ma1200-badge">1200MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma1200-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma1200-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma1200-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma1200')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma1200-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma1200-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>跌破 2400 日均線後表現統計</h2>
+            <span class="badge" id="ma2400-badge">2400MA</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-ma2400-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="ma2400-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="ma2400-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('ma2400')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="ma2400-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">跌破日期</th>
+                    <th>跌破幅度</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-ma2400-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>中秋連假前買進表現統計</h2>
+            <span class="badge" id="mid-autumn-badge">中秋節</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">連假後第幾個交易日賣出</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-mid-autumn-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="mid-autumn-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="mid-autumn-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('mid-autumn')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="mid-autumn-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">中秋連假</th>
+                    <th>買進日（收盤）</th>
+                    <th>賣出日（收盤）</th>
+                    <th>報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-mid-autumn-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>過年封關前買進表現統計</h2>
+            <span class="badge" id="lunar-new-year-badge">農曆新年</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">開紅盤後第幾個交易日賣出</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-lunar-new-year-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="lunar-new-year-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="lunar-new-year-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('lunar-new-year')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="lunar-new-year-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">過年休市期間</th>
+                    <th>買進日（收盤）</th>
+                    <th>賣出日（收盤）</th>
+                    <th>報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-lunar-new-year-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>端午連假前買進表現統計</h2>
+            <span class="badge" id="dragon-boat-badge">端午節</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">連假後第幾個交易日賣出</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-dragon-boat-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="dragon-boat-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="dragon-boat-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('dragon-boat')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="dragon-boat-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">端午連假</th>
+                    <th>買進日（收盤）</th>
+                    <th>賣出日（收盤）</th>
+                    <th>報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-dragon-boat-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>連續漲跌天數排行</h2>
+            <span class="badge">TOP 10</span>
+          </div>
+          <div class="streak-wrap">
+            <div class="streak-col">
+              <div class="streak-title up">連續上漲
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="left">期間</th>
+                      <th>天數</th>
+                      <th>累積漲幅</th>
+                    </tr>
+                  </thead>
+                  <tbody id="t-streak-up">
+                    <tr>
+                      <td colspan="3" class="loading">載入中…</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="streak-col">
+              <div class="streak-title down">連續下跌
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="left">期間</th>
+                      <th>天數</th>
+                      <th>累積跌幅</th>
+                    </tr>
+                  </thead>
+                  <tbody id="t-streak-down">
+                    <tr>
+                      <td colspan="3" class="loading">載入中…</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 外資每年買賣超：長條圖 + 年度表（不分期間） -->
+    <div id="panel-foreign-yearly" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>外資每年買賣超</h2>
+            <span class="badge">年度 外資</span>
+          </div>
+          <!-- 圖表不進 PNG（clone 不會帶 canvas 內容），匯出只含表格 -->
+          <div id="foreign-yearly-chart" class="yearly-chart" data-html2canvas-ignore></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">年份</th>
+                  <th>買賣超 (億)</th>
+                  <th>買超天數</th>
+                  <th>賣超天數</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-yearly">
+                <tr>
+                  <td colspan="4" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 投信每年買賣超：長條圖 + 年度表（不分期間） -->
+    <div id="panel-trust-yearly" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>投信每年買賣超</h2>
+            <span class="badge">年度 投信</span>
+          </div>
+          <!-- 圖表不進 PNG（clone 不會帶 canvas 內容），匯出只含表格 -->
+          <div id="trust-yearly-chart" class="yearly-chart" data-html2canvas-ignore></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">年份</th>
+                  <th>買賣超 (億)</th>
+                  <th>買超天數</th>
+                  <th>賣超天數</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-yearly">
+                <tr>
+                  <td colspan="4" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8 個面板：drops-pct / gains-pct / drops-pt / gains-pt × 20y / all -->
+    <div id="panel-nsf" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>國安基金歷次進出場</h2>
+            <span class="badge">護盤</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">入場日</th>
+                  <th class="left">出場日</th>
+                  <th>投入 (億)</th>
+                  <th>損益 (億)</th>
+                  <th>報酬率</th>
+                  <th>入場指數</th>
+                  <th>出場指數</th>
+                  <th>期間大盤</th>
+                </tr>
+              </thead>
+              <tbody id="t-nsf">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="today-note">報酬率 = 損益 ÷ 投入金額；日期與金額取自媒體整理的財政部公告，各來源略有出入</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pct-20y" class="tab-panel active">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年前 10 大跌幅</h2>
+            <span class="badge">20Y %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-20y">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pct-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年前 10 大跌幅</h2>
+            <span class="badge">10Y %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-10y">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pct-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年前 10 大跌幅</h2>
+            <span class="badge">5Y %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-5y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pct-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時前 10 大跌幅</h2>
+            <span class="badge">ALL %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pct-all">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年前 10 大漲幅</h2>
+            <span class="badge">20Y %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-20y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年前 10 大漲幅</h2>
+            <span class="badge">10Y %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-10y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年前 10 大漲幅</h2>
+            <span class="badge">5Y %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-5y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pct-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時前 10 大漲幅</h2>
+            <span class="badge">ALL %</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pct-all">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pt-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年前 10 大跌點</h2>
+            <span class="badge">20Y 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-20y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pt-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年前 10 大跌點</h2>
+            <span class="badge">10Y 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-10y">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pt-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年前 10 大跌點</h2>
+            <span class="badge">5Y 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-drops-pt-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時前 10 大跌點</h2>
+            <span class="badge">ALL 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>跌點</th>
+                  <th class="col-pct">跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-drops-pt-all">
+                <tr>
+                  <td colspan="7" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pt-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年前 10 大漲點</h2>
+            <span class="badge">20Y 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pt-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年前 10 大漲點</h2>
+            <span class="badge">10Y 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pt-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年前 10 大漲點</h2>
+            <span class="badge">5Y 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-gains-pt-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時前 10 大漲點</h2>
+            <span class="badge">ALL 點數</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th>漲點</th>
+                  <th class="col-pct">漲幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-gains-pt-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-sells-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年外資賣超前 10 名</h2>
+            <span class="badge">20Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-sells-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年外資賣超前 10 名</h2>
+            <span class="badge">10Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-sells-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年外資賣超前 10 名</h2>
+            <span class="badge">5Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-sells-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時外資賣超前 10 名</h2>
+            <span class="badge">ALL 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-sells-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-buys-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年外資買超前 10 名</h2>
+            <span class="badge">20Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-buys-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年外資買超前 10 名</h2>
+            <span class="badge">10Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-buys-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年外資買超前 10 名</h2>
+            <span class="badge">5Y 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-foreign-buys-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時外資買超前 10 名</h2>
+            <span class="badge">ALL 外資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>外資買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-foreign-buys-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-sells-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年投信賣超前 10 名</h2>
+            <span class="badge">20Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-sells-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年投信賣超前 10 名</h2>
+            <span class="badge">10Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-sells-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年投信賣超前 10 名</h2>
+            <span class="badge">5Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-sells-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時投信賣超前 10 名</h2>
+            <span class="badge">ALL 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信賣超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-sells-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年投信買超前 10 名</h2>
+            <span class="badge">20Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-20y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年投信買超前 10 名</h2>
+            <span class="badge">10Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-10y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年投信買超前 10 名</h2>
+            <span class="badge">5Y 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-5y">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-trust-buys-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時投信買超前 10 名</h2>
+            <span class="badge">ALL 投信</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>投信買超 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-trust-buys-all">
+                <tr>
+                  <td colspan="8" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-increases-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 20 年融資增加前 10 名</h2>
+            <span class="badge">20Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-20y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-increases-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 10 年融資增加前 10 名</h2>
+            <span class="badge">10Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-10y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-increases-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>近 5 年融資增加前 10 名</h2>
+            <span class="badge">5Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-5y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-increases-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="gain">
+          <div class="card-header">
+            <h2>歷史全時融資增加前 10 名</h2>
+            <span class="badge">ALL 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資增加 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回落天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-increases-all">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-20y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 20 年融資減少前 10 名</h2>
+            <span class="badge">20Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-20y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-10y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 10 年融資減少前 10 名</h2>
+            <span class="badge">10Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-10y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-5y" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>近 5 年融資減少前 10 名</h2>
+            <span class="badge">5Y 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-5y">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-margin-decreases-all" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="drop">
+          <div class="card-header">
+            <h2>歷史全時融資減少前 10 名</h2>
+            <span class="badge">ALL 融資</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="date-header">日期</th>
+                  <th>融資減少 (億)</th>
+                  <th>融資餘額 (億)</th>
+                  <th class="col-close">收盤指數</th>
+                  <th class="col-prev">前日收盤</th>
+                  <th class="col-pct">漲跌幅 (%)</th>
+                  <th class="recovery">回升天數</th>
+                  <th class="left col-event">事件</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-decreases-all">
+                <tr>
+                  <td colspan="9" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- K 線圖面板（跌幅/跌點/漲幅/漲點/外資／投信賣超點擊後顯示） -->
+    <div id="chart-outer">
+      <div class="card">
+        <div class="chart-panel-header">
+          <span class="chart-info" id="chart-info">—</span>
+          <div class="chart-legend">
+            <div class="legend-dot down" id="legend-day-dot"></div>
+            <span id="legend-day">跌幅當日</span>
+            <div class="legend-dot up" id="legend-after-dot"></div>
+            <span id="legend-after">回升期間</span>
+          </div>
+          <button class="close-btn" onclick="closeDropChart()">✕ 關閉</button>
+        </div>
+        <div id="chart-loading" style="display: none">K 線載入中…</div>
+        <div id="chart-container"></div>
+      </div>
+    </div>
+  </body>
+</html>

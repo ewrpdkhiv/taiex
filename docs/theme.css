@@ -1,0 +1,477 @@
+/* 三個頁面（index.html / dca.html / bear.html）共用的設計系統：
+   色彩 token（淺色／深色）、頂部導覽列、頁首、卡片、表格、按鈕等共用元件。
+   注意：顏色只用 hex / rgba，不用 color-mix()／oklch()，html2canvas（PNG 匯出）無法解析。 */
+
+:root {
+  --bg: #f4f1ea;
+  --surface: #fffdf9;
+  --surface-2: #f8f5ee;
+  --ink: #1a1915;
+  --ink-2: #45423b;
+  --ink-3: #7a756a;
+  --rule: #e5dfd3;
+  --rule-strong: #cdc5b5;
+  --hover: rgba(26, 25, 21, 0.035);
+
+  --accent: #1d4e89;
+  --accent-soft: rgba(29, 78, 137, 0.08);
+  --accent-line: rgba(29, 78, 137, 0.28);
+  /* 漲跌依台股慣例：紅漲綠跌 */
+  --up: #c0312b;
+  --up-soft: rgba(192, 49, 43, 0.08);
+  --up-line: rgba(192, 49, 43, 0.3);
+  --down: #13804f;
+  --down-soft: rgba(19, 128, 79, 0.09);
+  --down-line: rgba(19, 128, 79, 0.3);
+  /* 錯誤訊息、股災等非漲跌語意的警示紅 */
+  --danger: #c0312b;
+  --danger-soft: rgba(192, 49, 43, 0.08);
+  --danger-line: rgba(192, 49, 43, 0.3);
+  --warn: #a8640c;
+  --warn-soft: rgba(168, 100, 12, 0.1);
+  --warn-line: rgba(168, 100, 12, 0.3);
+
+  /* 圖表專用（K 線依台股慣例：紅漲綠跌） */
+  --candle-up: #d64541;
+  --candle-down: #1e9a5f;
+  --chart-event: #2f6fb5;
+  --chart-event-label: #1d4e89;
+  --chart-event-label-bg: rgba(232, 240, 250, 0.95);
+  --chart-nested: #d9731a;
+  --chart-nested-soft: rgba(217, 115, 26, 0.16);
+  --chart-nested-label: #7a3a06;
+  --chart-nested-label-bg: rgba(253, 236, 219, 0.95);
+  --chart-grid: #ece6da;
+
+  --font-sans: "Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: "Noto Serif TC", "Songti TC", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(26, 25, 21, 0.04), 0 4px 16px rgba(26, 25, 21, 0.04);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #12110e;
+  --surface: #1b1a16;
+  --surface-2: #22211c;
+  --ink: #eeeae1;
+  --ink-2: #c6c1b5;
+  --ink-3: #8f8a7e;
+  --rule: #2d2b25;
+  --rule-strong: #3e3b33;
+  --hover: rgba(255, 255, 255, 0.03);
+
+  --accent: #8fb5ec;
+  --accent-soft: rgba(143, 181, 236, 0.12);
+  --accent-line: rgba(143, 181, 236, 0.35);
+  --up: #ff6f66;
+  --up-soft: rgba(255, 111, 102, 0.12);
+  --up-line: rgba(255, 111, 102, 0.35);
+  --down: #4fcf8e;
+  --down-soft: rgba(79, 207, 142, 0.12);
+  --down-line: rgba(79, 207, 142, 0.35);
+  --danger: #ff6f66;
+  --danger-soft: rgba(255, 111, 102, 0.12);
+  --danger-line: rgba(255, 111, 102, 0.35);
+  --warn: #f0b24c;
+  --warn-soft: rgba(240, 178, 76, 0.12);
+  --warn-line: rgba(240, 178, 76, 0.35);
+
+  --candle-up: #f05a52;
+  --candle-down: #36b877;
+  --chart-event: #6aa6ea;
+  --chart-event-label: #dbe9fb;
+  --chart-event-label-bg: rgba(30, 58, 96, 0.92);
+  --chart-nested: #f08c3a;
+  --chart-nested-soft: rgba(240, 140, 58, 0.18);
+  --chart-nested-label: #fde3cc;
+  --chart-nested-label-bg: rgba(110, 52, 10, 0.92);
+  --chart-grid: #2a2823;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+button {
+  font-family: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── 頂部導覽列 ── */
+.site-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 24px;
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.brand-mark {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+.brand-sub {
+  font-family: var(--font-serif);
+  font-size: 0.82rem;
+  color: var(--ink-3);
+}
+.site-links {
+  display: flex;
+  gap: 4px;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.site-tab {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.site-tab:hover {
+  color: var(--ink);
+}
+.site-tab.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--ink);
+}
+.theme-toggle {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.theme-toggle:hover {
+  background: var(--hover);
+  border-color: var(--rule-strong);
+}
+
+/* ── 頁首 ── */
+header {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 24px 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.kicker {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+header h1 {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.meta {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.meta b {
+  color: var(--ink-2);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+#error-banner {
+  display: none;
+  max-width: 1072px;
+  margin: 0 auto 12px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 10px 16px;
+  font-size: 0.84rem;
+  border: 1px solid var(--danger-line);
+  border-radius: 8px;
+}
+
+/* ── 卡片 ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card-header {
+  padding: 14px 18px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.card-header h2 {
+  font-family: var(--font-serif);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ── 表格 ── */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+th {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  padding: 8px 12px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--rule);
+}
+th small {
+  font-weight: 400;
+  color: var(--ink-3);
+  letter-spacing: 0;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rule);
+  text-align: right;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+tr:last-child td {
+  border-bottom: none;
+}
+tbody tr:hover td {
+  background: var(--hover);
+}
+.loading,
+.loading-msg {
+  padding: 40px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 0.88rem;
+}
+
+/* ── 欄位切換列 ── */
+.toggle-label,
+.col-toggle-bar .label {
+  font-size: 0.74rem;
+  color: var(--ink-3);
+  white-space: nowrap;
+  margin-right: 2px;
+}
+.col-chip,
+.filter-chip {
+  padding: 3px 11px;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s;
+}
+.col-chip:hover,
+.filter-chip:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.col-chip.on,
+.filter-chip.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+
+/* ── 小按鈕 ── */
+.refresh-btn,
+.close-btn {
+  background: transparent;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink-2);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.74rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.refresh-btn:hover:not(:disabled),
+.close-btn:hover {
+  background: var(--hover);
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.refresh-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── K 線圖面板 ── */
+.chart-panel-header {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.chart-info {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+}
+.chart-legend {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.74rem;
+  color: var(--ink-2);
+}
+.chart-legend span {
+  margin-right: 6px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.legend-dot.down {
+  background: var(--down-line);
+}
+.legend-dot.up {
+  background: var(--up-line);
+}
+.legend-dot.nested {
+  background: var(--chart-nested);
+  opacity: 0.5;
+}
+#chart-loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--ink-3);
+}
+
+/* 數字共用 */
+.num {
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 600px) {
+  .site-tabs {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .brand-sub {
+    display: none;
+  }
+  .site-tab {
+    padding: 0 8px;
+    font-size: 0.8rem;
+  }
+  header {
+    padding: 22px 16px 12px;
+  }
+  header h1 {
+    font-size: 1.35rem;
+  }
+  table {
+    font-size: 0.78rem;
+  }
+  th {
+    padding: 7px 8px;
+    font-size: 0.66rem;
+  }
+  td {
+    padding: 8px;
+  }
+}

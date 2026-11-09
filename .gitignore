@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+wheels/
+*.egg-info
+.venv/
+.pytest_cache/
+.pyright/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 前端（Vite / TypeScript）
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
+# 本機產生的 CSV（如 CLI 輸出的 taiex_drops_result.csv）
+*.csv
+
+# 增量抓取用的價格／法人／融資快取，需要 commit 回 repo 才能跨 workflow 執行保留
+!cache/
+!cache/**/*.csv
+
+# 空白佔位，讓 git 追蹤 docs/data/ 目錄
+!docs/data/.gitkeep
+
+# 環境變數／金鑰
+.env
+.env.*
+
+# 記錄檔
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+
+# Claude Code 本機設定（CLAUDE.md 仍要上傳）
+.claude/
+
+# 沙盒環境佔位符（null device 檔案）
+.bash_profile
+.bashrc
+.gitconfig
+.gitmodules
+.mcp.json
+.profile
+.ripgreprc
+.zprofile
+.zshrc
