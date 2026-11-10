@@ -119,7 +119,7 @@ K 線圖使用 ECharts 5，PNG 匯出使用 html2canvas；兩者從 npm 安裝�
 
 ### 自動更新：[.github/workflows/update-data.yml](.github/workflows/update-data.yml)
 
-每小時整點觸發（cron `0 * * * 1-5`，UTC 週一到週五，即台灣時間週一 08:00 ～ 週六 07:59，每天 24 次），另外每次 push 到 `main`（只改 `docs/data/**`、`cache/**` 的除外）也會跑一次；執行 `generate_static.py` 後 auto-commit `docs/data/*.json`，接著 `npm run build`（含 `tsc` 型別檢查）並用 `actions/deploy-pages` 部署 `dist/`（GitHub Pages 的 Source 須設為「GitHub Actions」）。部署必須在同一個 workflow：bot 用 `GITHUB_TOKEN` 推的 commit 不會觸發其他 workflow。建置／部署步驟在資料產生失敗時仍會執行（失敗時不會覆寫舊 JSON），前端修改不會被資料來源暫時故障擋住。可手動從 Actions 頁面觸發（`workflow_dispatch`）。任何步驟失敗時，最後的 `Notify on failure` 步驟會自動建立（或在既有開放中的）GitHub Issue 留言通知，避免失敗被靜靜忽略。
+每小時觸發（cron `17 * * * 1-5`，避開整點以減少被延遲／略過，UTC 週一到週五，即台灣時間週一 08:00 ～ 週六 07:59，每天 24 次），另外每次 push 到 `main`（只改 `docs/data/**`、`cache/**` 的除外）也會跑一次；執行 `generate_static.py` 後 auto-commit `docs/data/*.json`，接著 `npm run build`（含 `tsc` 型別檢查）並用 `actions/deploy-pages` 部署 `dist/`（GitHub Pages 的 Source 須設為「GitHub Actions」）。部署必須在同一個 workflow：bot 用 `GITHUB_TOKEN` 推的 commit 不會觸發其他 workflow。建置／部署步驟在資料產生失敗時仍會執行（失敗時不會覆寫舊 JSON），前端修改不會被資料來源暫時故障擋住。可手動從 Actions 頁面觸發（`workflow_dispatch`）。任何步驟失敗時，最後的 `Notify on failure` 步驟會自動建立（或在既有開放中的）GitHub Issue 留言通知，避免失敗被靜靜忽略。
 
 ## 關鍵實作細節
 

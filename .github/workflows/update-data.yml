@@ -2,8 +2,9 @@ name: Update data and deploy
 
 on:
   schedule:
-    # 每小時整點更新一次（UTC 週一到週五，即台灣時間週一 08:00 ～ 週六 07:59）
-    - cron: "0 * * * 1-5"
+    # 每小時更新一次（UTC 週一到週五，即台灣時間週一 08:00 ～ 週六 07:59）；
+    # 刻意避開整點（GitHub 整點排程負載高，常被延遲或略過）
+    - cron: "17 * * * 1-5"
   workflow_dispatch:
   # 推送程式碼到 main 後也更新一次，讓前端／產生器的修改立刻反映到資料與網站上；
   # 只改到資料檔的 push 不觸發（bot 用 GITHUB_TOKEN 推的 commit 本來就不會再觸發 workflow，
