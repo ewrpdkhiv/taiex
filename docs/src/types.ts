@@ -112,6 +112,11 @@ export interface TodayIndex {
   change_pt: number;
   direction: "drop" | "gain" | "flat";
   ranks: { all: { pct: number; pt: number; total: number } };
+  streak?: number;
+  streak_pt?: number;
+  streak_pct?: number;
+  streak_days?: { date: string; change_pt: number; change_pct: number }[];
+  drawdown?: { peak_date: string; peak_close: number; pct: number; pt: number };
 }
 
 /* 外資用 foreign_net、投信用 trust_net 欄位（億元） */
@@ -134,6 +139,11 @@ export interface TodayMargin {
   total: number | null;
   streak?: number;
   streak_days?: { date: string; change: number }[];
+  same_level?: {
+    count: number;
+    latest: { date: string; balance: number } | null;
+    earliest: { date: string; balance: number } | null;
+  };
 }
 
 export interface NsfEpisode {

@@ -573,13 +573,48 @@ def rank_latest_day(
                 "pt": _rank_of(w["change_pt"], pt, smaller_first=is_drop),
                 "total": len(same),
             }
+    # 連續同方向天數與累計點數／幅度（含最新一天；平盤為 0）
+    streak = 0
+    streak_pt = streak_pct = 0.0
+    streak_days: list[dict] = []
+    if direction != "flat":
+        vals = d["change_pct"].to_numpy()
+        for v in reversed(vals):
+            if v == 0 or (v < 0) != (pct < 0):
+                break
+            streak += 1
+        first = d.iloc[len(d) - streak]
+        streak_pt = float(latest["Close"]) - float(first["prev_close"])
+        streak_pct = (float(latest["Close"]) / float(first["prev_close"]) - 1) * 100
+        tail = d.iloc[len(d) - streak:]
+        streak_days = [
+            {"date": dt, "change_pt": round(float(a), 2), "change_pct": round(float(b), 2)}
+            for dt, a, b in zip(
+                tail["Date"].dt.strftime("%Y-%m-%d"), tail["change_pt"].to_numpy(), tail["change_pct"].to_numpy(),
+            )
+        ]
+    # 目前相對歷史最高收盤的回檔（drawdown）
+    closes = df.dropna(subset=["Close"])
+    peak_row = closes.iloc[int(closes["Close"].to_numpy().argmax())]
+    peak = float(peak_row["Close"])
+    close = float(latest["Close"])
     return {
         "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
-        "close": round(float(latest["Close"]), 2),
+        "close": round(close, 2),
         "change_pct": round(pct, 2),
         "change_pt": round(pt, 2),
         "direction": direction,
         "ranks": ranks,
+        "streak": streak,
+        "streak_pt": round(streak_pt, 2),
+        "streak_pct": round(streak_pct, 2),
+        "streak_days": streak_days,
+        "drawdown": {
+            "peak_date": pd.Timestamp(peak_row["Date"]).strftime("%Y-%m-%d"),
+            "peak_close": round(peak, 2),
+            "pct": round((close / peak - 1) * 100, 2),
+            "pt": round(close - peak, 2),
+        },
     }
 
 
@@ -743,8 +778,21 @@ def rank_latest_margin(df: pd.DataFrame, margin_df: pd.DataFrame) -> dict | None
         {"date": date, "change": round(float(v) / 1e8, 2)}
         for date, v in zip(tail["Date"].dt.strftime("%Y-%m-%d"), tail["margin_change"].to_numpy())
     ]
+    # 融資餘額在歷史上 ±1% 內的最近／最早一天（不含最新一天）
+    bal = float(latest["margin_balance"])
+    prior = d.iloc[:-1]
+    hit = prior[(prior["margin_balance"] / bal - 1).abs() <= 0.01] if bal else prior.iloc[0:0]
+    fmt = lambda r: {  # noqa: E731
+        "date": pd.Timestamp(r["Date"]).strftime("%Y-%m-%d"),
+        "balance": round(float(r["margin_balance"]) / 1e8, 2),
+    }
     return {
         "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
+        "same_level": {
+            "count": len(hit),
+            "latest": fmt(hit.iloc[-1]) if len(hit) else None,
+            "earliest": fmt(hit.iloc[0]) if len(hit) else None,
+        },
         "balance": round(float(latest["margin_balance"]) / 1e8, 2),
         "change": round(change / 1e8, 2),
         "rank": rank,

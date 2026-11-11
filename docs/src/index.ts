@@ -449,6 +449,26 @@ function todayRankCell(rank: number, total: number) {
     <span class="today-total">/ ${total.toLocaleString()}</span>`;
 }
 
+// 在卡片標題列的日期旁加「⬇ PNG」按鈕，只輸出這張卡（固定寬度，手機上也是同樣版面）
+function addCardExport(el: HTMLElement, name: string, date: string, width = 380) {
+  const b = el.querySelector<HTMLElement>(".today-head > b");
+  if (!b || el.querySelector(".export-btn")) return;
+  const right = document.createElement("span");
+  right.className = "today-head-right";
+  b.replaceWith(right);
+  right.appendChild(b);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "export-btn";
+  btn.textContent = "⬇ PNG";
+  btn.addEventListener("click", () => {
+    exportPng(el, `TAIEX_${name}_${date}.png`, (c) => {
+      c.style.width = `${width}px`;
+    });
+  });
+  right.appendChild(btn);
+}
+
 function renderTodayIndex(t: TodayIndex | null | undefined): boolean {
   const el = byId("today-index");
   if (!t) {
@@ -470,10 +490,52 @@ function renderTodayIndex(t: TodayIndex | null | undefined): boolean {
             <td>${todayRankCell(r.pt, r.total)}</td>
           </tr></tbody>
         </table>`;
+  const dd = t.drawdown;
+  const days = t.streak_days || [];
+  const streakBtn = days.length
+    ? `<button type="button" class="today-rank today-streak-btn ${t.direction}" aria-expanded="false"
+         aria-controls="today-streak-index">${t.streak} 天</button>`
+    : `<span class="today-rank ${t.direction}">${t.streak} 天</span>`;
+  const streakDetail = days.length
+    ? `<div class="today-streak-detail" id="today-streak-index" hidden>
+        <table>
+          <thead><tr><th>日期</th><th>${word}點</th><th>${word}幅</th></tr></thead>
+          <tbody>${days
+            .slice()
+            .reverse()
+            .map(
+              (x) =>
+                `<tr><td>${x.date}</td><td class="${t.direction}">${fmtSigned(x.change_pt)}</td><td class="${t.direction}">${fmtSigned(x.change_pct)}%</td></tr>`,
+            )
+            .join("")}</tbody>
+        </table>
+      </div>`
+    : "";
+  const streakHtml = t.streak
+    ? `<table>
+        <thead><tr><th>連續${word}</th><th>累計${word}點</th></tr></thead>
+        <tbody><tr>
+          <td>${streakBtn}</td>
+          <td><span class="today-rank ${t.direction}">${fmtSigned(t.streak_pt ?? 0)}</span> <span class="today-total">點（${fmtSigned(t.streak_pct ?? 0)}%）</span></td>
+        </tr></tbody>
+      </table>${streakDetail}`
+    : "";
+  const ddHtml = dd
+    ? `<table>
+        <thead><tr><th>目前 Drawdown</th><th>距高點</th></tr></thead>
+        <tbody><tr>
+          <td><span class="today-rank ${dd.pct < 0 ? "drop" : ""}">${fmtSigned(dd.pct)}%</span></td>
+          <td><span class="today-rank">${fmtSigned(dd.pt)}</span> <span class="today-total">點</span></td>
+        </tr></tbody>
+      </table>
+      <div class="today-note">高點 ${dd.peak_close.toLocaleString()}（${dd.peak_date}）</div>`
+    : "";
   el.innerHTML = `
     <div class="today-head"><span>加權指數 收盤 ${t.close.toLocaleString()}</span><b>${t.date}</b></div>
     <div class="today-value ${t.direction}">${fmtSigned(t.change_pct)}%<small>${fmtSigned(t.change_pt)} 點</small></div>
-    ${body}`;
+    ${body}${streakHtml}${ddHtml}`;
+  addCardExport(el, "加權指數", t.date);
+  wireStreakDetail(el);
   return true;
 }
 
@@ -591,6 +653,16 @@ function renderTodayMargin(margin: TodayMargin | null | undefined) {
     (margin.streak_days || []).map((x) => ({ date: x.date, value: x.change })),
   );
   const hasStreak = !!margin.streak;
+  const sl = margin.same_level;
+  const slRow = (label: string, x: { date: string; balance: number } | null | undefined) =>
+    `<tr><td class="left">${label}</td><td>${x ? `${x.date}<br><span class="today-total">餘額 ${fmt2(x.balance)} 億</span>` : "—"}</td></tr>`;
+  const sameLevelHtml = sl
+    ? `<table>
+        <thead><tr><th>${sl.count.toLocaleString()} 個交易日餘額相近</th><th>日期</th></tr></thead>
+        <tbody>${slRow("最近一次", sl.latest)}${slRow("最早一次", sl.earliest)}</tbody>
+      </table>
+      <div class="today-note">餘額在 ±1% 內算相近，不含今日</div>`
+    : "";
   el.innerHTML = `
     <div class="today-head"><span>融資${word}</span><b>${margin.date}</b></div>
     <div class="today-value ${dir}">${fmtSignedMinus(margin.change)}<small>億元</small></div>
@@ -601,7 +673,8 @@ function renderTodayMargin(margin: TodayMargin | null | undefined) {
         ${hasStreak ? `<td>${streakCell}</td>` : ""}
         <td><span class="today-rank">${fmt2(margin.balance)}</span> <span class="today-total">億元</span></td>
       </tr></tbody>
-    </table>${detail}`;
+    </table>${detail}${sameLevelHtml}`;
+  addCardExport(el, `融資${word}`, margin.date);
   wireStreakDetail(el);
 }
 
@@ -630,6 +703,7 @@ function renderTodayMaintenance(maint: TodayMaintenance | null | undefined) {
       </tr></tbody>
     </table>
     <div class="today-note">扣除 ETF，依各股融資餘額 × 收盤價 ÷ 融資金額估算</div>`;
+  addCardExport(el, "融資維持率", maint.date);
 }
 
 // 目前指數點位在歷史上出現過的最近／最早日期
@@ -656,6 +730,7 @@ function renderSameLevel(s: SameLevel | null | undefined) {
       <tbody>${row("最近一次", s.latest)}${row("最早一次", s.earliest)}</tbody>
     </table>
     <div class="today-note">收盤在 ±0.5% 內算出現過，不含今日${s.count ? "" : "（史上新高，從未到過）"}</div>`;
+  addCardExport(el, "同點位歷史", s.date);
 }
 
 // 正 2 ETF 融資餘額（張）與連續增減
@@ -671,11 +746,21 @@ function renderLeveraged(list: LeveragedMargin[] | undefined) {
       const dir = e.change > 0 ? "gain" : e.change < 0 ? "drop" : "";
       const word = e.change > 0 ? "增" : e.change < 0 ? "減" : "平";
       const sum = e.streak_days.reduce((a, x) => a + x.change, 0);
-      const tip = e.streak_days.map((x) => `${x.date} ${x.change > 0 ? "+" : ""}${x.change.toLocaleString()}`).join("\n");
+      const id = `lev-detail-${e.code}`;
+      const sign = (v: number) => `${v > 0 ? "+" : ""}${v.toLocaleString()}`;
+      const detail = e.streak_days
+        .slice()
+        .reverse()
+        .map((x) => `<tr><td>${x.date}</td><td class="${dir}">${sign(x.change)}</td></tr>`)
+        .join("");
+      const streakCell = e.streak
+        ? `<button type="button" class="today-rank today-streak-btn ${dir}" aria-expanded="false" aria-controls="${id}">連${word} ${e.streak} 天</button><br><span class="today-total">${sign(sum)}</span>`
+        : "—";
       return `<tr><td class="left">${e.code}<br><span class="today-total">${e.name}</span></td>
         <td>${e.balance.toLocaleString()}</td>
-        <td class="${dir}" title="${tip}">${e.change > 0 ? "+" : ""}${e.change.toLocaleString()}</td>
-        <td class="${dir}" title="${tip}">${e.streak ? `連${word} ${e.streak} 天<br><span class="today-total">${sum > 0 ? "+" : ""}${sum.toLocaleString()}</span>` : "—"}</td></tr>`;
+        <td class="${dir}">${sign(e.change)}</td>
+        <td class="${dir}">${streakCell}</td></tr>
+        <tr class="lev-detail" id="${id}" hidden><td colspan="4"><table><tbody>${detail}</tbody></table></td></tr>`;
     })
     .join("");
   el.innerHTML = `
@@ -684,7 +769,15 @@ function renderLeveraged(list: LeveragedMargin[] | undefined) {
       <thead><tr><th>ETF</th><th>餘額</th><th>當日增減</th><th>連續</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="today-note">連續天數的累計增減與逐日明細，滑鼠移上去可看</div>`;
+    <div class="today-note">點「連增／連減 N 天」可展開逐日明細</div>`;
+  addCardExport(el, "正2融資", list[0].date, 560);
+  el.querySelectorAll<HTMLElement>(".today-streak-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const open = btn.getAttribute("aria-expanded") !== "true";
+      btn.setAttribute("aria-expanded", String(open));
+      byId(btn.getAttribute("aria-controls") || "").hidden = !open;
+    });
+  });
 }
 
 // 國安基金歷次進出場
