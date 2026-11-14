@@ -785,11 +785,13 @@ def rank_latest_margin(df: pd.DataFrame, margin_df: pd.DataFrame) -> dict | None
     fmt = lambda r: {  # noqa: E731
         "date": pd.Timestamp(r["Date"]).strftime("%Y-%m-%d"),
         "balance": round(float(r["margin_balance"]) / 1e8, 2),
+        "close": round(float(r["Close"]), 2),
     }
     return {
         "date": pd.Timestamp(latest["Date"]).strftime("%Y-%m-%d"),
         "same_level": {
             "count": len(hit),
+            "today": fmt(latest),
             "latest": fmt(hit.iloc[-1]) if len(hit) else None,
             "earliest": fmt(hit.iloc[0]) if len(hit) else None,
         },

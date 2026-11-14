@@ -141,8 +141,9 @@ export interface TodayMargin {
   streak_days?: { date: string; change: number }[];
   same_level?: {
     count: number;
-    latest: { date: string; balance: number } | null;
-    earliest: { date: string; balance: number } | null;
+    today?: { date: string; balance: number; close?: number };
+    latest: { date: string; balance: number; close?: number } | null;
+    earliest: { date: string; balance: number; close?: number } | null;
   };
 }
 

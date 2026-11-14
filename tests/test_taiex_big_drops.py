@@ -792,8 +792,9 @@ class TestRankLatestMargin:
             "date": "2025-01-05", "balance": 3004.0, "change": -30.0, "rank": 2, "total": 3,
             "same_level": {
                 "count": 3,
-                "latest": {"date": "2025-01-04", "balance": 3003.0},
-                "earliest": {"date": "2025-01-02", "balance": 3001.0},
+                "today": {"date": "2025-01-05", "balance": 3004.0, "close": 104.0},
+                "latest": {"date": "2025-01-04", "balance": 3003.0, "close": 103.0},
+                "earliest": {"date": "2025-01-02", "balance": 3001.0, "close": 101.0},
             },
             "streak": 2,
             "streak_days": [

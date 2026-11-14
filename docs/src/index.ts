@@ -654,14 +654,14 @@ function renderTodayMargin(margin: TodayMargin | null | undefined) {
   );
   const hasStreak = !!margin.streak;
   const sl = margin.same_level;
-  const slRow = (label: string, x: { date: string; balance: number } | null | undefined) =>
-    `<tr><td class="left">${label}</td><td>${x ? `${x.date}<br><span class="today-total">餘額 ${fmt2(x.balance)} 億</span>` : "—"}</td></tr>`;
+  const slRow = (label: string, x: { date: string; balance: number; close?: number } | null | undefined) =>
+    `<tr><td class="left">${label}</td><td>${x ? `${x.date}<br><span class="today-total">餘額 ${fmt2(x.balance)}${x.close != null ? `<br>大盤 ${fmt2(x.close)}` : ""}</span>` : "—"}</td></tr>`;
   const sameLevelHtml = sl
     ? `<table>
-        <thead><tr><th>${sl.count.toLocaleString()} 個交易日餘額相近</th><th>日期</th></tr></thead>
-        <tbody>${slRow("最近一次", sl.latest)}${slRow("最早一次", sl.earliest)}</tbody>
+        <thead><tr><th>${sl.count.toLocaleString()} 個交易日餘額相近</th><th>日期（億元／點）</th></tr></thead>
+        <tbody>${sl.today ? slRow("今日", sl.today) : ""}${slRow("最近一次", sl.latest)}${slRow("最早一次", sl.earliest)}</tbody>
       </table>
-      <div class="today-note">餘額在 ±1% 內算相近，不含今日</div>`
+      <div class="today-note">餘額在 ±1% 內算相近，歷史比對不含今日</div>`
     : "";
   el.innerHTML = `
     <div class="today-head"><span>融資${word}</span><b>${margin.date}</b></div>
