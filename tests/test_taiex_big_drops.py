@@ -31,6 +31,7 @@ from taiex_big_drops import (
     institutional_yearly_net,
     load_latest_margin,
     load_margin_maintenance,
+    load_margin_history,
 )
 
 
@@ -925,3 +926,28 @@ class TestAnalyzeVixSpikes:
         vix = {d.strftime("%Y-%m-%d"): 40.0 for d in df["Date"]}
         (r,) = analyze_vix_spikes(df, vix)
         assert r["ongoing"] is True
+
+
+class TestLoadCachedFallback:
+    def test_fetch_failure_uses_cache(self, tmp_path, monkeypatch):
+        import price_cache
+        monkeypatch.setattr(price_cache, "CACHE_DIR", tmp_path)
+        cache = tmp_path / "institutional" / "margin.csv"
+        cache.parent.mkdir(parents=True)
+        cache.write_text("Date,margin_balance,margin_change\n2025-01-02,100.0,5.0\n")
+
+        def boom(_start):
+            raise RuntimeError("rate limited")
+
+        df = load_margin_history("2025-01-01", fetch=boom)
+        assert list(df["margin_balance"]) == [100.0]
+
+    def test_fetch_failure_without_cache_raises(self, tmp_path, monkeypatch):
+        import price_cache
+        monkeypatch.setattr(price_cache, "CACHE_DIR", tmp_path)
+
+        def boom(_start):
+            raise RuntimeError("rate limited")
+
+        with pytest.raises(RuntimeError):
+            load_margin_history("2025-01-01", fetch=boom)

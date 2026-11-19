@@ -460,7 +460,14 @@ def _load_cached_incremental(cache_path, start: str, fetch, label: str) -> pd.Da
             start_ts, cached["Date"].max() - pd.Timedelta(days=OVERLAP_DAYS)
         ).strftime("%Y-%m-%d")
 
-    combined = _merge_frames(cached, fetch(fetch_start))
+    try:
+        fresh = fetch(fetch_start)
+    except Exception as exc:  # noqa: BLE001 - FinMind 暫時失敗（限流、連線）時退回舊快取，卡片不消失
+        if cached is None:
+            raise
+        print(f"⚠ {label}抓取失敗，改用快取（最新 {cached['Date'].max():%Y-%m-%d}）：{exc}")
+        fresh = pd.DataFrame(columns=cached.columns)
+    combined = _merge_frames(cached, fresh)
     if combined.empty:
         raise RuntimeError(f"{label}資料下載失敗")
     write_cache(cache_path, combined)
