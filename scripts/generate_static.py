@@ -136,10 +136,18 @@ def _df_to_records(
     return records
 
 
+def _patch_ohlc(df: pd.DataFrame) -> pd.DataFrame:
+    """用 TWSE 補 yfinance 缺漏的交易日：1999～2000 補行上班日，加上近期（yfinance 常晚一兩天才有最新收盤）。"""
+    df = patch_missing_trading_days(df)
+    now = datetime.now(_TW)
+    recent_start = (now - pd.Timedelta(days=45)).strftime("%Y-%m-01")
+    return patch_missing_trading_days(df, start=recent_start, end=now.strftime("%Y-%m-%d"))
+
+
 def generate_data() -> None:
     print("=== 產生漲跌排行資料 ===")
     df = load_ohlc_from_yfinance()
-    df = patch_missing_trading_days(df)
+    df = _patch_ohlc(df)
     df = calculate_daily_returns(df)
 
     batches = [
@@ -260,7 +268,7 @@ def generate_dca() -> None:
 def generate_bear() -> None:
     print("=== 產生空頭市場 + OHLC 資料 ===")
     ohlc_df = load_ohlc_from_yfinance()
-    ohlc_df = patch_missing_trading_days(ohlc_df)
+    ohlc_df = _patch_ohlc(ohlc_df)
     bears = find_bear_markets(ohlc_df[["Date", "Close"]].copy())
     distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close"]].copy())
 

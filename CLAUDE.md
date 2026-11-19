@@ -38,8 +38,9 @@ uv run pyright                                         # 型別檢查（需維�
 ## 本機開發
 
 ```bash
-# 1. 產生靜態資料 JSON（約需 5～10 分鐘，連線 Yahoo Finance）
-uv run python scripts/generate_static.py
+# 1. 產生靜態資料 JSON（連線 Yahoo Finance、FinMind、證交所；有快取時約 1 分鐘，首次較久）
+# -W ignore：yfinance 內部用了 pandas 即將移除的 inplace 參數，會印出大量 Pandas4Warning，與結果無關
+uv run python -W ignore scripts/generate_static.py
 
 # 2. 啟動 Vite dev server（存檔自動重新整理；docs/data/ 直接由 dev server 提供）
 npm run dev
