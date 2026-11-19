@@ -24,6 +24,7 @@ from taiex_big_drops import (
     LUNAR_NEW_YEAR_DATES,
     MID_AUTUMN_DATES,
     analyze_bear_market_distance,
+    analyze_vix_spikes,
     analyze_holiday_returns,
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
@@ -60,6 +61,9 @@ OUT_DIR = Path(__file__).parent.parent / "docs" / "data"
 _OHLC_DATE_EPOCH = "1990-01-01"
 _CRASH_DATE = pd.Timestamp("2025-04-09")
 _COVID_START = pd.Timestamp("2020-02-01")
+# 網路泡沫：2000-03 起至 2002-10；金融海嘯：2007-10 高點起至 2009-03
+_DOTCOM = (pd.Timestamp("2000-03-01"), pd.Timestamp("2002-10-31"))
+_GFC = (pd.Timestamp("2007-10-01"), pd.Timestamp("2009-03-31"))
 
 
 def _days_until_cross(
@@ -241,6 +245,8 @@ def generate_dca() -> None:
         "results_crash_10y": dca_run_all(ticker_data, monthly_amount=3_000, years=10, force_end=_CRASH_DATE),
         "results_crash_5y":  dca_run_all(ticker_data, monthly_amount=3_000, years=5,  force_end=_CRASH_DATE),
         "results_covid":     dca_run_all(ticker_data, monthly_amount=3_000, years=10, force_start=_COVID_START),
+        "results_dotcom":    dca_run_all(ticker_data, monthly_amount=3_000, force_start=_DOTCOM[0], force_end=_DOTCOM[1]),
+        "results_gfc":       dca_run_all(ticker_data, monthly_amount=3_000, force_start=_GFC[0], force_end=_GFC[1]),
         "dip_buy_comparison": dca_run_dip_buy_comparison(ticker_data, monthly_amount=3_000, years=10),
         "yearly":            dca_run_yearly(ticker_data, monthly_amount=3_000, years=10),
         "last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"),
@@ -255,8 +261,8 @@ def generate_bear() -> None:
     print("=== 產生空頭市場 + OHLC 資料 ===")
     ohlc_df = load_ohlc_from_yfinance()
     ohlc_df = patch_missing_trading_days(ohlc_df)
-    bears = find_bear_markets(ohlc_df[["Date", "High", "Low", "Close"]].copy())
-    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "High", "Low", "Close"]].copy())
+    bears = find_bear_markets(ohlc_df[["Date", "Close"]].copy())
+    distance_to_bear = analyze_bear_market_distance(ohlc_df[["Date", "Close"]].copy())
 
     clean = ohlc_df.dropna(subset=["Open", "High", "Low", "Close"])
     dates = clean["Date"].dt.strftime("%Y-%m-%d").tolist()
@@ -268,6 +274,7 @@ def generate_bear() -> None:
         json.dumps({
             "bears": bears,
             "distance_to_bear": distance_to_bear,
+            "vix_spikes": analyze_vix_spikes(clean[["Date", "Close"]], vix_dict),
             "last_updated": now,
             "error": None,
         }, ensure_ascii=False, separators=(",", ":"))

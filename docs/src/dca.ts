@@ -43,6 +43,7 @@ const FILTER_GROUPS: { key: FilterKey; label: string; chips: { val: string; labe
     chips: [
       { val: "stock", label: "個股" },
       { val: "etf", label: "ETF" },
+      { val: "index", label: "指數基準" },
     ],
   },
   {
@@ -443,14 +444,19 @@ function updatePortfolioBar() {
   }
 }
 
+// 各標的上市時間不同（短期情境尤其明顯），取最早的起始日當作區間起點
+function updatePeriodText() {
+  const first = _results[0];
+  if (!first) return;
+  const start = _results.reduce((m, r) => (r.start_date < m ? r.start_date : m), first.start_date);
+  byId("period-text").textContent = `${start} ～ ${first.end_date}`;
+}
+
 function setPeriod(key: DcaPeriod, btn: HTMLElement) {
   _results = _cache[key] || [];
   document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
   btn.classList.add("active");
-  const first = _results[0];
-  if (first) {
-    byId("period-text").textContent = `${first.start_date} ～ ${first.end_date}`;
-  }
+  updatePeriodText();
   byId("filter-bar").innerHTML = renderFilterBar();
   byId("table-container").innerHTML = renderTable();
   updatePortfolioBar();
@@ -475,12 +481,11 @@ async function load() {
       crash_10y: data.results_crash_10y || [],
       crash_5y: data.results_crash_5y || [],
       covid: data.results_covid || [],
+      dotcom: data.results_dotcom || [],
+      gfc: data.results_gfc || [],
     };
     _results = _cache["10y"] || [];
-    const first = _results[0];
-    if (first) {
-      byId("period-text").textContent = `${first.start_date} ～ ${first.end_date}`;
-    }
+    updatePeriodText();
     byId("filter-bar").innerHTML = renderFilterBar();
     byId("table-container").innerHTML = renderTable();
     _dipCompare = data.dip_buy_comparison || [];

@@ -9,7 +9,7 @@ import {
 } from "./kline-events";
 import { loadOhlc } from "./ohlc";
 import { chartTheme } from "./theme";
-import type { Bear, BearData, DistanceToBear, Ohlc } from "./types";
+import type { Bear, BearData, DistanceToBear, Ohlc, VixSpike } from "./types";
 
 /* ── 資料狀態 ── */
 type SortCol = keyof Bear | "idx";
@@ -120,11 +120,11 @@ function renderDistance(d: DistanceToBear | null | undefined) {
   body.innerHTML = `
     <div class="stat-grid">
       <div class="stat-tile">
-        <div class="stat-label">最新盤中最低（${d.as_of_date}）</div>
-        <div class="stat-value">${fmtNum(d.current_low ?? d.current_close)}</div>
+        <div class="stat-label">最新收盤（${d.as_of_date}）</div>
+        <div class="stat-value">${fmtNum(d.current_close)}</div>
       </div>
       <div class="stat-tile">
-        <div class="stat-label">歷史盤中高點（${d.peak_date}）</div>
+        <div class="stat-label">歷史收盤高點（${d.peak_date}）</div>
         <div class="stat-value">${fmtNum(d.peak_value)}</div>
       </div>
       <div class="stat-tile">
@@ -145,6 +145,26 @@ function renderDistance(d: DistanceToBear | null | undefined) {
       </div>
     </div>
   `;
+}
+
+function renderVixSpikes(rows: VixSpike[]) {
+  byId("vix-badge").textContent = rows.length + " 次";
+  const pct = (v: number) => v.toFixed(2) + "%";
+  byId("vix-tbody").innerHTML = [...rows]
+    .reverse()
+    .map(
+      (r) => `<tr>
+        <td class="left date-cell">${r.date}</td>
+        <td class="val-cell">${r.vix.toFixed(1)}</td>
+        <td class="val-cell vix-hide-m">${fmtNum(r.close)}</td>
+        <td><span class="drop-pct">${pct(r.drawdown_pct)}</span></td>
+        <td><span class="drop-pct">${pct(r.max_drawdown_pct)}</span>${r.ongoing ? " <small>進行中</small>" : ""}</td>
+        <td><span class="drop-pct">${r.further_pct === 0 ? "—" : pct(r.further_pct)}</span></td>
+        <td class="val-cell">${r.days_to_trough === 0 ? "當天" : r.days_to_trough.toLocaleString() + " 天"}</td>
+        <td class="left date-cell vix-hide-m">${r.trough_date}</td>
+      </tr>`,
+    )
+    .join("");
 }
 
 function renderSummary(bears: Bear[]) {
@@ -627,6 +647,7 @@ function loadBear() {
       renderTable();
       renderSummary(_data);
       renderDistance(data.distance_to_bear);
+      renderVixSpikes(data.vix_spikes || []);
     })
     .catch((err) => {
       byId("loading").style.display = "none";

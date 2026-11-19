@@ -13,6 +13,7 @@ from taiex_big_drops import (
     _parse_roc_or_ad_date,
     _parse_twse_month_payload,
     analyze_bear_market_distance,
+    analyze_vix_spikes,
     analyze_holiday_returns,
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
@@ -905,3 +906,22 @@ class TestNsfAndSameLevel:
                 for i, (a, b) in enumerate([(5, 4), (4, 6), (6, 8)])]
         s = _margin_streak(rows)
         assert s and s["streak"] == 2
+
+
+class TestAnalyzeVixSpikes:
+    def test_drawdown_and_distance_to_trough(self):
+        closes = [100, 90, 80, 60, 70, 100, 110]
+        df = _make_df(closes)
+        vix = {d.strftime("%Y-%m-%d"): v for d, v in zip(df["Date"], [15.0, 31.0, 35.0, 20.0, 15.0, 15.0, 15.0])}
+        (r,) = analyze_vix_spikes(df, vix)
+        assert r["date"] == "2020-01-02" and r["vix"] == 31
+        assert r["drawdown_pct"] == pytest.approx(-10.0)
+        assert r["trough_value"] == 60 and r["max_drawdown_pct"] == pytest.approx(-40.0)
+        assert r["further_pct"] == pytest.approx(-33.33, abs=0.01)
+        assert r["days_to_trough"] == 2 and r["ongoing"] is False
+
+    def test_ongoing_when_not_recovered(self):
+        df = _make_df([100, 90, 80])
+        vix = {d.strftime("%Y-%m-%d"): 40.0 for d in df["Date"]}
+        (r,) = analyze_vix_spikes(df, vix)
+        assert r["ongoing"] is True

@@ -6,6 +6,7 @@ import pandas as pd
 import yfinance as yf
 
 TICKERS: dict[str, str] = {
+    "^TWII":     "加權指數（基準）",
     "0050.TW":   "元大台灣50",
     "0056.TW":   "元大高股息",
     "2317.TW":   "鴻海",
@@ -43,6 +44,7 @@ TICKERS: dict[str, str] = {
 }
 
 TICKER_TAGS: dict[str, list[str]] = {
+    "^TWII":     ["tw", "index"],
     "0050.TW":   ["tw", "etf"],
     "0056.TW":   ["tw", "etf"],
     "2317.TW":   ["tw", "stock"],

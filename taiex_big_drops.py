@@ -24,6 +24,7 @@ import argparse
 import sys
 import time
 
+import numpy as np
 import pandas as pd
 
 # ── 常數 ──────────────────────────────────────────────────────────────────────
@@ -1336,9 +1337,8 @@ BEAR_MARKET_EVENTS: dict[str, str] = {
 def find_bear_markets(df: pd.DataFrame, threshold: float = 0.20) -> list[dict]:
     """找出所有高點到低點跌幅 >= threshold 的空頭市場。
 
-    以盤中價格認定：高點取當日最高價（High）、低點取當日最低價（Low），
-    回本以當日最高價重新觸及高點為準。df 若缺 High／Low 欄位（或該日為 NaN），
-    改用收盤價代替。
+    預設以收盤價認定（網站只傳 Date、Close）；df 若含 High／Low 欄位則改以盤中
+    高低價認定：高點取當日最高價、低點取當日最低價，回本以最高價重新觸及高點為準。
 
     演算法：
       1. 從 search_from 掃描，更新高點直到出現 >= threshold 跌幅 → 確認空頭
@@ -1835,11 +1835,11 @@ def analyze_holiday_returns(
 
 
 def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> dict:
-    """計算最新盤中最低價距離「自歷史高點下跌 threshold」熊市門檻還差多少點與百分比。
+    """計算最新價格距離「自歷史高點下跌 threshold」熊市門檻還差多少點與百分比。
 
-    以資料中最新一筆的盤中最低價為基準，找出至今的歷史盤中最高價（含當天），
-    門檻價 = 高點 * (1 - threshold)。與 find_bear_markets() 同樣以盤中最高／最低價
-    認定；df 缺 High／Low 欄位（或該日為 NaN）時改用收盤價。若目前已跌破門檻，
+    預設以收盤價認定（網站只傳 Date、Close）：以最新收盤為基準，高點取至今的歷史
+    最高收盤（含當天），門檻價 = 高點 * (1 - threshold)。df 若含 High／Low 欄位，
+    則與 find_bear_markets() 一樣改以盤中最高／最低價認定。若目前已跌破門檻，
     points_to_bear／pct_to_bear 會被限制在 0（不會是負值），改由 is_bear_market
     標示已進入熊市。
 
@@ -1886,6 +1886,55 @@ def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> d
         "pct_to_bear": round(pct_to_bear, 2),
         "is_bear_market": bool(is_bear_market),
     }
+
+
+def analyze_vix_spikes(df: pd.DataFrame, vix: dict[str, float], threshold: float = 30.0,
+                       gap_days: int = 30) -> list[dict]:
+    """VIX 收盤首次站上 threshold 的每一波（隔 gap_days 日曆天以上才算新一波）。
+
+    以該日收盤計：drawdown ＝ 距此前歷史最高收盤的跌幅；其後最大回撤 ＝ 之後到
+    「收盤重新站回該高點」前的最低收盤（尚未回高則到資料結尾）距該高點的跌幅；
+    further_pct ＝ 自該日收盤到最低收盤還要再跌多少 %；days_to_trough 為日曆天。
+    ongoing 表示尚未站回高點（最大回撤還可能擴大）。
+    """
+    d = df.dropna(subset=["Close"]).sort_values("Date").reset_index(drop=True)
+    close = d["Close"].to_numpy(dtype=float)
+    dates = pd.DatetimeIndex(d["Date"])
+    vix_s = pd.Series(vix)
+    vix_s.index = pd.DatetimeIndex(vix_s.index)
+    v = vix_s.reindex(dates)
+    peak = pd.Series(close).cummax().to_numpy()
+    out: list[dict] = []
+    last_hi: pd.Timestamp | None = None
+    for i in range(len(d)):
+        x = v.iloc[i]
+        if pd.isna(x) or x <= threshold:
+            continue
+        t = dates[i]
+        new_episode = last_hi is None or (t - last_hi).days > gap_days
+        last_hi = t
+        if not new_episode:
+            continue
+        pk = peak[i]
+        later = close[i + 1:]
+        rec = int(next((j for j, c in enumerate(later) if c >= pk), len(later)))
+        seg = close[i:i + 1 + rec]
+        k = i + int(seg.argmin())
+        out.append({
+            "date": t.strftime("%Y-%m-%d"),
+            "vix": round(float(x), 1),
+            "close": round(float(close[i]), 2),
+            "peak_date": dates[int(np.flatnonzero(close[:i + 1] == pk)[-1])].strftime("%Y-%m-%d"),
+            "peak_value": round(float(pk), 2),
+            "drawdown_pct": round((close[i] / pk - 1) * 100, 2),
+            "trough_date": dates[k].strftime("%Y-%m-%d"),
+            "trough_value": round(float(close[k]), 2),
+            "max_drawdown_pct": round((close[k] / pk - 1) * 100, 2),
+            "further_pct": round((close[k] / close[i] - 1) * 100, 2),
+            "days_to_trough": (dates[k] - t).days,
+            "ongoing": i + 1 + rec >= len(d),
+        })
+    return out
 
 
 # ── CLI 入口 ──────────────────────────────────────────────────────────────────

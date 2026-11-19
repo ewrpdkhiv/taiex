@@ -241,8 +241,24 @@ export interface DistanceToBear {
   is_bear_market: boolean;
 }
 
+export interface VixSpike {
+  date: string;
+  vix: number;
+  close: number;
+  peak_date: string;
+  peak_value: number;
+  drawdown_pct: number;
+  trough_date: string;
+  trough_value: number;
+  max_drawdown_pct: number;
+  further_pct: number;
+  days_to_trough: number;
+  ongoing: boolean;
+}
+
 export interface BearData {
   bears?: Bear[];
+  vix_spikes?: VixSpike[];
   distance_to_bear?: DistanceToBear | null;
   last_updated?: string;
   error?: string | null;
@@ -317,7 +333,7 @@ export interface Yearly {
   results: YearlyResult[];
 }
 
-export type DcaPeriod = "10y" | "5y" | "crash_10y" | "crash_5y" | "covid";
+export type DcaPeriod = "10y" | "5y" | "crash_10y" | "crash_5y" | "covid" | "dotcom" | "gfc";
 
 export type DcaData = { [K in DcaPeriod as `results_${K}`]?: DcaResult[] } & {
   dip_buy_comparison?: DipCompare[];
