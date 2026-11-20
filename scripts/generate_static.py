@@ -283,6 +283,7 @@ def generate_bear() -> None:
             "bears": bears,
             "distance_to_bear": distance_to_bear,
             "vix_spikes": analyze_vix_spikes(clean[["Date", "Close"]], vix_dict),
+            "vix_spikes_40": analyze_vix_spikes(clean[["Date", "Close"]], vix_dict, threshold=40.0),
             "last_updated": now,
             "error": None,
         }, ensure_ascii=False, separators=(",", ":"))

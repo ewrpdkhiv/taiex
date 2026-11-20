@@ -259,6 +259,7 @@ export interface VixSpike {
 export interface BearData {
   bears?: Bear[];
   vix_spikes?: VixSpike[];
+  vix_spikes_40?: VixSpike[];
   distance_to_bear?: DistanceToBear | null;
   last_updated?: string;
   error?: string | null;

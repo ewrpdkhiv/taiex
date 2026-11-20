@@ -283,21 +283,27 @@
           background: var(--surface-2);
         }
         /* VIX 表：手機隱藏次要欄位並縮小間距，六欄擠進畫面不用橫向捲動 */
-        #vix-table .vix-hide-m {
+        #vix-table .vix-hide-m,
+        #vix-table-40 .vix-hide-m {
           display: none;
         }
         #vix-table th,
-        #vix-table td {
+        #vix-table td,
+        #vix-table-40 th,
+        #vix-table-40 td {
           padding: 6px 3px;
           font-size: 0.66rem;
           letter-spacing: 0;
           white-space: normal;
         }
-        #vix-table td {
+        #vix-table td,
+        #vix-table-40 td {
           white-space: nowrap;
         }
         #vix-table th:first-child,
-        #vix-table td:first-child {
+        #vix-table td:first-child,
+        #vix-table-40 th:first-child,
+        #vix-table-40 td:first-child {
           position: static;
         }
         .stat-grid {
@@ -383,6 +389,34 @@
         </div>
         <div class="page-notes">
           <span>每波 = VIX 收盤首次 &gt; 30（相隔 30 天以上算新一波）；drawdown 以收盤價計，最大 drawdown 取到站回前高為止；「進行中」表示尚未站回前高</span>
+        </div>
+      </div>
+
+      <!-- VIX > 40 -->
+      <div class="card">
+        <div class="card-header">
+          <h2>VIX 首次站上 40 時的 drawdown</h2>
+          <span class="badge" id="vix-badge-40">—</span>
+        </div>
+        <div class="table-wrap">
+          <table id="vix-table-40">
+            <thead>
+              <tr>
+                <th class="left">日期</th>
+                <th>VIX</th>
+                <th class="vix-hide-m">加權收盤</th>
+                <th>當時<br />drawdown<br /><small>距前高</small></th>
+                <th>最大<br />drawdown<br /><small>該波低點</small></th>
+                <th>距最大<br />drawdown<br /><small>還要再跌</small></th>
+                <th>距低點<br />天數<br /><small>日曆天</small></th>
+                <th class="left vix-hide-m">低點日期</th>
+              </tr>
+            </thead>
+            <tbody id="vix-tbody-40"></tbody>
+          </table>
+        </div>
+        <div class="page-notes">
+          <span>每波 = VIX 收盤首次 &gt; 40（相隔 30 天以上算新一波）；drawdown 以收盤價計，最大 drawdown 取到站回前高為止；「進行中」表示尚未站回前高</span>
         </div>
       </div>
 

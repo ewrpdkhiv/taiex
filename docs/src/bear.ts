@@ -147,10 +147,10 @@ function renderDistance(d: DistanceToBear | null | undefined) {
   `;
 }
 
-function renderVixSpikes(rows: VixSpike[]) {
-  byId("vix-badge").textContent = rows.length + " 次";
+function renderVixSpikes(rows: VixSpike[], suffix: string) {
+  byId("vix-badge" + suffix).textContent = rows.length + " 次";
   const pct = (v: number) => v.toFixed(2) + "%";
-  byId("vix-tbody").innerHTML = [...rows]
+  byId("vix-tbody" + suffix).innerHTML = [...rows]
     .reverse()
     .map(
       (r) => `<tr>
@@ -647,7 +647,8 @@ function loadBear() {
       renderTable();
       renderSummary(_data);
       renderDistance(data.distance_to_bear);
-      renderVixSpikes(data.vix_spikes || []);
+      renderVixSpikes(data.vix_spikes || [], "");
+      renderVixSpikes(data.vix_spikes_40 || [], "-40");
     })
     .catch((err) => {
       byId("loading").style.display = "none";
