@@ -357,13 +357,16 @@ function renderChart(bear: Bear, ohlc: Ohlc) {
   const peakIdx = dates.indexOf(bear.peak_date);
   const troughIdx = dates.indexOf(bear.trough_date);
   const recIdx = bear.recovery_date ? dates.indexOf(bear.recovery_date) : -1;
-  const bufPre = 60; // ~3 個月交易日
-  const bufPost = 60;
+  // 手機螢幕窄，前後留白與「尚未回高」的延伸天數縮短，K 棒才不會擠成一條線
+  const narrow = window.matchMedia("(max-width: 600px)").matches;
+  const bufPre = narrow ? 15 : 60; // 桌機約 3 個月交易日
+  const bufPost = narrow ? 15 : 60;
+  const noRecoveryTail = narrow ? 60 : 250;
   const startI = Math.max(0, peakIdx - bufPre);
   const endI =
     recIdx >= 0
       ? Math.min(dates.length - 1, recIdx + bufPost)
-      : Math.min(dates.length - 1, troughIdx + 250);
+      : Math.min(dates.length - 1, troughIdx + noRecoveryTail);
   const zoomS = (startI / dates.length) * 100;
   const zoomE = (endI / dates.length) * 100;
 
