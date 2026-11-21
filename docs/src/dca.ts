@@ -1,5 +1,6 @@
 import { byId } from "./dom";
 import "./theme";
+import { exportPng } from "./export";
 import type { DcaData, DcaPeriod, DcaResult, DipCompare, Yearly, YearlyResult } from "./types";
 
 function rateStr(r: number | null | undefined): string {
@@ -16,6 +17,7 @@ type ColKey = (typeof COL_DEFS)[number]["key"];
 
 let _cache: Partial<Record<DcaPeriod, DcaResult[]>> = {};
 let _results: DcaResult[] = [];
+let _periodLabel = "近10年";
 let _dipCompare: DipCompare[] = [];
 let _dipCache: { [K in DcaPeriod]?: DipCompare[] } = {};
 let _yearly: Yearly = { years: [], ytd_year: null, results: [] };
@@ -458,6 +460,7 @@ function updatePeriodText() {
 }
 
 function setPeriod(key: DcaPeriod, btn: HTMLElement) {
+  _periodLabel = btn.textContent?.trim() || key;
   _results = _cache[key] || [];
   _dipCompare = _dipCache[key] || [];
   byId("dip-compare-container").innerHTML = renderDipCompareTable();
@@ -506,9 +509,43 @@ async function load() {
   }
 }
 
+// 匯出 PNG：把該區塊（含表格）複製到畫面外，加上標題後截圖
+function exportTable(containerId: string, title: string, name: string) {
+  const wrap = byId(containerId).closest<HTMLElement>(".table-wrap");
+  if (!wrap) return;
+  const box = document.createElement("div");
+  box.className = "export-box";
+  const h = document.createElement("div");
+  h.className = "export-title";
+  h.textContent = title;
+  box.append(h, wrap.cloneNode(true));
+  const date = byId("last-updated").textContent?.slice(0, 10) || "";
+  exportPng(box, `TAIEX_定期定額_${name}_${date}.png`, (el) => {
+    const t = el.querySelector("table");
+    el.style.width = (t ? t.scrollWidth : el.scrollWidth) + 40 + "px";
+  });
+}
+const periodText = () => byId("period-text").textContent || "";
+function exportMain() {
+  exportTable(
+    "table-container",
+    `定期定額回測｜${_periodLabel}｜${periodText()}　每月 5 日投入 3,000 元`,
+    _periodLabel,
+  );
+}
+function exportDip() {
+  exportTable("dip-compare-container", `大跌加碼 vs 固定扣款｜${_periodLabel}｜${periodText()}`, `大跌加碼_${_periodLabel}`);
+}
+function exportYearly() {
+  exportTable("yearly-container", "逐年定期定額 XIRR", "逐年XIRR");
+}
+
 // HTML 裡的 onclick（含上面組出來的 HTML 字串）會呼叫這些函式，模組內的函式預設不是全域的
 Object.assign(window, {
   setPeriod,
+  exportMain,
+  exportDip,
+  exportYearly,
   setFilter,
   toggleCol,
   setSort,

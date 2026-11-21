@@ -413,6 +413,48 @@
           gap: 10px;
         }
       }
+      .export-btn {
+        padding: 3px 10px;
+        font-size: 0.72rem;
+        font-weight: 500;
+        font-family: inherit;
+        background: transparent;
+        color: var(--ink-2);
+        border: 1px solid var(--rule-strong);
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        vertical-align: middle;
+        margin-left: 8px;
+      }
+      .export-btn:hover {
+        background: var(--hover);
+        color: var(--ink);
+        border-color: var(--ink-3);
+      }
+      /* 匯出 PNG 用的複本（見 export.ts）：不顯示按鈕、不換行、取消 sticky */
+      .exporting .export-btn {
+        display: none;
+      }
+      .exporting td,
+      .exporting th {
+        white-space: nowrap !important;
+      }
+      .exporting th:first-child,
+      .exporting td:first-child {
+        position: static !important;
+      }
+      .export-box {
+        padding: 16px 20px;
+        background: var(--bg);
+      }
+      .export-title {
+        font-family: var(--font-serif);
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 10px;
+      }
     </style>
   </head>
   <body>
@@ -479,6 +521,7 @@
           <button class="period-btn crash" onclick="setPeriod('gfc', this)">
             金融海嘯
           </button>
+          <button class="export-btn" onclick="exportMain()">⬇ PNG</button>
         </div>
       </div>
 
@@ -495,11 +538,12 @@
       </div>
 
       <div class="section-head">
-        <h2>大跌加碼 vs 固定扣款</h2>
+        <h2>
+          大跌加碼 vs 固定扣款<button class="export-btn" onclick="exportDip()">⬇ PNG</button>
+        </h2>
         <p>
           台股加權指數單日跌幅 ≥ <b>5%</b> 時，隔一個交易日加碼
-          <b>2 倍</b>月扣款金額，與固定扣款比較（固定「近 10
-          年」情境，會套用上方篩選，但不隨期間按鈕變動）
+          <b>2 倍</b>月扣款金額，與固定扣款比較（會套用上方篩選，並隨上方期間按鈕切換）
         </p>
       </div>
       <div class="table-wrap">
@@ -509,7 +553,9 @@
       </div>
 
       <div class="section-head">
-        <h2>逐年定期定額 XIRR</h2>
+        <h2>
+          逐年定期定額 XIRR<button class="export-btn" onclick="exportYearly()">⬇ PNG</button>
+        </h2>
         <p>
           每個日曆年獨立計算：1 月起每月 <b>5 日</b>投入
           <b>3,000 元</b>（一年 12 次），以該年最後一個交易日收盤計算
