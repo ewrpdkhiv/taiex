@@ -17,11 +17,12 @@ type ColKey = (typeof COL_DEFS)[number]["key"];
 let _cache: Partial<Record<DcaPeriod, DcaResult[]>> = {};
 let _results: DcaResult[] = [];
 let _dipCompare: DipCompare[] = [];
+let _dipCache: { [K in DcaPeriod]?: DipCompare[] } = {};
 let _yearly: Yearly = { years: [], ytd_year: null, results: [] };
 let _yearlySortKey = "avg";
 let _sortKey: ColKey = "irr";
 const _portfolio = new Set<string>();
-const _visibleCols = new Set<ColKey>(["return_rate", "irr", "max_drawdown", "calmar"]);
+const _visibleCols = new Set<ColKey>(["months", "return_rate", "irr", "max_drawdown", "calmar"]);
 const _filters: { market: string | null; type: string | null; special: Set<string> } = {
   market: null,
   type: null,
@@ -106,6 +107,7 @@ function renderFilterBar(): string {
 
 const COL_DEFS = [
   { key: "invested", label: "成本", sortable: true },
+  { key: "months", label: "買入次數", sortable: true },
   { key: "shares", label: "股數", sortable: false },
   { key: "market_value", label: "市值", sortable: true },
   { key: "last_price", label: "收盤價", sortable: true },
@@ -144,6 +146,7 @@ function pnlStr(v: number | null): string {
 
 function sortValue(d: DcaResult, key: ColKey): number {
   if (key === "invested") return d.invested ?? -Infinity;
+  if (key === "months") return d.months ?? -Infinity;
   if (key === "market_value") return d.reinvest.market_value ?? -Infinity;
   if (key === "last_price") return d.last_price ?? -Infinity;
   if (key === "market_cap") return d.market_cap ?? -Infinity;
@@ -200,6 +203,7 @@ function renderTable(): string {
         <td>${sel ? "✓" : i + 1}</td>
         <td><div class="ticker">${d.ticker}</div><div class="name">${d.name}</div></td>
         ${vis("invested") ? `<td>${moneyStr(d.invested)}</td>` : ""}
+        ${vis("months") ? `<td>${d.months}</td>` : ""}
         ${vis("shares") ? `<td>${sharesStr(re.shares)}</td>` : ""}
         ${vis("market_value") ? `<td>${moneyStr(re.market_value)}</td>` : ""}
         ${vis("last_price") ? `<td>${d.last_price != null ? d.last_price.toLocaleString() : "—"}</td>` : ""}
@@ -228,6 +232,7 @@ function renderTable(): string {
           <th>#</th>
           <th>標的</th>
           ${vis("invested") ? thLabel("invested", "成本") : ""}
+          ${vis("months") ? thLabel("months", "買入次數") : ""}
           ${vis("shares") ? "<th>股數</th>" : ""}
           ${vis("market_value") ? thLabel("market_value", "市值") : ""}
           ${vis("last_price") ? thLabel("last_price", "收盤價") : ""}
@@ -454,6 +459,8 @@ function updatePeriodText() {
 
 function setPeriod(key: DcaPeriod, btn: HTMLElement) {
   _results = _cache[key] || [];
+  _dipCompare = _dipCache[key] || [];
+  byId("dip-compare-container").innerHTML = renderDipCompareTable();
   document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
   btn.classList.add("active");
   updatePeriodText();
@@ -483,12 +490,14 @@ async function load() {
       covid: data.results_covid || [],
       dotcom: data.results_dotcom || [],
       gfc: data.results_gfc || [],
+      ytd: data.results_ytd || [],
     };
     _results = _cache["10y"] || [];
     updatePeriodText();
     byId("filter-bar").innerHTML = renderFilterBar();
     byId("table-container").innerHTML = renderTable();
-    _dipCompare = data.dip_buy_comparison || [];
+    _dipCache = data.dip_compare || {};
+    _dipCompare = _dipCache["10y"] || [];
     byId("dip-compare-container").innerHTML = renderDipCompareTable();
     _yearly = data.yearly || _yearly;
     byId("yearly-container").innerHTML = renderYearlyTable();

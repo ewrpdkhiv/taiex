@@ -13,6 +13,7 @@ from taiex_big_drops import (
     _parse_roc_or_ad_date,
     _parse_twse_month_payload,
     analyze_bear_market_distance,
+    analyze_post_vix_returns,
     analyze_vix_spikes,
     analyze_holiday_returns,
     analyze_ma_touch_returns,
@@ -32,6 +33,9 @@ from taiex_big_drops import (
     load_latest_margin,
     load_margin_maintenance,
     load_margin_history,
+    load_ytd_returns,
+    margin_monthly,
+    ytd_return,
 )
 
 
@@ -951,3 +955,66 @@ class TestLoadCachedFallback:
 
         with pytest.raises(RuntimeError):
             load_margin_history("2025-01-01", fetch=boom)
+
+
+class TestYtd:
+    def _df(self):
+        return pd.DataFrame({
+            "Date": pd.to_datetime(["2025-12-30", "2025-12-31", "2026-01-05", "2026-02-02"]),
+            "Close": [90.0, 100.0, 105.0, 120.0],
+        })
+
+    def test_base_is_last_close_of_prior_year(self):
+        r = ytd_return(self._df())
+        assert r is not None
+        assert r["base_date"] == "2025-12-31" and r["base_close"] == 100.0
+        assert r["ytd_pct"] == pytest.approx(20.0) and r["date"] == "2026-02-02"
+
+    def test_none_without_prior_year(self):
+        df = self._df()
+        assert ytd_return(df[df["Date"].dt.year == 2026]) is None
+
+    def test_failed_fetch_is_skipped(self):
+        def fake(code):
+            if code == "0050.TW":
+                raise RuntimeError("boom")
+            return self._df()
+
+        rows = load_ytd_returns(self._df(), fetch=fake)
+        codes = [r["code"] for r in rows]
+        assert codes[0] == "^TWII" and "0050" not in codes and "00631L" in codes
+
+
+class TestMarginMonthly:
+    def test_monthly_sum_balance_and_index(self):
+        dates = pd.to_datetime(["2025-01-30", "2025-01-31", "2025-02-03", "2025-02-28", "2025-03-03"])
+        df = pd.DataFrame({"Date": dates, "Close": [100.0, 110.0, 111.0, 99.0, 120.0]})
+        margin = pd.DataFrame({
+            "Date": dates[1:],  # 融資從 1/31 起才有
+            "margin_balance": [1e8 * v for v in (50, 53, 47, 49)],
+            "margin_change": [1e8 * v for v in (1, 3, -6, 2)],
+        })
+        rows = margin_monthly(df, margin)
+        assert [r["month"] for r in rows] == ["2025-01", "2025-02", "2025-03"]
+        assert rows[1] == {"month": "2025-02", "net": -3.0, "balance": 47.0, "up_days": 1,
+                           "down_days": 1, "index_pct": -10.0}
+        assert rows[0]["index_pct"] is None and rows[2]["index_pct"] == pytest.approx(21.21, abs=0.01)
+
+
+class TestAnalyzePostVixReturns:
+    def test_horizon_returns_from_first_cross_day(self):
+        df = _make_df([100, 90, 80, 100, 120, 110, 110, 110])
+        vals = [15.0, 31.0, 35.0, 20.0, 15.0, 15.0, 15.0, 15.0]
+        vix = {d.strftime("%Y-%m-%d"): v for d, v in zip(df["Date"], vals)}
+        r = analyze_post_vix_returns(df, vix, 30.0, horizons=(1, 3))
+        assert r["sample_size"] == 1
+        h1, h3 = r["horizons"]
+        # 基準：首次站上 30 的 2020-01-02 收盤 90
+        assert h1["events"] == [{"date": "2020-01-02", "vix": 31.0, "return_pct": pytest.approx(-11.11, abs=0.01)}]
+        assert h3["avg_return_pct"] == pytest.approx(33.33, abs=0.01) and h3["win_rate_pct"] == 100.0
+
+    def test_insufficient_sample(self):
+        df = _make_df([100, 90])
+        vix = {"2020-01-02": 50.0}
+        r = analyze_post_vix_returns(df, vix, 40.0, horizons=(5,))
+        assert r["horizons"] == [{"days": 5, "sample_size": 0}]

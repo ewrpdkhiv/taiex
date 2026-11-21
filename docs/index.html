@@ -40,6 +40,13 @@
         overflow-x: auto;
         scrollbar-width: none;
       }
+      /* 電腦版分頁多到放不下一行時換行（滑鼠沒辦法橫向捲動）；手機維持橫向滑動 */
+      @media (min-width: 769px) {
+        .type-row {
+          flex-wrap: wrap;
+          overflow-x: visible;
+        }
+      }
       .type-btn {
         padding: 10px 14px;
         font-size: 0.88rem;
@@ -210,9 +217,19 @@
       /* 正 2 融資四欄：跨兩格、欄寬依內容，避免「連增 N 天」被擠成多行 */
       /* 單欄時不能 span 2，否則會多生出一個窄欄，把其他卡片擠成 240px + 111px */
       @media (min-width: 560px) {
-        #today-leveraged {
+        #today-leveraged,
+        #today-ytd {
           grid-column: span 2;
         }
+      }
+      /* YTD 卡：欄寬依內容，放不下時橫向捲動，不被卡片裁掉 */
+      #today-ytd {
+        overflow-x: auto;
+      }
+      #today-ytd table td,
+      #today-ytd table th {
+        width: auto;
+        white-space: nowrap;
       }
       #today-leveraged {
         overflow-x: auto; /* 手機寬度放不下四欄時橫向捲動，不被卡片裁掉 */
@@ -575,6 +592,7 @@
       <div class="card today-block" id="today-margin"></div>
       <div class="card today-block" id="today-maintenance"></div>
       <div class="card today-block" id="today-samelevel"></div>
+      <div class="card today-block" id="today-ytd"></div>
       <div class="card today-block" id="today-leveraged"></div>
     </section>
 
@@ -609,6 +627,9 @@
         </button>
         <button class="type-btn" data-color="drop" data-type="margin-decreases">
           融資減少
+        </button>
+        <button class="type-btn" data-color="stats" data-type="margin-monthly">
+          融資月度
         </button>
         <button class="type-btn" data-color="stats" data-type="foreign-yearly">
           外資年度
@@ -727,6 +748,102 @@
                   </tr>
                 </thead>
                 <tbody id="t-post-gain-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>VIX 首次站上 30 後表現統計</h2>
+            <span class="badge" id="post-vix30-badge">VIX &gt; 30</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-post-vix30-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="today-note" style="padding: 0 16px 12px">以 VIX 站上 30 當日的加權指數收盤為基準；VIX 為美股時段，出現在台股收盤之後；相隔 30 天以上才算新一波</div>
+          <div id="post-vix30-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="post-vix30-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('post-vix30')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="post-vix30-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">日期</th>
+                    <th>VIX</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-post-vix30-detail"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>VIX 首次站上 40 後表現統計</h2>
+            <span class="badge" id="post-vix40-badge">VIX &gt; 40</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">之後交易日數</th>
+                  <th>平均報酬</th>
+                  <th>中位數報酬</th>
+                  <th>勝率</th>
+                  <th>樣本數</th>
+                </tr>
+              </thead>
+              <tbody id="t-post-vix40-stats">
+                <tr>
+                  <td colspan="5" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="today-note" style="padding: 0 16px 12px">以 VIX 站上 40 當日的加權指數收盤為基準；VIX 為美股時段，出現在台股收盤之後；相隔 30 天以上才算新一波</div>
+          <div id="post-vix40-detail">
+            <div class="chart-panel-header">
+              <span class="chart-info" id="post-vix40-detail-info">—</span>
+              <button class="close-btn" onclick="closeStatsDetail('post-vix40')">
+                ✕ 關閉
+              </button>
+            </div>
+            <div class="table-wrap" id="post-vix40-detail-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="left">日期</th>
+                    <th>VIX</th>
+                    <th>之後報酬</th>
+                  </tr>
+                </thead>
+                <tbody id="t-post-vix40-detail"></tbody>
               </table>
             </div>
           </div>
@@ -1234,6 +1351,39 @@
               <tbody id="t-foreign-yearly">
                 <tr>
                   <td colspan="4" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 融資每月增減：長條圖 + 月度表（不分期間） -->
+    <div id="panel-margin-monthly" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>融資每月增減</h2>
+            <span class="badge">月度 融資</span>
+          </div>
+          <!-- 圖表不進 PNG（clone 不會帶 canvas 內容），匯出只含表格 -->
+          <div id="margin-monthly-chart" class="yearly-chart" data-html2canvas-ignore></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">月份</th>
+                  <th>增減 (億)</th>
+                  <th>月底餘額 (億)</th>
+                  <th>大盤月漲跌</th>
+                  <th>增加天數</th>
+                  <th>減少天數</th>
+                </tr>
+              </thead>
+              <tbody id="t-margin-monthly">
+                <tr>
+                  <td colspan="6" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>

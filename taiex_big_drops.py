@@ -812,6 +812,41 @@ def rank_latest_margin(df: pd.DataFrame, margin_df: pd.DataFrame) -> dict | None
     }
 
 
+def margin_monthly(df: pd.DataFrame, margin_df: pd.DataFrame) -> list[dict]:
+    """融資每月彙總（由舊到新，最後一個月為本月至今）。
+
+    net：當月融資餘額增減合計、balance：月底餘額（皆億元）；up_days／down_days 為
+    餘額增加／減少的交易日數；index_pct 為加權指數當月漲跌%（月底收盤相對上月底收盤，
+    無上月資料為 None）。
+    """
+    m = margin_df.dropna(subset=["margin_change"]).copy()
+    if m.empty:
+        return []
+    m["ym"] = pd.to_datetime(m["Date"]).dt.to_period("M")
+    g = m.groupby("ym")
+    out = pd.DataFrame({
+        "net": g["margin_change"].sum(),
+        "balance": g["margin_balance"].last(),
+        "up_days": g["margin_change"].apply(lambda s: int((s > 0).sum())),
+        "down_days": g["margin_change"].apply(lambda s: int((s < 0).sum())),
+    })
+    c = df.dropna(subset=["Close"]).copy()
+    c["ym"] = pd.to_datetime(c["Date"]).dt.to_period("M")
+    month_close = c.groupby("ym")["Close"].last()
+    idx_pct = (month_close.pct_change() * 100).reindex(out.index).tolist()
+    return [
+        {
+            "month": str(ym),
+            "net": round(float(r.net) / 1e8, 2),
+            "balance": round(float(r.balance) / 1e8, 2),
+            "up_days": int(r.up_days),
+            "down_days": int(r.down_days),
+            "index_pct": None if pd.isna(pct) else round(float(pct), 2),
+        }
+        for (ym, r), pct in zip(out.iterrows(), idx_pct)
+    ]
+
+
 # 國安基金歷次護盤（來源：TVBS 整理自財政部公告；金額、損益單位億元）
 # 2008 進場日各媒體有 9/18、9/19 兩說，採 9/18；第 9 次出場取護盤結束日（全數出清為 2026-05-06）
 NSF_EPISODES: list[dict] = [
@@ -1895,6 +1930,25 @@ def analyze_bear_market_distance(df: pd.DataFrame, threshold: float = 0.20) -> d
     }
 
 
+def _vix_episode_starts(dates: pd.DatetimeIndex, vix: dict[str, float], threshold: float,
+                        gap_days: int) -> list[int]:
+    """VIX 收盤首次站上 threshold 的交易日索引（相隔 gap_days 日曆天以上才算新一波）。"""
+    vix_s = pd.Series(vix)
+    vix_s.index = pd.DatetimeIndex(vix_s.index)
+    v = vix_s.reindex(dates)
+    starts: list[int] = []
+    last_hi: pd.Timestamp | None = None
+    for i in range(len(dates)):
+        x = v.iloc[i]
+        if pd.isna(x) or x <= threshold:
+            continue
+        t = dates[i]
+        if last_hi is None or (t - last_hi).days > gap_days:
+            starts.append(i)
+        last_hi = t
+    return starts
+
+
 def analyze_vix_spikes(df: pd.DataFrame, vix: dict[str, float], threshold: float = 30.0,
                        gap_days: int = 30) -> list[dict]:
     """VIX 收盤首次站上 threshold 的每一波（隔 gap_days 日曆天以上才算新一波）。
@@ -1907,21 +1961,14 @@ def analyze_vix_spikes(df: pd.DataFrame, vix: dict[str, float], threshold: float
     d = df.dropna(subset=["Close"]).sort_values("Date").reset_index(drop=True)
     close = d["Close"].to_numpy(dtype=float)
     dates = pd.DatetimeIndex(d["Date"])
-    vix_s = pd.Series(vix)
-    vix_s.index = pd.DatetimeIndex(vix_s.index)
-    v = vix_s.reindex(dates)
+    vix_at = pd.Series(vix, dtype=float)
+    vix_at.index = pd.DatetimeIndex(vix_at.index)
+    v = vix_at.reindex(dates)
     peak = pd.Series(close).cummax().to_numpy()
     out: list[dict] = []
-    last_hi: pd.Timestamp | None = None
-    for i in range(len(d)):
+    for i in _vix_episode_starts(dates, vix, threshold, gap_days):
         x = v.iloc[i]
-        if pd.isna(x) or x <= threshold:
-            continue
         t = dates[i]
-        new_episode = last_hi is None or (t - last_hi).days > gap_days
-        last_hi = t
-        if not new_episode:
-            continue
         pk = peak[i]
         later = close[i + 1:]
         rec = int(next((j for j, c in enumerate(later) if c >= pk), len(later)))
@@ -1941,6 +1988,115 @@ def analyze_vix_spikes(df: pd.DataFrame, vix: dict[str, float], threshold: float
             "days_to_trough": (dates[k] - t).days,
             "ongoing": i + 1 + rec >= len(d),
         })
+    return out
+
+
+def analyze_post_vix_returns(
+    df: pd.DataFrame,
+    vix: dict[str, float],
+    threshold: float = 30.0,
+    horizons: tuple[int, ...] = (1, 5, 20, 60),
+    gap_days: int = 30,
+) -> dict:
+    """統計 VIX 收盤首次站上 threshold 之後 N 個交易日的加權指數報酬與勝率。
+
+    以 VIX 站上門檻當日的加權指數收盤為基準（與「VIX 首次站上 30 時的 drawdown」表同一天；
+    VIX 是美股時段，出現在台股收盤之後）。回傳格式同 analyze_post_drop_returns，
+    events 為 {date, vix, return_pct}。
+    """
+    d = df.dropna(subset=["Close"]).sort_values("Date").reset_index(drop=True)
+    closes = d["Close"].to_numpy(dtype=float)
+    dates = pd.DatetimeIndex(d["Date"])
+    vix_s = pd.Series(vix, dtype=float)
+    vix_s.index = pd.DatetimeIndex(vix_s.index)
+    starts = _vix_episode_starts(dates, vix, threshold, gap_days)
+    n = len(d)
+    horizon_stats = []
+    for h in horizons:
+        events = [
+            {
+                "date": dates[i].strftime("%Y-%m-%d"),
+                "vix": round(float(vix_s.loc[dates[i]]), 1),
+                "return_pct": round(float((closes[i + h] - closes[i]) / closes[i] * 100), 2),
+            }
+            for i in starts
+            if i + h < n
+        ]
+        if events:
+            s = pd.Series([e["return_pct"] for e in events])
+            horizon_stats.append({
+                "days": h,
+                "avg_return_pct": round(float(s.mean()), 2),
+                "median_return_pct": round(float(s.median()), 2),
+                "win_rate_pct": round(float((s > 0).mean() * 100), 2),
+                "sample_size": len(events),
+                "events": events,
+            })
+        else:
+            horizon_stats.append({"days": h, "sample_size": 0})
+    return {"threshold": threshold, "sample_size": len(starts), "horizons": horizon_stats}
+
+
+# 首頁「今年以來」卡片：0050 與四檔正 2（加權指數用已載入的 df）
+YTD_ETFS: dict[str, str] = {
+    "0050.TW": "元大台灣50",
+    "00631L.TW": "元大台灣50正2",
+    "00663L.TW": "國泰臺灣加權正2",
+    "00675L.TW": "富邦臺灣加權正2",
+    "00685L.TW": "群益臺灣加權正2",
+}
+
+
+def ytd_return(df: pd.DataFrame) -> dict | None:
+    """最新收盤相對「去年最後一個交易日收盤」的今年以來漲跌幅（價格報酬，不含股息）。
+
+    今年尚無資料，或沒有去年資料（新上市）時回傳 None。
+    """
+    d = df.dropna(subset=["Close"]).sort_values("Date")
+    if d.empty:
+        return None
+    last = d.iloc[-1]
+    prior = d[d["Date"].dt.year < pd.Timestamp(last["Date"]).year]
+    if prior.empty:
+        return None
+    base = prior.iloc[-1]
+    return {
+        "date": pd.Timestamp(last["Date"]).strftime("%Y-%m-%d"),
+        "close": round(float(last["Close"]), 2),
+        "base_date": pd.Timestamp(base["Date"]).strftime("%Y-%m-%d"),
+        "base_close": round(float(base["Close"]), 2),
+        "ytd_pct": round((float(last["Close"]) / float(base["Close"]) - 1) * 100, 2),
+    }
+
+
+def _fetch_ytd_history(ticker: str) -> pd.DataFrame:
+    """yfinance 抓去年底起的收盤（auto_adjust=False：已調整分割、未調整股息）。"""
+    import yfinance as yf  # pylint: disable=import-outside-toplevel
+
+    start = f"{pd.Timestamp.now().year - 1}-12-01"
+    hist = yf.Ticker(ticker).history(start=start, auto_adjust=False)
+    if hist.empty:
+        return pd.DataFrame(columns=["Date", "Close"])
+    if isinstance(hist.index, pd.DatetimeIndex) and hist.index.tz is not None:
+        hist.index = hist.index.tz_localize(None)
+    out = hist[["Close"]].copy()
+    out.index.name = "Date"
+    return out.reset_index()
+
+
+def load_ytd_returns(index_df: pd.DataFrame, fetch=_fetch_ytd_history) -> list[dict]:
+    """加權指數＋YTD_ETFS 的今年以來漲跌幅；單檔失敗略過。"""
+    out = []
+    items = [("^TWII", "加權指數", index_df)]
+    for code, name in YTD_ETFS.items():
+        try:
+            items.append((code, name, fetch(code)))
+        except Exception as exc:  # noqa: BLE001 - 單檔失敗不影響其他檔
+            print(f"⚠ {code} YTD 資料失敗：{exc}")
+    for code, name, df in items:
+        r = ytd_return(df)
+        if r:
+            out.append({"code": code.split(".")[0], "name": name, **r})
     return out
 
 

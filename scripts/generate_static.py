@@ -24,6 +24,7 @@ from taiex_big_drops import (
     LUNAR_NEW_YEAR_DATES,
     MID_AUTUMN_DATES,
     analyze_bear_market_distance,
+    analyze_post_vix_returns,
     analyze_vix_spikes,
     analyze_holiday_returns,
     analyze_ma_touch_returns,
@@ -35,6 +36,8 @@ from taiex_big_drops import (
     find_top_drops,
     index_same_level,
     load_leveraged_margin,
+    margin_monthly,
+    load_ytd_returns,
     nsf_episodes,
     find_top_foreign_net_buys,
     find_top_foreign_net_sells,
@@ -211,6 +214,7 @@ def generate_data() -> None:
             payload[f"margin_decreases_{period}"] = _df_to_records(
                 find_top_margin_changes(df, margin_df, top_n=10, years=years, increase=False), df,
             )
+        payload["margin_monthly"] = margin_monthly(df, margin_df)
         payload["margin_data_start"] = pd.Timestamp(margin_df["Date"].min()).strftime("%Y-%m-%d")
     except Exception as exc:  # noqa: BLE001 - 融資資料失敗不應拖垮整份 data.json
         print(f"⚠ 融資餘額資料產生失敗：{exc}")
@@ -223,6 +227,13 @@ def generate_data() -> None:
         payload["leveraged_margin"] = load_leveraged_margin()
     except Exception as exc:  # noqa: BLE001 - 正2 融資失敗不應拖垮整份 data.json
         print(f"⚠ 正2 融資資料產生失敗：{exc}")
+    payload["ytd"] = load_ytd_returns(df)
+    try:
+        vix = load_vix_from_yfinance()
+        payload["post_vix30_stats"] = analyze_post_vix_returns(df, vix, 30.0)
+        payload["post_vix40_stats"] = analyze_post_vix_returns(df, vix, 40.0)
+    except Exception as exc:  # noqa: BLE001 - VIX 失敗不應拖垮整份 data.json
+        print(f"⚠ VIX 後續報酬統計產生失敗：{exc}")
     payload["post_drop_stats"] = analyze_post_drop_returns(df)
     payload["post_gain_stats"] = analyze_post_gain_returns(df)
     payload["ma_touch_stats"] = {
@@ -247,19 +258,27 @@ def generate_data() -> None:
 def generate_dca() -> None:
     print("=== 產生 DCA 回測資料 ===")
     ticker_data = dca_load_all_histories()
-    payload = {
-        "results_10y":       dca_run_all(ticker_data, monthly_amount=3_000, years=10),
-        "results_5y":        dca_run_all(ticker_data, monthly_amount=3_000, years=5),
-        "results_crash_10y": dca_run_all(ticker_data, monthly_amount=3_000, years=10, force_end=_CRASH_DATE),
-        "results_crash_5y":  dca_run_all(ticker_data, monthly_amount=3_000, years=5,  force_end=_CRASH_DATE),
-        "results_covid":     dca_run_all(ticker_data, monthly_amount=3_000, years=10, force_start=_COVID_START),
-        "results_dotcom":    dca_run_all(ticker_data, monthly_amount=3_000, force_start=_DOTCOM[0], force_end=_DOTCOM[1]),
-        "results_gfc":       dca_run_all(ticker_data, monthly_amount=3_000, force_start=_GFC[0], force_end=_GFC[1]),
-        "dip_buy_comparison": dca_run_dip_buy_comparison(ticker_data, monthly_amount=3_000, years=10),
-        "yearly":            dca_run_yearly(ticker_data, monthly_amount=3_000, years=10),
+    # 各期間情境：主表（run_all）與大跌加碼比較（run_dip_buy_comparison）共用同一組參數
+    scenarios: dict[str, dict] = {
+        "10y": {"years": 10},
+        "5y": {"years": 5},
+        "crash_10y": {"years": 10, "force_end": _CRASH_DATE},
+        "crash_5y": {"years": 5, "force_end": _CRASH_DATE},
+        "covid": {"years": 10, "force_start": _COVID_START},
+        # 今年 1 月起；年初不足 12 個交易日時 run_dca 會略過該標的（表格為空）
+        "ytd": {"force_start": pd.Timestamp(datetime.now(_TW).year, 1, 1)},
+        "dotcom": {"force_start": _DOTCOM[0], "force_end": _DOTCOM[1]},
+        "gfc": {"force_start": _GFC[0], "force_end": _GFC[1]},
+    }
+    payload: dict[str, object] = {f"results_{k}": dca_run_all(ticker_data, monthly_amount=3_000, **kw) for k, kw in scenarios.items()}
+    payload.update({
+        "dip_compare": {
+            k: dca_run_dip_buy_comparison(ticker_data, monthly_amount=3_000, **kw) for k, kw in scenarios.items()
+        },
+        "yearly": dca_run_yearly(ticker_data, monthly_amount=3_000, years=10),
         "last_updated": datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S"),
         "error": None,
-    }
+    })
     out = OUT_DIR / "dca.json"
     out.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
     print(f"✅ 寫出 {out}")

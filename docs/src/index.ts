@@ -34,6 +34,8 @@ import type {
   NsfEpisode,
   SameLevel,
   LeveragedMargin,
+  YtdRow,
+  MarginMonth,
 } from "./types";
 
 const REFRESH_MS = 3600 * 1000;
@@ -264,13 +266,33 @@ interface StatsPanel {
   detailInfoId: string;
   detailTbodyId: string;
   /* 預設明細列多顯示的欄位（大跌幅度、大漲幅度、跌破均線幅度）；有 detailRow 時不用 */
-  extraField?: "drop_pct" | "gain_pct" | "touch_pct";
+  extraField?: "drop_pct" | "gain_pct" | "touch_pct" | "vix";
+  /* 明細列額外欄位的格式（預設為百分比；VIX 是點數） */
+  extraFmt?: (v: number) => string;
   extraFieldCls?: string;
   getStats(data: TaiexData | null): Stats | undefined;
   badgeText(s: Stats): string;
   detailInfo(days: number, count: number): string;
   /* 方法語法：節日面板的事件是 HolidayEvent，由 getStats 對應的資料保證 */
   detailRow?(ev: HolidayEvent): string;
+}
+
+function vixPanel(level: 30 | 40): StatsPanel {
+  const key = `post-vix${level}` as const;
+  return {
+    tbodyId: `t-${key}-stats`,
+    badgeId: `${key}-badge`,
+    detailId: `${key}-detail`,
+    detailInfoId: `${key}-detail-info`,
+    detailTbodyId: `t-${key}-detail`,
+    extraField: "vix",
+    extraFieldCls: "pct",
+    extraFmt: (v) => v.toFixed(1),
+    getStats: (data) => data?.[`post_vix${level}_stats`],
+    badgeText: (s) => `VIX 首次站上 ${level}（樣本 ${s.sample_size} 次）`,
+    detailInfo: (days, count) =>
+      `VIX 首次站上 ${level} 之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
+  };
 }
 
 function maPanel(maDays: 20 | 60 | 120 | 240 | 1200 | 2400): StatsPanel {
@@ -313,6 +335,8 @@ const STATS_PANELS: Record<string, StatsPanel> = {
     badgeText: (s) => `漲幅 ≥ ${s.threshold}%（樣本 ${s.sample_size} 次）`,
     detailInfo: (days, count) => `大漲之後 ${days} 個交易日的個別報酬（共 ${count} 次）`,
   },
+  "post-vix30": vixPanel(30),
+  "post-vix40": vixPanel(40),
   ma20: maPanel(20),
   ma60: maPanel(60),
   ma120: maPanel(120),
@@ -429,7 +453,7 @@ function openStatsDetail(panelKey: string, days: number) {
       const cls = post.return_pct >= 0 ? "gain" : "drop";
       return `<tr>
         <td class="left date">${post.date}</td>
-        <td class="${extraCls}">${extra != null ? extra.toFixed(2) + "%" : "—"}</td>
+        <td class="${extraCls}">${extra != null ? (cfg.extraFmt ? cfg.extraFmt(extra) : extra.toFixed(2) + "%") : "—"}</td>
         <td class="${cls}">${post.return_pct.toFixed(2)}%</td>
       </tr>`;
     })
@@ -780,6 +804,34 @@ function renderLeveraged(list: LeveragedMargin[] | undefined) {
   });
 }
 
+// 今年以來（YTD）：加權指數、0050、四檔正 2
+function renderYtd(list: YtdRow[] | undefined) {
+  const el = byId("today-ytd");
+  if (!list || !list.length) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "";
+  const rows = list
+    .map((r) => {
+      const dir = r.ytd_pct > 0 ? "gain" : r.ytd_pct < 0 ? "drop" : "";
+      const sign = r.ytd_pct > 0 ? "+" : r.ytd_pct < 0 ? "−" : "";
+      return `<tr><td class="left">${r.code}<br><span class="today-total">${r.name}</span></td>
+        <td>${fmt2(r.close)}</td>
+        <td class="${dir}"><b>${sign}${Math.abs(r.ytd_pct).toFixed(2)}%</b></td></tr>`;
+    })
+    .join("");
+  const year = list[0].date.slice(0, 4);
+  el.innerHTML = `
+    <div class="today-head"><span>${year} YTD</span><b>${list[0].date}</b></div>
+    <table>
+      <thead><tr><th>標的</th><th>收盤</th><th>YTD</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="today-note">相對去年最後一個交易日收盤；價格報酬，不含股息</div>`;
+  addCardExport(el, "YTD", list[0].date);
+}
+
 // 國安基金歷次進出場
 function renderNsf(list: NsfEpisode[] | undefined) {
   const tbody = byId("t-nsf");
@@ -854,7 +906,7 @@ function renderYearlyChart(kind: YearlyKind) {
     {
       backgroundColor: "transparent",
       textStyle: { color: T.ink2 },
-      grid: { left: 64, right: 16, top: 20, bottom: 32 },
+      grid: { left: 64, right: 16, top: 46, bottom: 32 },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "shadow" },
@@ -877,6 +929,100 @@ function renderYearlyChart(kind: YearlyKind) {
       yAxis: {
         type: "value",
         name: "億元",
+        nameGap: 20,
+        nameTextStyle: { color: T.ink3 },
+        axisLabel: { color: T.ink3 },
+        splitLine: { lineStyle: { color: T.grid } },
+      },
+      series: [
+        {
+          type: "bar",
+          data: rows.map((r) => ({
+            value: r.net,
+            itemStyle: { color: r.net < 0 ? T.down : T.up },
+          })),
+        },
+      ],
+    },
+    true,
+  );
+}
+
+// ── 融資每月增減 ──
+let _marginMonthlyChart: echarts.ECharts | undefined;
+
+function renderMarginMonthlyTable(rows: MarginMonth[] | undefined) {
+  const tbody = byId("t-margin-monthly");
+  if (!rows || !rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="loading">無融資資料</td></tr>`;
+    return;
+  }
+  const pct = (v: number | null) =>
+    v == null ? "—" : `<span class="${v < 0 ? "drop" : "gain"}">${v > 0 ? "+" : ""}${v.toFixed(2)}%</span>`;
+  tbody.innerHTML = rows
+    .slice()
+    .reverse()
+    .map((r) => {
+      const cls = r.net < 0 ? "drop" : "gain";
+      return `<tr>
+        <td class="left date">${r.month}</td>
+        <td class="${cls}">${r.net > 0 ? "+" : ""}${fmt(r.net)}</td>
+        <td>${fmt(r.balance)}</td>
+        <td>${pct(r.index_pct)}</td>
+        <td>${r.up_days}</td>
+        <td>${r.down_days}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function renderMarginMonthlyChart() {
+  const rows = _data?.margin_monthly;
+  if (!rows || !rows.length) return;
+  const T = chartTheme();
+  let chart = _marginMonthlyChart;
+  if (!chart) {
+    const c = echarts.init(byId("margin-monthly-chart"));
+    chart = c;
+    _marginMonthlyChart = c;
+    window.addEventListener("resize", () => c.resize());
+  } else {
+    chart.resize();
+  }
+  // 300 多個月放不下，預設只顯示最近 5 年，可拖動／縮放
+  const startI = Math.max(0, rows.length - 60);
+  chart.setOption(
+    {
+      backgroundColor: "transparent",
+      textStyle: { color: T.ink2 },
+      grid: { left: 64, right: 16, top: 46, bottom: 56 },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        backgroundColor: T.bg,
+        borderColor: T.rule,
+        textStyle: { color: T.ink },
+        formatter: (ps: TooltipComponentFormatterCallbackParams) => {
+          const r = rows[(ps as CallbackDataParams[])[0].dataIndex];
+          const idx = r.index_pct == null ? "—" : `${r.index_pct > 0 ? "+" : ""}${r.index_pct.toFixed(2)}%`;
+          return `${r.month}<br>融資${r.net < 0 ? "減少" : "增加"} <b>${fmt(Math.abs(r.net))}</b> 億<br>
+            月底餘額 ${fmt(r.balance)} 億<br>大盤 ${idx}`;
+        },
+      },
+      dataZoom: [
+        { type: "inside", startValue: startI, endValue: rows.length - 1 },
+        { type: "slider", startValue: startI, endValue: rows.length - 1, height: 18, bottom: 6 },
+      ],
+      xAxis: {
+        type: "category",
+        data: rows.map((r) => r.month),
+        axisLine: { lineStyle: { color: T.ruleStrong } },
+        axisLabel: { color: T.ink3 },
+      },
+      yAxis: {
+        type: "value",
+        name: "億元",
+        nameGap: 20,
         nameTextStyle: { color: T.ink3 },
         axisLabel: { color: T.ink3 },
         splitLine: { lineStyle: { color: T.grid } },
@@ -901,6 +1047,7 @@ const currentYearlyKind = () => YEARLY_KINDS.find((k) => currentType === `${k}-y
 window.addEventListener("themechange", () => {
   const kind = currentYearlyKind();
   if (kind) renderYearlyChart(kind);
+  if (currentType === "margin-monthly") renderMarginMonthlyChart();
 });
 
 function renderToday(data: TaiexData) {
@@ -910,6 +1057,7 @@ function renderToday(data: TaiexData) {
   renderTodayMargin(data.today_margin && data.today_margin.margin);
   renderTodayMaintenance(data.today_margin && data.today_margin.maintenance);
   renderSameLevel(data.same_level);
+  renderYtd(data.ytd);
   renderLeveraged(data.leveraged_margin);
   renderNsf(data.nsf);
   byId("today").classList.toggle("ready", ok);
@@ -960,6 +1108,8 @@ async function fetchData() {
     renderToday(data);
     renderStreaks(data.streaks);
     YEARLY_KINDS.forEach((k) => renderYearlyTable(k, data[`${k}_yearly`]));
+    renderMarginMonthlyTable(data.margin_monthly);
+    if (currentType === "margin-monthly") renderMarginMonthlyChart();
     const yearlyKind = currentYearlyKind();
     if (yearlyKind) renderYearlyChart(yearlyKind);
     Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
@@ -977,7 +1127,7 @@ async function fetchData() {
 }
 
 // 不分期間的分頁：隱藏期間與欄位切換列
-const NO_PERIOD_TYPES = new Set(["stats", "foreign-yearly", "trust-yearly", "nsf"]);
+const NO_PERIOD_TYPES = new Set(["stats", "margin-monthly", "foreign-yearly", "trust-yearly", "nsf"]);
 
 function switchPanel() {
   const target = NO_PERIOD_TYPES.has(currentType)
@@ -990,6 +1140,7 @@ function switchPanel() {
   // 圖表要在面板顯示後才初始化，隱藏時 ECharts 量不到尺寸
   const kind = currentYearlyKind();
   if (kind) renderYearlyChart(kind);
+  if (currentType === "margin-monthly") renderMarginMonthlyChart();
 }
 
 document.querySelectorAll<HTMLElement>(".type-btn").forEach((btn) => {
@@ -1097,6 +1248,20 @@ document.querySelectorAll<HTMLElement>(".card-header").forEach((header) => {
   btn.textContent = "⬇ PNG";
   btn.addEventListener("click", () => {
     const title = query("h2", card).textContent!.trim();
+    // 年度／月度分頁：只輸出上方長條圖（ECharts 直接輸出圖片，不含下面的表格與縮放條）
+    const chartEl = card.querySelector<HTMLElement>(".yearly-chart");
+    const chart = chartEl && echarts.getInstanceByDom(chartEl);
+    if (chart) {
+      const a = document.createElement("a");
+      a.download = `TAIEX_${title}.png`;
+      a.href = chart.getDataURL({
+        pixelRatio: 3,
+        backgroundColor: chartTheme().bg,
+        excludeComponents: ["dataZoom"],
+      });
+      a.click();
+      return;
+    }
     exportPng(card, `TAIEX_${title}.png`, fitExportWidth);
   });
   header.appendChild(btn);

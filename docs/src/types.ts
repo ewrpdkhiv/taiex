@@ -58,6 +58,7 @@ export interface PostEvent {
   drop_pct?: number;
   gain_pct?: number;
   touch_pct?: number;
+  vix?: number;
 }
 
 /* 節日連假（中秋、過年、端午）的個別事件 */
@@ -98,6 +99,15 @@ export interface Streak {
 }
 
 /* 外資／投信每年買賣超合計（億元） */
+export interface MarginMonth {
+  month: string;
+  net: number;
+  balance: number;
+  up_days: number;
+  down_days: number;
+  index_pct: number | null;
+}
+
 export interface InstitutionYear {
   year: number;
   net: number;
@@ -167,6 +177,16 @@ export interface SameLevel {
   earliest: { date: string; close: number } | null;
 }
 
+export interface YtdRow {
+  code: string;
+  name: string;
+  date: string;
+  close: number;
+  base_date: string;
+  base_close: number;
+  ytd_pct: number;
+}
+
 export interface LeveragedMargin {
   code: string;
   name: string;
@@ -186,6 +206,7 @@ export interface TodayMaintenance {
 export type MaWindow = "ma20" | "ma60" | "ma120" | "ma240" | "ma1200" | "ma2400";
 
 export interface TaiexData extends Rankings {
+  ytd?: YtdRow[];
   last_updated?: string;
   error?: string | null;
   data_start?: string;
@@ -193,12 +214,15 @@ export interface TaiexData extends Rankings {
   trust_data_start?: string;
   margin_data_start?: string;
   post_drop_stats?: Stats<PostEvent>;
+  post_vix30_stats?: Stats<PostEvent>;
+  post_vix40_stats?: Stats<PostEvent>;
   post_gain_stats?: Stats<PostEvent>;
   ma_touch_stats?: Partial<Record<MaWindow, Stats<PostEvent>>>;
   mid_autumn_stats?: Stats<HolidayEvent>;
   lunar_new_year_stats?: Stats<HolidayEvent>;
   dragon_boat_stats?: Stats<HolidayEvent>;
   streaks?: { up?: Streak[]; down?: Streak[] };
+  margin_monthly?: MarginMonth[];
   foreign_yearly?: InstitutionYear[];
   trust_yearly?: InstitutionYear[];
   nsf?: NsfEpisode[];
@@ -334,10 +358,10 @@ export interface Yearly {
   results: YearlyResult[];
 }
 
-export type DcaPeriod = "10y" | "5y" | "crash_10y" | "crash_5y" | "covid" | "dotcom" | "gfc";
+export type DcaPeriod = "10y" | "5y" | "crash_10y" | "crash_5y" | "covid" | "dotcom" | "gfc" | "ytd";
 
 export type DcaData = { [K in DcaPeriod as `results_${K}`]?: DcaResult[] } & {
-  dip_buy_comparison?: DipCompare[];
+  dip_compare?: { [K in DcaPeriod]?: DipCompare[] };
   yearly?: Yearly;
   last_updated?: string;
   error?: string | null;
