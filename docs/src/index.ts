@@ -753,7 +753,7 @@ function renderSameLevel(s: SameLevel | null | undefined) {
       <thead><tr><th>${s.count.toLocaleString()} 個交易日曾出現</th><th>日期</th></tr></thead>
       <tbody>${row("最近一次", s.latest)}${row("最早一次", s.earliest)}</tbody>
     </table>
-    <div class="today-note">收盤在 ±0.5% 內算出現過，不含今日${s.count ? "" : "（史上新高，從未到過）"}</div>`;
+    <div class="today-note">收盤在 ±1% 內算出現過，不含今日${s.count ? "" : s.all_time_high ? "（史上新高，從未到過）" : "（歷史上從未在此點位收盤，指數曾跳空越過）"}</div>`;
   addCardExport(el, "同點位歷史", s.date);
 }
 

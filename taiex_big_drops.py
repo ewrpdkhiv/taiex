@@ -882,13 +882,14 @@ def nsf_episodes(df: pd.DataFrame) -> list[dict]:
     return out
 
 
-SAME_LEVEL_TOLERANCE = 0.005  # 收盤相差 ±0.5% 以內算同一點位
+SAME_LEVEL_TOLERANCE = 0.01  # 收盤相差 ±1% 以內算同一點位
 
 
 def index_same_level(df: pd.DataFrame) -> dict | None:
-    """最新收盤點位，在歷史上「收盤在 ±0.5% 以內」的最近一天與最早一天（不含最新一天），附當天收盤。
+    """最新收盤點位，在歷史上「收盤在 ±1% 以內」的最近一天與最早一天（不含最新一天），附當天收盤。
 
-    count 為符合的歷史交易日數；從未出現過（如歷史新高）時 latest/earliest 為 None。
+    count 為符合的歷史交易日數；從未出現過時 latest/earliest 為 None；all_time_high 表示最新收盤是否為歷史新高
+    （count 為 0 不代表新高：指數也可能跳空越過這個點位）。
     """
     d = df.dropna(subset=["Close"])
     if d.empty:
@@ -902,6 +903,7 @@ def index_same_level(df: pd.DataFrame) -> dict | None:
         "date": pd.Timestamp(last["Date"]).strftime("%Y-%m-%d"),
         "close": round(close, 2),
         "count": len(hit),
+        "all_time_high": bool(close >= float(d.iloc[:-1]["Close"].max())) if len(d) > 1 else True,
         "latest": fmt(hit.iloc[-1]) if len(hit) else None,
         "earliest": fmt(hit.iloc[0]) if len(hit) else None,
     }

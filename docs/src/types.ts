@@ -173,6 +173,7 @@ export interface SameLevel {
   date: string;
   close: number;
   count: number;
+  all_time_high?: boolean;
   latest: { date: string; close: number } | null;
   earliest: { date: string; close: number } | null;
 }

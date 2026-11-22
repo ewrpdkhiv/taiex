@@ -1018,3 +1018,21 @@ class TestAnalyzePostVixReturns:
         vix = {"2020-01-02": 50.0}
         r = analyze_post_vix_returns(df, vix, 40.0, horizons=(5,))
         assert r["horizons"] == [{"days": 5, "sample_size": 0}]
+
+
+class TestSameLevelAllTimeHigh:
+    def test_no_match_but_not_a_high(self):
+        from taiex_big_drops import index_same_level
+
+        # 100 → 200 → 150：150 從未收盤過，但前面有更高的 200，不是歷史新高
+        df = pd.DataFrame({"Date": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]),
+                           "Close": [100.0, 200.0, 150.0]})
+        r = index_same_level(df)
+        assert r and r["count"] == 0 and r["all_time_high"] is False
+
+    def test_new_high(self):
+        from taiex_big_drops import index_same_level
+
+        df = pd.DataFrame({"Date": pd.to_datetime(["2020-01-01", "2020-01-02"]), "Close": [100.0, 120.0]})
+        r = index_same_level(df)
+        assert r and r["count"] == 0 and r["all_time_high"] is True
