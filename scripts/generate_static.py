@@ -36,6 +36,7 @@ from taiex_big_drops import (
     find_top_drops,
     index_same_level,
     load_leveraged_margin,
+    index_monthly,
     margin_monthly,
     load_ytd_returns,
     nsf_episodes,
@@ -176,6 +177,7 @@ def generate_data() -> None:
     for key, result_df, kind in batches:
         payload[key] = _df_to_records(result_df, df, kind)
     payload["today"] = rank_latest_day(df, periods={"all": None})
+    payload["index_monthly"] = index_monthly(df)
     try:
         foreign_df = load_foreign_net()
         for period, years in (("20y", 20), ("10y", 10), ("5y", 5), ("all", None)):

@@ -847,6 +847,25 @@ def margin_monthly(df: pd.DataFrame, margin_df: pd.DataFrame) -> list[dict]:
     ]
 
 
+def index_monthly(df: pd.DataFrame) -> list[dict]:
+    """加權指數每月漲跌（由舊到新，最後一個月為本月至今）。
+
+    close 為月底（或最新）收盤；pct 為相對上月底收盤的漲跌%，第一個月無上月資料為 None。
+    """
+    c = df.dropna(subset=["Close"]).copy()
+    c["ym"] = pd.to_datetime(c["Date"]).dt.to_period("M")
+    close = c.groupby("ym")["Close"].last()
+    pct = close.pct_change() * 100
+    return [
+        {
+            "month": str(ym),
+            "close": round(float(v), 2),
+            "pct": None if pd.isna(p) else round(float(p), 2),
+        }
+        for (ym, v), p in zip(close.items(), pct.tolist())
+    ]
+
+
 # 國安基金歷次護盤（來源：TVBS 整理自財政部公告；金額、損益單位億元）
 # 2008 進場日各媒體有 9/18、9/19 兩說，採 9/18；第 9 次出場取護盤結束日（全數出清為 2026-05-06）
 NSF_EPISODES: list[dict] = [

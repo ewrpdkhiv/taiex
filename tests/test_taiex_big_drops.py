@@ -34,6 +34,7 @@ from taiex_big_drops import (
     load_margin_maintenance,
     load_margin_history,
     load_ytd_returns,
+    index_monthly,
     margin_monthly,
     ytd_return,
 )
@@ -1036,3 +1037,14 @@ class TestSameLevelAllTimeHigh:
         df = pd.DataFrame({"Date": pd.to_datetime(["2020-01-01", "2020-01-02"]), "Close": [100.0, 120.0]})
         r = index_same_level(df)
         assert r and r["count"] == 0 and r["all_time_high"] is True
+
+
+def test_index_monthly():
+    df = pd.DataFrame({
+        "Date": pd.to_datetime(["2024-01-02", "2024-01-31", "2024-02-01", "2024-02-29"]),
+        "Close": [100.0, 110.0, 105.0, 99.0],
+    })
+    assert index_monthly(df) == [
+        {"month": "2024-01", "close": 110.0, "pct": None},
+        {"month": "2024-02", "close": 99.0, "pct": -10.0},
+    ]

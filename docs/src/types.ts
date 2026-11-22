@@ -99,6 +99,12 @@ export interface Streak {
 }
 
 /* 外資／投信每年買賣超合計（億元） */
+export interface IndexMonth {
+  month: string;
+  close: number;
+  pct: number | null;
+}
+
 export interface MarginMonth {
   month: string;
   net: number;
@@ -223,6 +229,7 @@ export interface TaiexData extends Rankings {
   lunar_new_year_stats?: Stats<HolidayEvent>;
   dragon_boat_stats?: Stats<HolidayEvent>;
   streaks?: { up?: Streak[]; down?: Streak[] };
+  index_monthly?: IndexMonth[];
   margin_monthly?: MarginMonth[];
   foreign_yearly?: InstitutionYear[];
   trust_yearly?: InstitutionYear[];

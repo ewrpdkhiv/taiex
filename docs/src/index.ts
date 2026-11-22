@@ -35,6 +35,7 @@ import type {
   SameLevel,
   LeveragedMargin,
   YtdRow,
+  IndexMonth,
   MarginMonth,
 } from "./types";
 
@@ -948,6 +949,89 @@ function renderYearlyChart(kind: YearlyKind) {
   );
 }
 
+// ── 加權指數每月漲跌 ──
+let _indexMonthlyChart: echarts.ECharts | undefined;
+
+const signedPct = (v: number | null) =>
+  v == null ? "—" : `<span class="${v < 0 ? "drop" : "gain"}">${v > 0 ? "+" : ""}${v.toFixed(2)}%</span>`;
+
+function renderIndexMonthlyTable(rows: IndexMonth[] | undefined) {
+  const tbody = byId("t-index-monthly");
+  if (!rows || !rows.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="loading">無資料</td></tr>`;
+    return;
+  }
+  const line = (r: IndexMonth) =>
+    `<tr><td class="left date">${r.month}</td><td>${signedPct(r.pct)}</td><td>${fmt(r.close)}</td></tr>`;
+  tbody.innerHTML = rows.slice().reverse().map(line).join("");
+  const valid = rows.filter((r) => r.pct != null).sort((a, b) => b.pct! - a.pct!);
+  byId("t-index-monthly-gain").innerHTML = valid.slice(0, 10).map(line).join("");
+  byId("t-index-monthly-drop").innerHTML = valid.slice(-10).reverse().map(line).join("");
+}
+
+function renderIndexMonthlyChart() {
+  const rows = _data?.index_monthly;
+  if (!rows || !rows.length) return;
+  const T = chartTheme();
+  let chart = _indexMonthlyChart;
+  if (!chart) {
+    const c = echarts.init(byId("index-monthly-chart"));
+    chart = c;
+    _indexMonthlyChart = c;
+    window.addEventListener("resize", () => c.resize());
+  } else {
+    chart.resize();
+  }
+  const startI = Math.max(0, rows.length - 60);
+  chart.setOption(
+    {
+      backgroundColor: "transparent",
+      textStyle: { color: T.ink2 },
+      grid: { left: 64, right: 16, top: 46, bottom: 56 },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        backgroundColor: T.bg,
+        borderColor: T.rule,
+        textStyle: { color: T.ink },
+        formatter: (ps: TooltipComponentFormatterCallbackParams) => {
+          const r = rows[(ps as CallbackDataParams[])[0].dataIndex];
+          const p = r.pct == null ? "—" : `${r.pct > 0 ? "+" : ""}${r.pct.toFixed(2)}%`;
+          return `${r.month}<br>月漲跌 <b>${p}</b><br>月底收盤 ${fmt(r.close)}`;
+        },
+      },
+      dataZoom: [
+        { type: "inside", startValue: startI, endValue: rows.length - 1 },
+        { type: "slider", startValue: startI, endValue: rows.length - 1, height: 18, bottom: 6 },
+      ],
+      xAxis: {
+        type: "category",
+        data: rows.map((r) => r.month),
+        axisLine: { lineStyle: { color: T.ruleStrong } },
+        axisLabel: { color: T.ink3 },
+      },
+      yAxis: {
+        type: "value",
+        name: "%",
+        nameGap: 20,
+        nameTextStyle: { color: T.ink3 },
+        axisLabel: { color: T.ink3 },
+        splitLine: { lineStyle: { color: T.grid } },
+      },
+      series: [
+        {
+          type: "bar",
+          data: rows.map((r) => ({
+            value: r.pct,
+            itemStyle: { color: (r.pct ?? 0) < 0 ? T.down : T.up },
+          })),
+        },
+      ],
+    },
+    true,
+  );
+}
+
 // ── 融資每月增減 ──
 let _marginMonthlyChart: echarts.ECharts | undefined;
 
@@ -1048,6 +1132,7 @@ window.addEventListener("themechange", () => {
   const kind = currentYearlyKind();
   if (kind) renderYearlyChart(kind);
   if (currentType === "margin-monthly") renderMarginMonthlyChart();
+  if (currentType === "index-monthly") renderIndexMonthlyChart();
 });
 
 function renderToday(data: TaiexData) {
@@ -1109,7 +1194,9 @@ async function fetchData() {
     renderStreaks(data.streaks);
     YEARLY_KINDS.forEach((k) => renderYearlyTable(k, data[`${k}_yearly`]));
     renderMarginMonthlyTable(data.margin_monthly);
+    renderIndexMonthlyTable(data.index_monthly);
     if (currentType === "margin-monthly") renderMarginMonthlyChart();
+  if (currentType === "index-monthly") renderIndexMonthlyChart();
     const yearlyKind = currentYearlyKind();
     if (yearlyKind) renderYearlyChart(yearlyKind);
     Object.entries(TABLE_CONFIG).forEach(([id, cfg]) => {
@@ -1127,7 +1214,7 @@ async function fetchData() {
 }
 
 // 不分期間的分頁：隱藏期間與欄位切換列
-const NO_PERIOD_TYPES = new Set(["stats", "margin-monthly", "foreign-yearly", "trust-yearly", "nsf"]);
+const NO_PERIOD_TYPES = new Set(["stats", "index-monthly", "margin-monthly", "foreign-yearly", "trust-yearly", "nsf"]);
 
 function switchPanel() {
   const target = NO_PERIOD_TYPES.has(currentType)
@@ -1141,6 +1228,7 @@ function switchPanel() {
   const kind = currentYearlyKind();
   if (kind) renderYearlyChart(kind);
   if (currentType === "margin-monthly") renderMarginMonthlyChart();
+  if (currentType === "index-monthly") renderIndexMonthlyChart();
 }
 
 document.querySelectorAll<HTMLElement>(".type-btn").forEach((btn) => {

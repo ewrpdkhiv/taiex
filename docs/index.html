@@ -633,6 +633,9 @@
         <button class="type-btn" data-color="drop" data-type="margin-decreases">
           融資減少
         </button>
+        <button class="type-btn" data-color="stats" data-type="index-monthly">
+          月度漲跌
+        </button>
         <button class="type-btn" data-color="stats" data-type="margin-monthly">
           融資月度
         </button>
@@ -1356,6 +1359,53 @@
               <tbody id="t-foreign-yearly">
                 <tr>
                   <td colspan="4" class="loading">載入中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 加權指數每月漲跌：長條圖 + 月度表（不分期間） -->
+    <div id="panel-index-monthly" class="tab-panel">
+      <div class="panel-inner">
+        <div class="card" data-color="stats">
+          <div class="card-header">
+            <h2>加權指數每月漲跌</h2>
+            <span class="badge">月度 漲跌幅</span>
+          </div>
+          <div id="index-monthly-chart" class="yearly-chart" data-html2canvas-ignore></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 16px">
+            <div class="table-wrap" style="flex: 1 1 260px">
+              <table>
+                <thead>
+                  <tr><th class="left">單月漲幅 前10</th><th>漲跌</th><th>月底收盤</th></tr>
+                </thead>
+                <tbody id="t-index-monthly-gain"></tbody>
+              </table>
+            </div>
+            <div class="table-wrap" style="flex: 1 1 260px">
+              <table>
+                <thead>
+                  <tr><th class="left">單月跌幅 前10</th><th>漲跌</th><th>月底收盤</th></tr>
+                </thead>
+                <tbody id="t-index-monthly-drop"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">月份</th>
+                  <th>月漲跌</th>
+                  <th>月底收盤</th>
+                </tr>
+              </thead>
+              <tbody id="t-index-monthly">
+                <tr>
+                  <td colspan="3" class="loading">載入中…</td>
                 </tr>
               </tbody>
             </table>
