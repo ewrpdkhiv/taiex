@@ -141,11 +141,11 @@ def _df_to_records(
 
 
 def _patch_ohlc(df: pd.DataFrame) -> pd.DataFrame:
-    """用 TWSE 補 yfinance 缺漏的交易日：1999～2000 補行上班日，加上近期（yfinance 常晚一兩天才有最新收盤）。"""
+    """用 TWSE 補 yfinance 缺漏的交易日：1999～2000 補行上班日，近期再以 TWSE 官方值補缺漏並覆蓋（yfinance 常晚一兩天才有最新收盤，最新一天還可能是盤中快照）。"""
     df = patch_missing_trading_days(df)
     now = datetime.now(_TW)
     recent_start = (now - pd.Timedelta(days=45)).strftime("%Y-%m-01")
-    return patch_missing_trading_days(df, start=recent_start, end=now.strftime("%Y-%m-%d"))
+    return patch_missing_trading_days(df, start=recent_start, end=now.strftime("%Y-%m-%d"), overwrite=True)
 
 
 def generate_data() -> None:

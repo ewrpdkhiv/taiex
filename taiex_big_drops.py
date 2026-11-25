@@ -355,6 +355,7 @@ def patch_missing_trading_days(
     start: str = "1999-01-01",
     end: str = "2000-12-31",
     fetch_month=_fetch_twse_month,
+    overwrite: bool = False,
 ) -> pd.DataFrame:
     """用 TWSE 官方歷史資料，補齊 yfinance 缺漏的交易日。
 
@@ -369,6 +370,8 @@ def patch_missing_trading_days(
             網路請求（此問題目前已知只發生在 2001 年以前）。
         fetch_month: 查詢單月資料的函式，預設為 _fetch_twse_month；測試時
             可替換成假資料來源，避免真的發網路請求。
+        overwrite: True 時，df 已有的交易日也以 TWSE 官方數值覆蓋（Yahoo 的最新一天
+            常是盤中快照、成交量 0，收盤價與官方不符）。
 
     Returns:
         補上缺漏交易日後、依日期排序的新 DataFrame。
@@ -377,15 +380,30 @@ def patch_missing_trading_days(
     months = pd.period_range(start=start, end=end, freq="M")
 
     missing_rows = []
+    official: dict[str, pd.Series] = {}
     for period in months:
         month_df = fetch_month(period.year, period.month)
         if month_df.empty:
             continue
         for _, row in month_df.iterrows():
             date_str = row["Date"].strftime("%Y-%m-%d")
+            official[date_str] = row
             if date_str not in existing_dates:
                 missing_rows.append(row)
                 existing_dates.add(date_str)
+
+    if overwrite and official:
+        df = df.copy()
+        dstr = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+        for i, d in zip(df.index, dstr):
+            row = official.get(d)
+            if row is None:
+                continue
+            for col in ("Open", "High", "Low", "Close"):
+                if col in df.columns and col in row.index and pd.notna(row[col]):
+                    if col == "Close" and abs(df.at[i, col] - row[col]) > 0.005:
+                        print(f"🩹 {d} 收盤以 TWSE 為準：{df.at[i, col]:.2f} → {row[col]:.2f}")
+                    df.at[i, col] = row[col]
 
     if not missing_rows:
         return df

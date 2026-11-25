@@ -1048,3 +1048,10 @@ def test_index_monthly():
         {"month": "2024-01", "close": 110.0, "pct": None},
         {"month": "2024-02", "close": 99.0, "pct": -10.0},
     ]
+
+
+def test_patch_overwrite_replaces_bad_close():
+    df = pd.DataFrame({"Date": pd.to_datetime(["2026-11-24", "2026-11-25"]), "Close": [40122.35, 37008.11]})
+    official = pd.DataFrame({"Date": pd.to_datetime(["2026-11-25"]), "Open": [1.0], "High": [1.0], "Low": [1.0], "Close": [38195.43]})
+    out = patch_missing_trading_days(df, "2026-11-01", "2026-11-30", fetch_month=lambda y, m: official, overwrite=True)
+    assert out["Close"].tolist() == [40122.35, 38195.43]
