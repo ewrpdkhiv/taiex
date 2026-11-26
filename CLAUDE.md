@@ -90,7 +90,7 @@ uv run python taiex_big_drops.py --csv data.csv --threshold 6 --start 2010-01-01
 
 ### DCA 模組：[dca.py](dca.py)
 
-`run_all(monthly_amount, years, force_start, force_end)` 對 `TICKERS`（33 檔標的）逐一呼叫 `run_dca()`。`generate_static.py` 固定使用 `monthly_amount=3_000`。
+`run_all(monthly_amount, years, force_start, force_end)` 對 `TICKERS`（33 檔標的）逐一呼叫 `run_dca()`。`generate_static.py` 固定使用 `monthly_amount=3_000`；槓桿 ETF 依 `LEVERAGE` 除以倍數（2 倍 1,500、3 倍 1,000），大跌加碼金額同樣依倍數縮小。
 
 `run_dip_buy_comparison()` 比較「固定扣款」與「大跌加碼」兩種策略：先用 `taiex_big_drops.find_big_drops()` 抓出台股加權指數單日跌幅 ≥ 門檻（預設 5%）的日期，於下一個交易日額外加碼 (倍數 -1) 倍的月扣款金額（預設 2 倍），再對每檔標的各跑一次 `run_dca()`（`extra_buys` 參數）與基準情境比較。加碼買點的合併邏輯抽成 `_merge_extra_buys()` 純函式，便於測試。
 

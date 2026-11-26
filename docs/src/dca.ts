@@ -529,7 +529,7 @@ const periodText = () => byId("period-text").textContent || "";
 function exportMain() {
   exportTable(
     "table-container",
-    `定期定額回測｜${_periodLabel}｜${periodText()}　每月 5 日投入 3,000 元`,
+    `定期定額回測｜${_periodLabel}｜${periodText()}　每月 5 日投入 3,000 元（2 倍槓桿 ETF 1,500、3 倍 1,000）`,
     _periodLabel,
   );
 }

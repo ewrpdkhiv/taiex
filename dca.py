@@ -81,6 +81,12 @@ TICKER_TAGS: dict[str, list[str]] = {
     "GOOGL":     ["us", "stock"],
 }
 
+# 槓桿 ETF 倍數：每次投入金額除以倍數，讓各標的的曝險相當（未列出的是 1 倍）
+LEVERAGE: dict[str, int] = {
+    "00631L.TW": 2, "00675L.TW": 2, "SSO": 2, "QLD": 2,
+    "UPRO": 3, "TQQQ": 3, "SOXL": 3,
+}
+
 
 def _xirr(cashflows: list[tuple[pd.Timestamp, float]]) -> float | None:
     """年化 IRR（XIRR）。cashflows 為 (date, amount) 列表，流出為負值。"""
@@ -262,6 +268,11 @@ def run_dca(
     force_end: pd.Timestamp | None = None,
     extra_buys: dict[pd.Timestamp, float] | None = None,
 ) -> dict | None:
+    """monthly_amount 與 extra_buys 是 1 倍標的的金額，槓桿 ETF 會依 LEVERAGE 除以倍數。"""
+    leverage = LEVERAGE.get(ticker, 1)
+    monthly_amount = round(monthly_amount / leverage)
+    if extra_buys:
+        extra_buys = {d: amt / leverage for d, amt in extra_buys.items()}
     end_date = force_end if force_end is not None else pd.Timestamp.now().normalize()
     start_date = force_start if force_start is not None else end_date - pd.DateOffset(years=years)
 

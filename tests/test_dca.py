@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from dca import _max_drawdown, _merge_extra_buys, _xirr, run_yearly
+from dca import _max_drawdown, _merge_extra_buys, _xirr, run_yearly, run_dca
 
 
 # ── _xirr ─────────────────────────────────────────────────────────────────
@@ -159,3 +159,15 @@ class TestRunYearly:
         by_year = out["results"][0]["by_year"]
         assert by_year["2021"]["irr"] > 0
         assert by_year["2022"]["irr"] < 0
+
+
+def test_leveraged_amount_is_divided():
+    dates = pd.bdate_range("2024-01-01", "2024-12-31")
+    hist = pd.DataFrame({"Date": dates, "Close": 100.0, "Dividends": 0.0})
+    extra = {pd.Timestamp("2024-06-18"): 3000.0}
+    for ticker, per_buy in [("0050.TW", 3000), ("SSO", 1500), ("TQQQ", 1000)]:
+        r = run_dca(ticker, hist, None, monthly_amount=3000, force_start=dates[0],
+                    force_end=dates[-1], extra_buys=extra)
+        assert r is not None
+        assert r["monthly_amount"] == per_buy
+        assert r["invested"] == per_buy * 13
