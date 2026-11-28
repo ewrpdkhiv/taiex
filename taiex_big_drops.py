@@ -350,6 +350,27 @@ def _fetch_twse_month(year: int, month: int) -> pd.DataFrame:
         return pd.DataFrame(columns=["Date", "Open", "High", "Low", "Close"])
 
 
+def cached_month_fetch(path, fetch=_fetch_twse_month):
+    """包裝單月查詢：快取有該月就直接用，沒有才查詢；只適用不會再變動的歷史月份。
+
+    查詢失敗（回傳空表）的月份不寫入快取，下次執行會再查。
+    """
+    from price_cache import _merge_frames, read_cache, write_cache  # pylint: disable=import-outside-toplevel
+
+    def wrapped(year: int, month: int) -> pd.DataFrame:
+        cached = read_cache(path)
+        if cached is not None:
+            hit = cached[(cached["Date"].dt.year == year) & (cached["Date"].dt.month == month)]
+            if not hit.empty:
+                return hit
+        fresh = fetch(year, month)
+        if not fresh.empty:
+            write_cache(path, _merge_frames(cached, fresh.assign(Date=pd.to_datetime(fresh["Date"]))))
+        return fresh
+
+    return wrapped
+
+
 def patch_missing_trading_days(
     df: pd.DataFrame,
     start: str = "1999-01-01",

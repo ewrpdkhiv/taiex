@@ -39,8 +39,7 @@ uv run pyright                                         # 型別檢查（需維�
 
 ```bash
 # 1. 產生靜態資料 JSON（連線 Yahoo Finance、FinMind、證交所；有快取時約 1 分鐘，首次較久）
-# -W ignore：yfinance 內部用了 pandas 即將移除的 inplace 參數，會印出大量 Pandas4Warning，與結果無關
-uv run python -W ignore scripts/generate_static.py
+uv run python scripts/generate_static.py
 
 # 2. 啟動 Vite dev server（存檔自動重新整理；docs/data/ 直接由 dev server 提供）
 npm run dev
@@ -125,6 +124,7 @@ K 線圖使用 ECharts 5，PNG 匯出使用 html2canvas；兩者從 npm 安裝�
 ## 關鍵實作細節
 
 - **民國年解析**：CSV 日期年份 < 200 時自動加 1911（`_parse_roc_or_ad_date()`）
+- **TWSE 歷史補齊快取**：1999～2000 的證交所月資料由 `cached_month_fetch()` 快取於 `cache/index/TWSE_1999_2000.csv`（查詢失敗的月份不寫入，下次再查；要重抓就刪掉檔案）；近期區間每次都重新查詢。「🩹 補齊」訊息每次仍會出現，因為合併是在記憶體中進行
 - **KNOWN_EVENTS**：`dict[str, str]` 儲存歷史重大事件說明（鍵為 `YYYY-MM-DD`），`generate_static.py` 的 `_df_to_records()` 自動標注
 - **K 線事件帶**：`docs/src/kline-events.ts`（兩頁共用）的 `addEventBand()` 在 K 線區與 VIX 區之間加一條事件帶（會改寫 option 的 grid 版面），短名稱色塊最多 3 排，依「點開的那天 > 當日漲跌幅」排位，放不下的只畫小圓點；K 線區只留淡虛線對位；縮放／拖動時由 `layoutEventLabels()` 重新排版
 - **空頭演算法**：從 `search_from` 向前滾動高點，跌幅 ≥ threshold 確認空頭後找低點與恢復日；每輪從低點之後繼續以捕捉次級空頭

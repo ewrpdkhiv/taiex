@@ -6,6 +6,7 @@
 import json
 import sys
 import time
+import warnings
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from dca import load_all_histories as dca_load_all_histories
 from dca import run_all as dca_run_all
 from dca import run_dip_buy_comparison as dca_run_dip_buy_comparison
 from dca import run_yearly as dca_run_yearly
+from price_cache import CACHE_DIR
 from taiex_big_drops import (
     DRAGON_BOAT_DATES,
     EVENT_SHORT_NAMES,
@@ -30,6 +32,7 @@ from taiex_big_drops import (
     analyze_ma_touch_returns,
     analyze_post_drop_returns,
     analyze_post_gain_returns,
+    cached_month_fetch,
     calculate_daily_returns,
     find_bear_markets,
     find_longest_streaks,
@@ -58,6 +61,10 @@ from taiex_big_drops import (
     rank_latest_foreign,
     rank_latest_margin,
 )
+
+# yfinance 匯入時會把自己的 DeprecationWarning 重新打開（蓋掉 -W ignore），
+# 內容是它用了 pandas 即將移除的 inplace 參數，與結果無關；要放在上面的 import 之後才有效
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="^yfinance")
 
 _TW = timezone(timedelta(hours=8))
 OUT_DIR = Path(__file__).parent.parent / "docs" / "data"
@@ -142,7 +149,8 @@ def _df_to_records(
 
 def _patch_ohlc(df: pd.DataFrame) -> pd.DataFrame:
     """用 TWSE 補 yfinance 缺漏的交易日：1999～2000 補行上班日，近期再以 TWSE 官方值補缺漏並覆蓋（yfinance 常晚一兩天才有最新收盤，最新一天還可能是盤中快照）。"""
-    df = patch_missing_trading_days(df)
+    history = cached_month_fetch(CACHE_DIR / "index" / "TWSE_1999_2000.csv")
+    df = patch_missing_trading_days(df, fetch_month=history)
     now = datetime.now(_TW)
     recent_start = (now - pd.Timedelta(days=45)).strftime("%Y-%m-01")
     return patch_missing_trading_days(df, start=recent_start, end=now.strftime("%Y-%m-%d"), overwrite=True)

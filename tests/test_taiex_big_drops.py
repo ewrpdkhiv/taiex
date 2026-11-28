@@ -26,6 +26,7 @@ from taiex_big_drops import (
     find_top_foreign_net_sells,
     find_top_margin_changes,
     patch_missing_trading_days,
+    cached_month_fetch,
     rank_latest_day,
     rank_latest_foreign,
     rank_latest_margin,
@@ -168,6 +169,25 @@ class TestPatchMissingTradingDays:
 def _make_df(closes: Sequence[float], lows: Sequence[float] | None = None) -> pd.DataFrame:
     dates = pd.date_range("2020-01-01", periods=len(closes), freq="D")
     return pd.DataFrame({"Date": dates, "Close": closes, "Low": lows or closes})
+
+
+class TestCachedMonthFetch:
+    def test_fetches_once_and_retries_failed_month(self, tmp_path):
+        calls = []
+
+        def fake(year, month):
+            calls.append(month)
+            if month == 2:  # 模擬查詢失敗
+                return pd.DataFrame(columns=["Date", "Open", "High", "Low", "Close"])
+            return pd.DataFrame([{"Date": pd.Timestamp(year, month, 5), "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5}])
+
+        path = tmp_path / "twse.csv"
+        for _ in range(2):
+            fetch = cached_month_fetch(path, fetch=fake)
+            assert fetch(1999, 1)["Close"].tolist() == [1.5]
+            assert fetch(1999, 2).empty
+
+        assert calls == [1, 2, 2]
 
 
 class TestFindBearMarkets:
